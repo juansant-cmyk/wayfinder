@@ -1,0 +1,64 @@
+---
+description: Add full-stack context comments above Python code blocks
+globs: **/*.py
+alwaysApply: false
+---
+
+# Python Block Comments (Full-Stack Context)
+
+When writing or editing Python files, place a brief comment **above every logical block** (imports, constants, functions, classes, route handlers, middleware, lifespan hooks, config blocks, and multi-line statements).
+
+Each comment should answer two things in one or two sentences:
+1. **What** this block does
+2. **How** it connects to the Wayfinder full stack (Expo frontend → FastAPI backend → PostgreSQL/PostGIS)
+
+## What counts as a block
+
+- Import groups (stdlib / third-party / local)
+- Module-level constants and config
+- Helper functions and class definitions
+- FastAPI routers, endpoints, dependencies, and middleware
+- Pydantic schemas and validation logic
+- Database/session setup and query blocks
+- Test fixtures, setup, and assertion groups
+
+Do **not** comment every single line. Comment each cohesive unit once.
+
+## Comment style
+
+- Use `#` comments directly above the block (not docstrings for trivial blocks)
+- Keep comments to 1–2 lines; avoid restating obvious syntax
+- Name the consumer or producer when relevant (e.g. "called by Expo client", "reads from users table")
+
+## Examples
+
+```python
+# App bootstrap — configures logging and CORS so the Expo mobile client can call this API locally.
+logging.basicConfig(level=logging.INFO, ...)
+
+# CORS allowlist — mirrors Expo dev-server origins (8081/19006) used by frontend/src/api/client.ts.
+DEFAULT_CORS_ORIGINS = ["http://localhost:8081", ...]
+
+# Health probe — consumed by CI and frontend startup checks before authenticated routes.
+@router.get("/health")
+async def health():
+    ...
+```
+
+```python
+# Travel plan schema — validates POST bodies from the mobile app before persisting to travel_plans.
+class TravelPlanCreate(BaseModel):
+    ...
+```
+
+## Full-stack map (reference when commenting)
+
+| Python layer | Connects to |
+|---|---|
+| Routers / endpoints | Expo screens via `frontend/src/api/client.ts` |
+| Auth routes & JWT | Login/register screens, protected tabs |
+| Schemas (Pydantic) | Request/response contracts shared with frontend types |
+| Config / env | `.env` vars consumed by backend and documented in `.env.example` |
+| DB models / queries | PostgreSQL schema in `database/schema/` |
+
+When adding or refactoring Python code, include these comments in the same change—do not leave new blocks uncommented.

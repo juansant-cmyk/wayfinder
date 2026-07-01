@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Frontend (Expo / React Native)
+frontend/.expo/
+frontend/dist/
+frontend/web-build/
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+frontend/ios/
+frontend/android/
+
+# Backend (Python)
+backend/.venv/
+backend/venv/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/*.egg-info/
+
+# Database
+database/.data/
+
+# Design exports (keep source links in README; ignore large temp exports)
+design/**/.DS_Store
+
+# Native builds
+*.ipa
+*.apk
+*.aab
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Logs & cache
+*.log
+npm-debug.log*
+.cache/
+.pytest_cache/
+
+# Secrets
+**/secrets/
+*.pem
