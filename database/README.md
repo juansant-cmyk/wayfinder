@@ -15,20 +15,52 @@ PostgreSQL + PostGIS schema, migrations, and seed data for Wayfinder.
 - PostgreSQL 15+
 - PostGIS extension
 
-## Layout (planned)
+## Layout
 
 ```
 database/
-├── migrations/     # SQL or Alembic revisions
-├── seeds/          # Dev/test data
-├── schema/         # Reference DDL
-└── docker-compose.yml   # Local Postgres + PostGIS (Sprint 1)
+├── docker-compose.yml   # Local Postgres + PostGIS
+├── schema/              # Reference DDL (apply manually)
+│   └── 001_users.sql
+└── README.md
 ```
 
-## Setup (Sprint 1)
+## Setup
 
-Local database tooling will be added here.
+Start Postgres + PostGIS:
+
+```bash
+cd database
+docker compose up -d
+```
+
+Apply migrations (run after first `docker compose up`):
+
+```bash
+# Windows (PowerShell) — requires psql in PATH or use Docker exec:
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/001_users.sql
+
+# macOS / Linux
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/001_users.sql
+```
+
+Default connection (matches `backend/.env.example`):
+
+| Setting | Value |
+|---------|-------|
+| Host | `localhost` |
+| Port | `55432` (host) → `5432` (container) |
+| Database | `wayfinder` |
+| User | `wayfinder` |
+| Password | `wayfinder` |
+
+Stop the database:
+
+```bash
+docker compose down
+```
 
 ## Related docs
 
 - [../docs/PROJECT_OVERVIEW.md](../docs/PROJECT_OVERVIEW.md)
+- [../backend/README.md](../backend/README.md)
