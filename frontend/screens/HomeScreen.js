@@ -1,10 +1,7 @@
-import { useEffect, useRef } from "react";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import {
   Alert,
-  Animated,
-  Easing,
   Image,
   Pressable,
   ScrollView,
@@ -14,15 +11,18 @@ import {
 } from "react-native";
 
 const quickTools = [
-  { label: "Itinerary", icon: "calendar-clear", color: "#1F78FF" },
-  { label: "Hotels", icon: "bed", color: "#FF5A1F" },
-  { label: "Flights", icon: "airplane", color: "#1F78FF" },
-  { label: "Favorites", icon: "heart", color: "#FF4D2D" },
-  { label: "Safety", icon: "shield-checkmark", color: "#10B24C" },
-  { label: "Weather", icon: "partly-sunny", color: "#F6B817" },
-  { label: "AI Chat", icon: "chatbubble-ellipses", color: "#5B50FF" },
-  { label: "Maps", icon: "location", color: "#10B24C" },
+  { label: "Itinerary", icon: "calendar-month", color: "#1F78FF", iconSize: 44 },
+  { label: "Hotels", icon: "bed", color: "#FF5A1F", iconSize: 45 },
+  { label: "Flights", icon: "airplane", color: "#1F78FF", iconSize: 46 },
+  { label: "Favorites", icon: "heart", color: "#FF4D2D", iconSize: 40 },
+  { label: "Safety", icon: "shield-check", color: "#10B24C", iconSize: 46 },
+  { label: "Weather", variant: "weather" },
+  { label: "AI Chat", variant: "chat" },
+  { label: "Maps", icon: "map-marker", color: "#10B24C", iconSize: 44 },
 ];
+
+const heroWidgetImage = require("../assets/images/ask-wayfinder-widget-final.png");
+const travelCheckCardImage = require("../assets/images/travel-check-clear.png");
 
 const recommendedDestinations = [
   {
@@ -63,72 +63,36 @@ const bottomNavItems = [
   { label: "Profile", icon: "person-outline", active: false },
 ];
 
-function Cloud({ style }) {
+function QuickToolIcon({ tool }) {
+  if (tool.variant === "weather") {
+    return (
+      <View style={styles.weatherIconWrap}>
+        <Ionicons name="sunny" size={21} color="#FDB515" style={styles.weatherSunIcon} />
+        <Ionicons name="cloud" size={42} color="#3C9BFF" />
+      </View>
+    );
+  }
+
+  if (tool.variant === "chat") {
+    return (
+      <View style={styles.chatIconWrap}>
+        <Ionicons name="chatbubble" size={42} color="#5B50FF" />
+        <Ionicons name="ellipsis" size={19} color="#FFFFFF" style={styles.chatDots} />
+        <Ionicons name="chatbubble" size={20} color="#B7D8FF" style={styles.chatAccentBubble} />
+      </View>
+    );
+  }
+
   return (
-    <View style={[styles.cloud, style]}>
-      <View style={styles.cloudLeft} />
-      <View style={styles.cloudCenter} />
-      <View style={styles.cloudRight} />
-    </View>
+    <MaterialCommunityIcons
+      name={tool.icon}
+      size={tool.iconSize ?? 42}
+      color={tool.color}
+    />
   );
 }
 
 export default function HomeScreen() {
-  const globeSpin = useRef(new Animated.Value(0)).current;
-  const robotFloat = useRef(new Animated.Value(0)).current;
-  const cloudDrift = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const animations = [
-      Animated.loop(
-        Animated.timing(globeSpin, {
-          toValue: 1,
-          duration: 16000,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        })
-      ),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(robotFloat, {
-            toValue: 1,
-            duration: 1800,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-          Animated.timing(robotFloat, {
-            toValue: 0,
-            duration: 1800,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-        ])
-      ),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(cloudDrift, {
-            toValue: 1,
-            duration: 2600,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-          Animated.timing(cloudDrift, {
-            toValue: 0,
-            duration: 2600,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-        ])
-      ),
-    ];
-
-    animations.forEach((animation) => animation.start());
-
-    return () => {
-      animations.forEach((animation) => animation.stop());
-    };
-  }, [cloudDrift, globeSpin, robotFloat]);
-
   const showPlaceholder = (label) => {
     if (label === "Home") {
       Alert.alert("Home", "You are already on Home");
@@ -137,26 +101,6 @@ export default function HomeScreen() {
 
     Alert.alert(label, "Coming soon");
   };
-
-  const globeRotate = globeSpin.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
-
-  const robotTranslateY = robotFloat.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -8],
-  });
-
-  const cloudLeftTranslate = cloudDrift.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-5, 7],
-  });
-
-  const cloudRightTranslate = cloudDrift.interpolate({
-    inputRange: [0, 1],
-    outputRange: [6, -5],
-  });
 
   return (
     <View style={styles.screen}>
@@ -194,94 +138,15 @@ export default function HomeScreen() {
         <Text style={styles.heading}>Where should we go next?</Text>
 
         <View style={styles.heroCard}>
-          <View style={styles.heroGlowLarge} />
-          <View style={styles.heroGlowSmall} />
-
-          <View style={styles.heroRow}>
-            <View style={styles.heroCopy}>
-              <View style={styles.heroTitleRow}>
-                <Ionicons name="sparkles" size={22} color="#FFFFFF" />
-                <Text style={styles.heroTitle}>Ask Wayfinder</Text>
-              </View>
-
-              <Text style={styles.heroDescription}>
-                Plan a trip, compare hotels,{"\n"}
-                and get safety tips.
-              </Text>
-            </View>
-
-            <View style={styles.heroArt}>
-              <Animated.View style={[styles.cloudOneWrap, { transform: [{ translateX: cloudLeftTranslate }] }]}>
-                <Cloud />
-              </Animated.View>
-              <Animated.View style={[styles.cloudTwoWrap, { transform: [{ translateX: cloudRightTranslate }, { scale: 0.84 }] }]}>
-                <Cloud />
-              </Animated.View>
-              <Animated.View style={[styles.cloudThreeWrap, { transform: [{ translateX: cloudLeftTranslate }, { scale: 0.66 }] }]}>
-                <Cloud />
-              </Animated.View>
-
-              <View style={styles.landmarksRow}>
-                <Ionicons name="business" size={26} color="rgba(210, 235, 255, 0.90)" />
-                <Ionicons name="business-outline" size={22} color="rgba(255, 255, 255, 0.86)" style={styles.landmarkGap} />
-                <View style={styles.eiffelWrap}>
-                  <View style={styles.eiffelTop} />
-                  <View style={styles.eiffelStem} />
-                  <View style={styles.eiffelBase} />
-                </View>
-                <View style={styles.templeWrap}>
-                  <View style={styles.templeRoofTop} />
-                  <View style={styles.templeBodyTop} />
-                  <View style={styles.templeRoofBottom} />
-                  <View style={styles.templeBodyBottom} />
-                </View>
-              </View>
-
-              <Animated.View
-                style={[
-                  styles.robotWrap,
-                  {
-                    transform: [{ translateY: robotTranslateY }],
-                  },
-                ]}
-              >
-                <View style={styles.robotAntennaStem} />
-                <View style={styles.robotAntennaDot} />
-                <View style={styles.robotHead}>
-                  <View style={styles.robotFace}>
-                    <View style={styles.robotEye} />
-                    <View style={styles.robotEye} />
-                  </View>
-                  <View style={styles.robotSmile} />
-                </View>
-                <View style={styles.robotBody}>
-                  <Ionicons name="sparkles" size={14} color="#297CFF" />
-                </View>
-              </Animated.View>
-
-              <Animated.View style={[styles.globeWrap, { transform: [{ rotate: globeRotate }] }]}>
-                <View style={styles.globe}>
-                  <View style={styles.continentOne} />
-                  <View style={styles.continentTwo} />
-                  <View style={styles.continentThree} />
-                  <View style={styles.continentFour} />
-                </View>
-              </Animated.View>
-            </View>
-          </View>
-
-          <Pressable style={styles.promptCard} onPress={() => showPlaceholder("Ask Wayfinder")}>
-            <View style={styles.promptLeft}>
-              <Ionicons name="sparkles" size={18} color="#2A7CFF" />
-              <Text style={styles.promptText}>Plan a 3-day trip to Japan under $1,500</Text>
-            </View>
-            <View style={styles.promptArrow}>
-              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-            </View>
-          </Pressable>
-
-          <Pressable style={styles.generateButton} onPress={() => showPlaceholder("Generate Trip")}>
-            <Text style={styles.generateButtonText}>Generate Trip ✨</Text>
+          <Pressable
+            onPress={() => showPlaceholder("Ask Wayfinder")}
+            style={styles.heroCardPressable}
+          >
+            <Image
+              source={heroWidgetImage}
+              style={styles.heroCardImage}
+              resizeMode="stretch"
+            />
           </Pressable>
         </View>
 
@@ -293,47 +158,19 @@ export default function HomeScreen() {
               style={styles.toolCard}
               onPress={() => showPlaceholder(tool.label)}
             >
-              <Ionicons name={tool.icon} size={36} color={tool.color} />
+              <QuickToolIcon tool={tool} />
               <Text style={styles.toolLabel}>{tool.label}</Text>
             </Pressable>
           ))}
         </View>
 
-        <View style={styles.travelCard}>
-          <View style={styles.travelShield}>
-            <Ionicons name="shield-checkmark" size={35} color="#FFFFFF" />
-          </View>
-
-          <View style={styles.travelContent}>
-            <Text style={styles.travelTitle}>Travel Check</Text>
-            <View style={styles.travelRow}>
-              <View style={styles.weatherBlock}>
-                <View style={styles.metricInline}>
-                  <Ionicons name="partly-sunny" size={28} color="#4A90E2" />
-                  <Text style={styles.metricValue}>70°F</Text>
-                </View>
-                <Text style={styles.metricCaption}>Partly Cloudy</Text>
-              </View>
-
-              <View style={styles.metricDivider} />
-
-              <View style={styles.safetyBlock}>
-                <View style={styles.metricInline}>
-                  <View style={styles.safetyDot}>
-                    <Ionicons name="checkmark" size={15} color="#FFFFFF" />
-                  </View>
-                  <Text style={styles.metricValue}>Safety Score</Text>
-                </View>
-                <Text style={styles.metricCaption}>No alerts</Text>
-              </View>
-            </View>
-          </View>
-
-          <Pressable style={styles.mapButton} onPress={() => showPlaceholder("Travel Check")}>
-            <Ionicons name="earth-outline" size={70} color="#C8DDF8" />
-            <Ionicons name="chevron-forward" size={24} color="#4B5563" style={styles.mapChevron} />
-          </Pressable>
-        </View>
+        <Pressable style={styles.travelCard} onPress={() => showPlaceholder("Travel Check")}>
+          <Image
+            source={travelCheckCardImage}
+            style={styles.travelCardImage}
+            resizeMode="contain"
+          />
+        </Pressable>
 
         <View style={styles.recommendationHeader}>
           <Text style={styles.recommendationTitle}>Recommended by Wayfinder</Text>
@@ -500,17 +337,29 @@ const styles = StyleSheet.create({
   },
 
   heroCard: {
+    width: "100%",
     borderRadius: 24,
-    backgroundColor: "#1F78FF",
-    paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 16,
+    backgroundColor: "#0D73F3",
     overflow: "hidden",
     shadowColor: "#2563EB",
     shadowOpacity: 0.18,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 10 },
     elevation: 8,
+  },
+
+  heroCardPressable: {
+    width: "100%",
+    aspectRatio: 1484 / 762,
+    borderRadius: 24,
+    overflow: "hidden",
+    backgroundColor: "#0D73F3",
+  },
+
+  heroCardImage: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#0D73F3",
   },
 
   heroGlowLarge: {
@@ -944,14 +793,44 @@ const styles = StyleSheet.create({
     color: "#22324A",
   },
 
+  weatherIconWrap: {
+    width: 54,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  weatherSunIcon: {
+    position: "absolute",
+    top: 2,
+    right: 5,
+    zIndex: 1,
+  },
+
+  chatIconWrap: {
+    width: 54,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  chatDots: {
+    position: "absolute",
+    top: 13,
+  },
+
+  chatAccentBubble: {
+    position: "absolute",
+    right: 3,
+    bottom: 1,
+  },
+
   travelCard: {
     marginTop: 18,
+    width: "100%",
     borderRadius: 19,
+    overflow: "hidden",
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-    flexDirection: "row",
-    alignItems: "center",
     shadowColor: "#8FA3BF",
     shadowOpacity: 0.12,
     shadowRadius: 12,
@@ -959,85 +838,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
-  travelShield: {
-    width: 56,
-    height: 66,
-    borderRadius: 20,
-    backgroundColor: "#1F78FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  travelContent: {
-    flex: 1,
-    marginLeft: 16,
-  },
-
-  travelTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#111827",
-  },
-
-  travelRow: {
-    marginTop: 12,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  weatherBlock: {
-    flex: 1,
-  },
-
-  safetyBlock: {
-    flex: 1.08,
-    paddingLeft: 14,
-  },
-
-  metricInline: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  metricValue: {
-    marginLeft: 8,
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#1F2937",
-  },
-
-  metricCaption: {
-    marginTop: 4,
-    marginLeft: 36,
-    fontSize: 12,
-    color: "#4B5563",
-  },
-
-  metricDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: "#E8EEF7",
-  },
-
-  safetyDot: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: "#12B54B",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  mapButton: {
-    width: 94,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 6,
-  },
-
-  mapChevron: {
-    position: "absolute",
-    right: -2,
+  travelCardImage: {
+    width: "100%",
+    alignSelf: "center",
+    aspectRatio: 2014 / 436,
   },
 
   recommendationHeader: {
