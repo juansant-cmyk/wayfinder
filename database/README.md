@@ -39,9 +39,13 @@ Apply migrations (run after first `docker compose up`):
 ```bash
 # Windows (PowerShell) — requires psql in PATH or use Docker exec:
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/001_users.sql
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/002_travel_plans.sql
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/003_places_hotels_bookmarks.sql
 
 # macOS / Linux
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/001_users.sql
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/002_travel_plans.sql
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/003_places_hotels_bookmarks.sql
 ```
 
 Default connection (matches `backend/.env.example`):

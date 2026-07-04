@@ -75,6 +75,18 @@ All auth responses use JSON. Errors return `{ "detail": "..." }`.
 - On `401`, clear the token and return to login.
 - Logout is client-only (delete token from SecureStore).
 
+## Sprint 1-2 API additions
+
+Protected routes require `Authorization: Bearer <token>`.
+
+| Area | Routes |
+|------|--------|
+| Travel plans | `GET/POST /plans`, `GET/PATCH/DELETE /plans/{plan_id}` |
+| Discovery | `GET /places/popular`, `GET /places/{place_id}` |
+| Hotels | `GET /hotels/search`, `GET /hotels/{hotel_id}` |
+
+Places and hotels use deterministic mock providers by default.
+
 ## Environment variables
 
 See [.env.example](.env.example):
@@ -85,6 +97,10 @@ See [.env.example](.env.example):
 | `JWT_SECRET` | HS256 signing secret |
 | `JWT_EXPIRE_HOURS` | Access token lifetime (default `24`) |
 | `CORS_ORIGINS` | Comma-separated Expo dev origins |
+| `GOOGLE_MAPS_API_KEY` | Google Places provider key |
+| `HOTEL_API_KEY` | Hotel provider key |
+| `USE_MOCK_PROVIDERS` | Use mock provider adapters by default |
+| `EXTERNAL_REQUEST_TIMEOUT_SECONDS` | Timeout for future live provider calls |
 
 ## Related docs
 
