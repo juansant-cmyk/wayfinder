@@ -60,7 +60,20 @@ After changing `.env`, restart Expo (`npx expo start`).
 
 ---
 
-## Auth API contract (backend → Expo)
+## Hybrid auth (Sprint 1 dev)
+
+Two modes controlled by `frontend/.env`:
+
+| Variable | Purpose |
+|----------|---------|
+| `EXPO_PUBLIC_SKIP_AUTH=true` | Skip login and open the dashboard immediately (UI/dev) |
+| `EXPO_PUBLIC_SKIP_AUTH=false` | Use real backend auth (`/auth/login`, `/auth/register`, `/auth/me`) |
+
+**Recommended workflow today:** keep `SKIP_AUTH=true` while polishing the dashboard, then set it to `false` and sign in with the test user above.
+
+Login/register call the backend when bypass is off. Use an **email address** (username/phone login is not wired yet).
+
+---
 
 Base URL: `{EXPO_PUBLIC_API_URL}` (no trailing slash).
 

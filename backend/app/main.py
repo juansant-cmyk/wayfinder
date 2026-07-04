@@ -6,7 +6,20 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import auth, discovery, hotels, plans
+from app.routers import (
+    auth,
+    chat,
+    destinations,
+    discovery,
+    favorites,
+    flights,
+    hotels,
+    notifications,
+    plans,
+    safety,
+    travel_check,
+    weather,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,6 +50,14 @@ app.include_router(auth.router)
 app.include_router(plans.router)
 app.include_router(discovery.router)
 app.include_router(hotels.router)
+app.include_router(destinations.router)
+app.include_router(flights.router)
+app.include_router(favorites.router)
+app.include_router(safety.router)
+app.include_router(weather.router)
+app.include_router(chat.router)
+app.include_router(notifications.router)
+app.include_router(travel_check.router)
 
 
 @app.get("/")

@@ -22,21 +22,29 @@ export default function LoginScreen({
   const [errors, setErrors] = useState({});
   const [statusMessage, setStatusMessage] = useState("");
 
-  const handleLogin = () => {
-    const result = onLogin?.({
-      identity,
-      password,
-      rememberMe,
-    });
+  const [submitting, setSubmitting] = useState(false);
 
-    if (result?.ok) {
-      setErrors({});
-      setStatusMessage("");
-      return;
+  const handleLogin = async () => {
+    setSubmitting(true);
+
+    try {
+      const result = await onLogin?.({
+        identity,
+        password,
+        rememberMe,
+      });
+
+      if (result?.ok) {
+        setErrors({});
+        setStatusMessage("");
+        return;
+      }
+
+      setErrors(result?.fieldErrors || {});
+      setStatusMessage(result?.message || "");
+    } finally {
+      setSubmitting(false);
     }
-
-    setErrors(result?.fieldErrors || {});
-    setStatusMessage(result?.message || "");
   };
 
   return (
@@ -104,7 +112,7 @@ export default function LoginScreen({
           </Pressable>
         </View>
 
-        <PrimaryButton label="Log In" onPress={handleLogin} />
+        <PrimaryButton label={submitting ? "Signing in..." : "Log In"} onPress={handleLogin} />
 
         {statusMessage ? <Text style={styles.statusMessage}>{statusMessage}</Text> : null}
       </View>

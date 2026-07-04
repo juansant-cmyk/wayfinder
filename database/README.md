@@ -64,6 +64,19 @@ Stop the database:
 docker compose down
 ```
 
+## Dev test user
+
+After migrations, seed a shared login from the backend folder:
+
+```bash
+cd ../backend
+python scripts/seed_test_user.py
+```
+
+| Email | Password |
+|-------|----------|
+| `test@wayfinder.dev` | `wayfinder1` |
+
 ## Related docs
 
 - [../docs/PROJECT_OVERVIEW.md](../docs/PROJECT_OVERVIEW.md)

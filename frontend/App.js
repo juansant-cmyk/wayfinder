@@ -1,157 +1,157 @@
 import { useEffect, useRef, useState } from "react";
-import { Platform } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 
+import { fetchMe, isBackendConfigured, login, register } from "./src/api/client";
+import { clearToken, getToken, saveToken } from "./src/auth/tokenStorage";
+import { getHashForScreen, getScreenFromHash } from "./src/navigation/screens";
+import ChatScreen from "./screens/ChatScreen";
+import DashboardFeatureScreen from "./screens/DashboardFeatureScreen";
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
 import HomeScreen from "./screens/HomeScreen";
 import LoginScreen from "./screens/LoginScreen";
 import SignupScreen from "./screens/SignupScreen";
 
-const AUTH_STORAGE_KEY = "wayfinder.mockAuth";
+const SKIP_AUTH = process.env.EXPO_PUBLIC_SKIP_AUTH === "true";
 
-let nativeAuthCache = {
-  accounts: [],
-  currentUser: null,
+const DEV_USER = {
+  id: "dev-bypass",
+  email: "dev@wayfinder.local",
+  fullName: "Dev User",
 };
 
 function normalizeText(value) {
   return value.trim().toLowerCase();
 }
 
-function normalizePhone(value) {
-  return value.replace(/\D/g, "");
+function isEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeText(value));
 }
 
-function getDisplayName(account) {
-  if (!account) {
+function getDisplayName(user) {
+  if (!user) {
     return "Traveler";
   }
 
-  const fullName = account.fullName?.trim();
+  const fullName = user.fullName?.trim();
 
   if (fullName) {
     return fullName.split(" ")[0];
   }
 
-  return account.username || "Traveler";
+  if (user.email) {
+    return user.email.split("@")[0];
+  }
+
+  return user.username || "Traveler";
+}
+
+function mapApiUser(apiUser, extras = {}) {
+  return {
+    id: apiUser.id,
+    email: apiUser.email,
+    createdAt: apiUser.created_at,
+    fullName: extras.fullName || "",
+    username: extras.username || "",
+  };
 }
 
 function isWebPreview() {
   return Platform.OS === "web" && typeof window !== "undefined";
 }
 
-function getScreenFromHash(hash) {
-  switch (hash) {
-    case "#signup":
-      return "signup";
-    case "#forgot-password":
-      return "forgotPassword";
-    case "#home":
-      return "home";
-    case "#login":
-    default:
-      return "login";
-  }
-}
-
-function getHashForScreen(screen) {
-  switch (screen) {
-    case "signup":
-      return "#signup";
-    case "forgotPassword":
-      return "#forgot-password";
-    case "home":
-      return "#home";
-    case "login":
-    default:
-      return "#login";
-  }
-}
-
-function isPlainObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function getStoredAuthState() {
-  const fallbackState = {
-    accounts: nativeAuthCache.accounts,
-    currentUser: nativeAuthCache.currentUser,
-  };
-
-  if (!isWebPreview()) {
-    return fallbackState;
-  }
-
-  try {
-    const rawValue = window.localStorage.getItem(AUTH_STORAGE_KEY);
-
-    if (!rawValue) {
-      return fallbackState;
-    }
-
-    const parsedValue = JSON.parse(rawValue);
-    const accounts = Array.isArray(parsedValue?.accounts) ? parsedValue.accounts : [];
-    const currentUser = isPlainObject(parsedValue?.currentUser) ? parsedValue.currentUser : null;
-    const currentUserExists = currentUser
-      ? accounts.some((account) => account?.id === currentUser.id)
-      : false;
-
-    return {
-      accounts,
-      currentUser: currentUserExists ? currentUser : null,
-    };
-  } catch (error) {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
-    return fallbackState;
-  }
-}
-
-function setStoredAuthState(accounts, currentUser) {
-  nativeAuthCache = {
-    accounts,
-    currentUser,
-  };
-
-  if (!isWebPreview()) {
-    return;
-  }
-
-  window.localStorage.setItem(
-    AUTH_STORAGE_KEY,
-    JSON.stringify({
-      accounts,
-      currentUser,
-    })
-  );
-}
+const FEATURE_SCREENS = new Set([
+  "itinerary",
+  "hotels",
+  "flights",
+  "favorites",
+  "safety",
+  "weather",
+  "maps",
+  "travelCheck",
+  "profile",
+  "notifications",
+  "destination",
+  "recommended",
+]);
 
 export default function App() {
-  const initialAuthState = useRef(getStoredAuthState()).current;
+  const [bootstrapping, setBootstrapping] = useState(!SKIP_AUTH);
   const [currentScreen, setCurrentScreen] = useState(() => {
-    if (!isWebPreview()) {
-      return "login";
+    if (SKIP_AUTH) {
+      return "home";
     }
 
-    return getScreenFromHash(window.location.hash);
+    if (isWebPreview()) {
+      return getScreenFromHash(window.location.hash);
+    }
+
+    return "login";
   });
-  const [currentUser, setCurrentUser] = useState(initialAuthState.currentUser);
-  const [accounts, setAccounts] = useState(initialAuthState.accounts);
+  const [screenParams, setScreenParams] = useState({});
+  const [currentUser, setCurrentUser] = useState(SKIP_AUTH ? DEV_USER : null);
   const lastWebHashRef = useRef("");
 
   useEffect(() => {
-    if (!isWebPreview()) {
+    if (SKIP_AUTH) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    async function restoreSession() {
+      if (!isBackendConfigured()) {
+        if (!cancelled) {
+          setBootstrapping(false);
+        }
+        return;
+      }
+
+      try {
+        const token = await getToken();
+
+        if (!token) {
+          return;
+        }
+
+        const user = await fetchMe(token);
+
+        if (!cancelled) {
+          setCurrentUser(mapApiUser(user));
+          setCurrentScreen("home");
+        }
+      } catch (error) {
+        await clearToken();
+      } finally {
+        if (!cancelled) {
+          setBootstrapping(false);
+        }
+      }
+    }
+
+    restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isWebPreview() || SKIP_AUTH) {
       return undefined;
     }
 
     const syncFromBrowserHistory = () => {
-      const nextScreen = getScreenFromHash(window.location.hash);
+      const state = window.history.state || {};
+      const nextScreen = state.screen || getScreenFromHash(window.location.hash);
       lastWebHashRef.current = getHashForScreen(nextScreen);
+      setScreenParams(state.params || {});
       setCurrentScreen(nextScreen);
     };
 
     const initialHash = getHashForScreen(currentScreen);
 
     window.history.replaceState(
-      { screen: currentScreen },
+      { screen: currentScreen, params: screenParams },
       "",
       `${window.location.pathname}${window.location.search}${initialHash}`
     );
@@ -165,7 +165,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isWebPreview()) {
+    if (!isWebPreview() || SKIP_AUTH) {
       return;
     }
 
@@ -176,14 +176,20 @@ export default function App() {
     }
 
     window.history.pushState(
-      { screen: currentScreen },
+      { screen: currentScreen, params: screenParams },
       "",
       `${window.location.pathname}${window.location.search}${nextHash}`
     );
     lastWebHashRef.current = nextHash;
-  }, [currentScreen]);
+  }, [currentScreen, screenParams]);
+
+  const navigate = (screen, params = {}) => {
+    setScreenParams(params);
+    setCurrentScreen(screen);
+  };
 
   const navigateHome = () => {
+    setScreenParams({});
     setCurrentScreen("home");
   };
 
@@ -199,69 +205,79 @@ export default function App() {
     setCurrentScreen("forgotPassword");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await clearToken();
     setCurrentUser(null);
-    setStoredAuthState(accounts, null);
+    setScreenParams({});
     setCurrentScreen("login");
   };
 
-  const handleLogin = ({ identity, password, rememberMe }) => {
+  const handleLogin = async ({ identity, password, rememberMe }) => {
     const normalizedIdentity = normalizeText(identity);
-    const normalizedPassword = password.trim();
+    const trimmedPassword = password.trim();
 
-    if (!normalizedIdentity || !normalizedPassword) {
+    if (!normalizedIdentity || !trimmedPassword) {
       return {
         ok: false,
         fieldErrors: {
           identity: !normalizedIdentity ? "Enter your username, email, or phone number." : "",
-          password: !normalizedPassword ? "Enter your password." : "",
+          password: !trimmedPassword ? "Enter your password." : "",
         },
       };
     }
 
-    const identityPhone = normalizePhone(identity);
+    if (!isBackendConfigured()) {
+      return {
+        ok: false,
+        message: "Backend URL is missing. Set EXPO_PUBLIC_API_URL in frontend/.env",
+      };
+    }
 
-    const matchingAccount = accounts.find((account) => {
-      const matchesUsername =
-        normalizeText(account.username || "") === normalizedIdentity;
-      const matchesEmail =
-        normalizeText(account.email || "") === normalizedIdentity;
-      const matchesPhone =
-        Boolean(identityPhone) &&
-        normalizePhone(account.phone || "") === identityPhone;
-
-      return matchesUsername || matchesEmail || matchesPhone;
-    });
-
-    if (!matchingAccount) {
+    if (!isEmail(normalizedIdentity)) {
       return {
         ok: false,
         fieldErrors: {
-          identity: "We couldn't find an account with that username, email, or phone number.",
+          identity: "Sign in with your email address for now.",
         },
       };
     }
 
-    if (matchingAccount.password !== password) {
+    try {
+      const data = await login(normalizedIdentity, trimmedPassword);
+
+      if (rememberMe !== false) {
+        await saveToken(data.access_token);
+      } else {
+        await clearToken();
+      }
+
+      setCurrentUser(mapApiUser(data.user));
+      navigateHome();
+
+      return {
+        ok: true,
+        user: data.user,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to sign in.";
+
+      if (message === "Invalid email or password") {
+        return {
+          ok: false,
+          fieldErrors: {
+            password: message,
+          },
+        };
+      }
+
       return {
         ok: false,
-        fieldErrors: {
-          password: "That password doesn't match this account.",
-        },
+        message,
       };
     }
-
-    setCurrentUser(matchingAccount);
-    setStoredAuthState(accounts, rememberMe ? matchingAccount : null);
-    navigateHome();
-
-    return {
-      ok: true,
-      user: matchingAccount,
-    };
   };
 
-  const handleSignup = ({
+  const handleSignup = async ({
     contact,
     fullName,
     username,
@@ -274,17 +290,12 @@ export default function App() {
     const trimmedPassword = password.trim();
     const trimmedConfirmPassword = confirmPassword.trim();
     const normalizedContact = normalizeText(trimmedContact);
-    const normalizedUsername = normalizeText(trimmedUsername);
-    const phoneDigits = normalizePhone(trimmedContact);
-    const isEmail = normalizedContact.includes("@");
     const fieldErrors = {};
 
     if (!trimmedContact) {
       fieldErrors.contact = "Enter your email or phone number.";
-    } else if (!isEmail && phoneDigits.length < 10) {
-      fieldErrors.contact = "Use a valid email address or a 10-digit phone number.";
-    } else if (isEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedContact)) {
-      fieldErrors.contact = "Enter a valid email address.";
+    } else if (!isEmail(normalizedContact)) {
+      fieldErrors.contact = "Use an email address to create your account for now.";
     }
 
     if (!trimmedFullName) {
@@ -299,41 +310,14 @@ export default function App() {
 
     if (!trimmedPassword) {
       fieldErrors.password = "Create a password.";
-    } else if (!/\d/.test(trimmedPassword) || trimmedPassword.length < 6) {
-      fieldErrors.password = "Use at least 6 characters and include a number.";
+    } else if (trimmedPassword.length < 8) {
+      fieldErrors.password = "Use at least 8 characters.";
     }
 
     if (!trimmedConfirmPassword) {
       fieldErrors.confirmPassword = "Confirm your password.";
     } else if (trimmedPassword !== trimmedConfirmPassword) {
       fieldErrors.confirmPassword = "Your passwords do not match.";
-    }
-
-    const usernameTaken = accounts.some(
-      (account) => normalizeText(account.username || "") === normalizedUsername
-    );
-    const emailTaken =
-      isEmail &&
-      accounts.some(
-        (account) => normalizeText(account.email || "") === normalizedContact
-      );
-    const phoneTaken =
-      !isEmail &&
-      phoneDigits.length > 0 &&
-      accounts.some(
-        (account) => normalizePhone(account.phone || "") === phoneDigits
-      );
-
-    if (!fieldErrors.username && usernameTaken) {
-      fieldErrors.username = "That username is already taken.";
-    }
-
-    if (!fieldErrors.contact && emailTaken) {
-      fieldErrors.contact = "An account already exists for that email.";
-    }
-
-    if (!fieldErrors.contact && phoneTaken) {
-      fieldErrors.contact = "An account already exists for that phone number.";
     }
 
     if (Object.keys(fieldErrors).length > 0) {
@@ -343,26 +327,45 @@ export default function App() {
       };
     }
 
-    const newAccount = {
-      id: `${Date.now()}`,
-      fullName: trimmedFullName,
-      username: trimmedUsername,
-      password: trimmedPassword,
-      email: isEmail ? trimmedContact : "",
-      phone: isEmail ? "" : trimmedContact,
-    };
+    if (!isBackendConfigured()) {
+      return {
+        ok: false,
+        message: "Backend URL is missing. Set EXPO_PUBLIC_API_URL in frontend/.env",
+      };
+    }
 
-    const updatedAccounts = [...accounts, newAccount];
+    try {
+      const data = await register(normalizedContact, trimmedPassword);
+      await saveToken(data.access_token);
+      setCurrentUser(
+        mapApiUser(data.user, {
+          fullName: trimmedFullName,
+          username: trimmedUsername,
+        })
+      );
+      navigateHome();
 
-    setAccounts(updatedAccounts);
-    setCurrentUser(newAccount);
-    setStoredAuthState(updatedAccounts, newAccount);
-    navigateHome();
+      return {
+        ok: true,
+        user: data.user,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to create account.";
 
-    return {
-      ok: true,
-      user: newAccount,
-    };
+      if (message === "Email already registered") {
+        return {
+          ok: false,
+          fieldErrors: {
+            contact: "An account already exists for that email.",
+          },
+        };
+      }
+
+      return {
+        ok: false,
+        message,
+      };
+    }
   };
 
   const handleForgotPassword = ({ identity }) => {
@@ -377,37 +380,19 @@ export default function App() {
       };
     }
 
-    const identityPhone = normalizePhone(identity);
-
-    const matchingAccount = accounts.find((account) => {
-      const matchesUsername =
-        normalizeText(account.username || "") === normalizedIdentity;
-      const matchesEmail =
-        normalizeText(account.email || "") === normalizedIdentity;
-      const matchesPhone =
-        Boolean(identityPhone) &&
-        normalizePhone(account.phone || "") === identityPhone;
-
-      return matchesUsername || matchesEmail || matchesPhone;
-    });
-
-    if (!matchingAccount) {
-      return {
-        ok: false,
-        fieldErrors: {
-          identity: "We couldn't find an account with those details yet.",
-        },
-      };
-    }
-
-    const recoveryTarget =
-      matchingAccount.email || matchingAccount.phone || matchingAccount.username;
-
     return {
       ok: true,
-      message: `Password reset instructions would be sent to ${recoveryTarget}.`,
+      message: "If an account exists for those details, password reset instructions would be sent.",
     };
   };
+
+  if (bootstrapping) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color="#FF7344" />
+      </View>
+    );
+  }
 
   if (currentScreen === "login") {
     return (
@@ -432,13 +417,27 @@ export default function App() {
     );
   }
 
+  if (currentScreen === "chat") {
+    return <ChatScreen onBack={navigateHome} />;
+  }
+
+  if (FEATURE_SCREENS.has(currentScreen)) {
+    return (
+      <DashboardFeatureScreen
+        screen={currentScreen}
+        params={screenParams}
+        onBack={navigateHome}
+        onNavigate={navigate}
+        onLogout={SKIP_AUTH ? undefined : handleLogout}
+      />
+    );
+  }
+
   return (
     <HomeScreen
-      currentUser={currentUser}
       displayName={getDisplayName(currentUser)}
-      onLogout={handleLogout}
-      onNavigateLogin={!currentUser ? navigateLogin : undefined}
-      onNavigateSignup={!currentUser ? navigateSignup : undefined}
+      onLogout={SKIP_AUTH ? undefined : handleLogout}
+      onNavigate={navigate}
     />
   );
 }

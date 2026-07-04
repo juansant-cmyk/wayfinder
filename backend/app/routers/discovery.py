@@ -5,8 +5,10 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.models.user import User
 from app.providers.base import PlacesProvider
 from app.providers.registry import get_places_provider
+from app.routers.auth import get_current_user
 from app.schemas.travel import PlaceResponse
 from app.services import discovery as discovery_service
 
@@ -15,6 +17,7 @@ router = APIRouter(prefix="/places", tags=["places"])
 
 @router.get("/popular", response_model=list[PlaceResponse])
 async def popular_places(
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     provider: Annotated[PlacesProvider, Depends(get_places_provider)],
     lat: float = Query(ge=-90, le=90),
@@ -29,5 +32,9 @@ async def popular_places(
 
 
 @router.get("/{place_id}", response_model=PlaceResponse)
-async def get_place(place_id: UUID, db: Annotated[AsyncSession, Depends(get_db)]):
+async def get_place(
+    place_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
     return await discovery_service.get_place(db, place_id)

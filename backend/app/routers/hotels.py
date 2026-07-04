@@ -6,8 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.models.user import User
 from app.providers.base import HotelProvider
 from app.providers.registry import get_hotel_provider
+from app.routers.auth import get_current_user
 from app.schemas.travel import HotelResponse
 from app.services import hotels as hotel_service
 
@@ -16,6 +18,7 @@ router = APIRouter(prefix="/hotels", tags=["hotels"])
 
 @router.get("/search", response_model=list[HotelResponse])
 async def search_hotels(
+    current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     provider: Annotated[HotelProvider, Depends(get_hotel_provider)],
     destination: str | None = Query(default=None, max_length=255),
@@ -50,5 +53,9 @@ async def search_hotels(
 
 
 @router.get("/{hotel_id}", response_model=HotelResponse)
-async def get_hotel(hotel_id: UUID, db: Annotated[AsyncSession, Depends(get_db)]):
+async def get_hotel(
+    hotel_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
     return await hotel_service.get_hotel(db, hotel_id)

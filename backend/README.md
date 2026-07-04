@@ -43,7 +43,17 @@ uvicorn app.main:app --reload
 API: http://127.0.0.1:8000  
 OpenAPI docs: http://127.0.0.1:8000/docs
 
-### 3. Run tests
+### 4. Seed the dev test user (optional)
+
+```bash
+python scripts/seed_test_user.py
+```
+
+| Email | Password |
+|-------|----------|
+| `test@wayfinder.dev` | `wayfinder1` |
+
+### 5. Run tests
 
 Requires the database container and `001_users.sql` migration applied:
 
@@ -75,6 +85,26 @@ All auth responses use JSON. Errors return `{ "detail": "..." }`.
 - On `401`, clear the token and return to login.
 - Logout is client-only (delete token from SecureStore).
 
+## Dashboard API (HomeScreen buttons)
+
+All routes below require `Authorization: Bearer <token>`. Mock data matches the current HomeScreen UI.
+
+| HomeScreen control | Method | Path |
+|--------------------|--------|------|
+| **Itinerary** / **Trips** (nav) | `GET` | `/plans` |
+| **Hotels** | `GET` | `/hotels/search?destination=Bali` |
+| **Flights** | `GET` | `/flights/search?destination=Bali` |
+| **Favorites** / **Saved** (nav) | `GET` | `/favorites` |
+| **Safety** | `GET` | `/safety/summary?destination=Bali` |
+| **Weather** | `GET` | `/weather/current?destination=Bali` |
+| **AI Chat** / **Ask Wayfinder** | `POST` | `/chat/messages` `{ "message": "..." }` |
+| **Maps** | `GET` | `/places/popular?lat=40&lng=-74&radius_km=5` |
+| **Travel Check** card | `GET` | `/travel-check?destination=Bali` |
+| **Recommended by Wayfinder** / **View all** | `GET` | `/destinations/recommended` |
+| Destination card (e.g. Bali) | `GET` | `/destinations/bali` |
+| **Notifications** (header) | `GET` | `/notifications` |
+| **Profile** (header / nav) | `GET` | `/auth/me` |
+
 ## Sprint 1-2 API additions
 
 Protected routes require `Authorization: Bearer <token>`.
@@ -84,8 +114,16 @@ Protected routes require `Authorization: Bearer <token>`.
 | Travel plans | `GET/POST /plans`, `GET/PATCH/DELETE /plans/{plan_id}` |
 | Discovery | `GET /places/popular`, `GET /places/{place_id}` |
 | Hotels | `GET /hotels/search`, `GET /hotels/{hotel_id}` |
+| Flights | `GET /flights/search` |
+| Favorites | `GET /favorites` |
+| Safety | `GET /safety/summary` |
+| Weather | `GET /weather/current` |
+| Chat | `POST /chat/messages` |
+| Destinations | `GET /destinations/recommended`, `GET /destinations/{slug}` |
+| Notifications | `GET /notifications` |
+| Travel check | `GET /travel-check` |
 
-Places and hotels use deterministic mock providers by default.
+Places, hotels, flights, and dashboard feeds use deterministic mock data by default.
 
 ## Environment variables
 

@@ -1,7 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
+import { useEffect, useState } from "react";
 import {
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -9,6 +9,9 @@ import {
   Text,
   View,
 } from "react-native";
+
+import * as dashboardApi from "../src/api/dashboard";
+import { getToken } from "../src/auth/tokenStorage";
 
 const quickTools = [
   { label: "Itinerary", icon: "calendar-month", color: "#1F78FF", iconSize: 44 },
@@ -24,34 +27,38 @@ const quickTools = [
 const heroWidgetImage = require("../assets/images/ask-wayfinder-widget-final.png");
 const travelCheckCardImage = require("../assets/images/travel-check-clear.png");
 
-const recommendedDestinations = [
+const fallbackDestinations = [
   {
     name: "Bali",
     subtitle: "Indonesia",
     rating: "4.8",
-    image:
+    image_url:
       "https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=600&q=80",
+    slug: "bali",
   },
   {
     name: "Japan",
     subtitle: "Culture • Food",
     rating: "4.9",
-    image:
+    image_url:
       "https://images.unsplash.com/photo-1528164344705-47542687000d?auto=format&fit=crop&w=600&q=80",
+    slug: "japan",
   },
   {
     name: "Switzerland",
     subtitle: "Nature • Lakes",
     rating: "4.7",
-    image:
+    image_url:
       "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=600&q=80",
+    slug: "switzerland",
   },
   {
     name: "Portugal",
     subtitle: "Coastal • Cities",
     rating: "4.6",
-    image:
+    image_url:
       "https://images.unsplash.com/photo-1513735492246-483525079686?auto=format&fit=crop&w=600&q=80",
+    slug: "portugal",
   },
 ];
 
@@ -92,14 +99,89 @@ function QuickToolIcon({ tool }) {
   );
 }
 
-export default function HomeScreen() {
-  const showPlaceholder = (label) => {
+function destinationImageUri(destination) {
+  return { uri: destination.image_url || destination.image };
+}
+
+export default function HomeScreen({ displayName = "User", onNavigate }) {
+  const [recommendedDestinations, setRecommendedDestinations] =
+    useState(fallbackDestinations);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRecommended() {
+      try {
+        const token = await getToken();
+        if (!token) {
+          return;
+        }
+
+        const destinations = await dashboardApi.fetchRecommendedDestinations(token);
+        if (!cancelled && destinations?.length) {
+          setRecommendedDestinations(destinations);
+        }
+      } catch (error) {
+        // Keep fallback cards when the API is unavailable.
+      }
+    }
+
+    loadRecommended();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleQuickTool = (label) => {
+    switch (label) {
+      case "Itinerary":
+        onNavigate?.("itinerary");
+        break;
+      case "Hotels":
+        onNavigate?.("hotels");
+        break;
+      case "Flights":
+        onNavigate?.("flights");
+        break;
+      case "Favorites":
+        onNavigate?.("favorites");
+        break;
+      case "Safety":
+        onNavigate?.("safety");
+        break;
+      case "Weather":
+        onNavigate?.("weather");
+        break;
+      case "AI Chat":
+        onNavigate?.("chat");
+        break;
+      case "Maps":
+        onNavigate?.("maps");
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleBottomNav = (label) => {
     if (label === "Home") {
-      Alert.alert("Home", "You are already on Home");
       return;
     }
 
-    Alert.alert(label, "Coming soon");
+    if (label === "Itinerary" || label === "Trips") {
+      onNavigate?.("itinerary");
+      return;
+    }
+
+    if (label === "Saved") {
+      onNavigate?.("favorites");
+      return;
+    }
+
+    if (label === "Profile") {
+      onNavigate?.("profile");
+    }
   };
 
   return (
@@ -125,21 +207,21 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.headerActions}>
-            <Pressable onPress={() => showPlaceholder("Notifications")} style={styles.headerButton}>
+            <Pressable onPress={() => onNavigate?.("notifications")} style={styles.headerButton}>
               <Ionicons name="notifications-outline" size={28} color="#111827" />
             </Pressable>
-            <Pressable onPress={() => showPlaceholder("Profile")} style={styles.headerButton}>
+            <Pressable onPress={() => onNavigate?.("profile")} style={styles.headerButton}>
               <Ionicons name="person-circle-outline" size={31} color="#111827" />
             </Pressable>
           </View>
         </View>
 
-        <Text style={styles.greeting}>Good morning, User 👋</Text>
+        <Text style={styles.greeting}>Good morning, {displayName} 👋</Text>
         <Text style={styles.heading}>Where should we go next?</Text>
 
         <View style={styles.heroCard}>
           <Pressable
-            onPress={() => showPlaceholder("Ask Wayfinder")}
+            onPress={() => onNavigate?.("chat")}
             style={styles.heroCardPressable}
           >
             <Image
@@ -156,7 +238,7 @@ export default function HomeScreen() {
             <Pressable
               key={tool.label}
               style={styles.toolCard}
-              onPress={() => showPlaceholder(tool.label)}
+              onPress={() => handleQuickTool(tool.label)}
             >
               <QuickToolIcon tool={tool} />
               <Text style={styles.toolLabel}>{tool.label}</Text>
@@ -164,7 +246,10 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        <Pressable style={styles.travelCard} onPress={() => showPlaceholder("Travel Check")}>
+        <Pressable
+          style={styles.travelCard}
+          onPress={() => onNavigate?.("travelCheck")}
+        >
           <Image
             source={travelCheckCardImage}
             style={styles.travelCardImage}
@@ -174,7 +259,7 @@ export default function HomeScreen() {
 
         <View style={styles.recommendationHeader}>
           <Text style={styles.recommendationTitle}>Recommended by Wayfinder</Text>
-          <Pressable onPress={() => showPlaceholder("Recommended trips")}>
+          <Pressable onPress={() => onNavigate?.("recommended")}>
             <Text style={styles.viewAllText}>View all</Text>
           </Pressable>
         </View>
@@ -182,11 +267,13 @@ export default function HomeScreen() {
         <View style={styles.destinationRow}>
           {recommendedDestinations.map((destination) => (
             <Pressable
-              key={destination.name}
+              key={destination.slug || destination.name}
               style={styles.destinationCard}
-              onPress={() => showPlaceholder(destination.name)}
+              onPress={() =>
+                onNavigate?.("destination", { slug: destination.slug || destination.name.toLowerCase() })
+              }
             >
-              <Image source={{ uri: destination.image }} style={styles.destinationImage} />
+              <Image source={destinationImageUri(destination)} style={styles.destinationImage} />
               <View style={styles.destinationOverlay} />
               <Ionicons name="heart-outline" size={18} color="#FFFFFF" style={styles.destinationHeart} />
               <View style={styles.destinationContent}>
@@ -207,7 +294,7 @@ export default function HomeScreen() {
           <Pressable
             key={item.label}
             style={styles.bottomNavItem}
-            onPress={() => showPlaceholder(item.label)}
+            onPress={() => handleBottomNav(item.label)}
           >
             <Ionicons
               name={item.icon}
@@ -360,399 +447,6 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     backgroundColor: "#0D73F3",
-  },
-
-  heroGlowLarge: {
-    position: "absolute",
-    top: -22,
-    right: -18,
-    width: 176,
-    height: 176,
-    borderRadius: 88,
-    backgroundColor: "rgba(109, 196, 255, 0.24)",
-  },
-
-  heroGlowSmall: {
-    position: "absolute",
-    bottom: -42,
-    left: -36,
-    width: 182,
-    height: 182,
-    borderRadius: 91,
-    backgroundColor: "rgba(5, 86, 214, 0.28)",
-  },
-
-  heroRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-
-  heroCopy: {
-    width: "48%",
-    paddingTop: 2,
-  },
-
-  heroTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  heroTitle: {
-    marginLeft: 8,
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: -0.8,
-  },
-
-  heroDescription: {
-    marginTop: 14,
-    fontSize: 16,
-    lineHeight: 26,
-    color: "#F4FAFF",
-  },
-
-  heroArt: {
-    width: 192,
-    height: 148,
-    position: "relative",
-  },
-
-  cloudOneWrap: {
-    position: "absolute",
-    top: 12,
-    right: 14,
-  },
-
-  cloudTwoWrap: {
-    position: "absolute",
-    top: 46,
-    left: 4,
-  },
-
-  cloudThreeWrap: {
-    position: "absolute",
-    top: 66,
-    right: 66,
-  },
-
-  cloud: {
-    width: 44,
-    height: 16,
-    position: "relative",
-  },
-
-  cloudLeft: {
-    position: "absolute",
-    left: 0,
-    bottom: 0,
-    width: 16,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "rgba(255, 255, 255, 0.74)",
-  },
-
-  cloudCenter: {
-    position: "absolute",
-    left: 10,
-    top: 0,
-    width: 18,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.85)",
-  },
-
-  cloudRight: {
-    position: "absolute",
-    right: 0,
-    bottom: 0,
-    width: 18,
-    height: 11,
-    borderRadius: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.74)",
-  },
-
-  landmarksRow: {
-    position: "absolute",
-    right: 34,
-    bottom: 40,
-    flexDirection: "row",
-    alignItems: "flex-end",
-  },
-
-  landmarkGap: {
-    marginLeft: 3,
-  },
-
-  eiffelWrap: {
-    marginLeft: 4,
-    width: 17,
-    alignItems: "center",
-    justifyContent: "flex-end",
-    height: 54,
-  },
-
-  eiffelTop: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 5,
-    borderRightWidth: 5,
-    borderBottomWidth: 11,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderBottomColor: "#F6C978",
-  },
-
-  eiffelStem: {
-    marginTop: 2,
-    width: 4,
-    height: 22,
-    borderRadius: 2,
-    backgroundColor: "#F6C978",
-  },
-
-  eiffelBase: {
-    marginTop: 2,
-    width: 15,
-    height: 15,
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
-    backgroundColor: "#F6C978",
-  },
-
-  templeWrap: {
-    marginLeft: 6,
-    width: 32,
-    height: 46,
-    alignItems: "center",
-    justifyContent: "flex-end",
-  },
-
-  templeRoofTop: {
-    width: 22,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#FF7A34",
-  },
-
-  templeBodyTop: {
-    width: 16,
-    height: 10,
-    backgroundColor: "#653412",
-  },
-
-  templeRoofBottom: {
-    width: 30,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: "#FF7A34",
-  },
-
-  templeBodyBottom: {
-    width: 22,
-    height: 14,
-    backgroundColor: "#653412",
-  },
-
-  robotWrap: {
-    position: "absolute",
-    left: 26,
-    bottom: 18,
-    alignItems: "center",
-    zIndex: 2,
-  },
-
-  robotAntennaStem: {
-    width: 4,
-    height: 18,
-    borderRadius: 2,
-    backgroundColor: "#A8D8FF",
-    marginBottom: -2,
-  },
-
-  robotAntennaDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#2D89FF",
-    marginBottom: 2,
-  },
-
-  robotHead: {
-    width: 76,
-    height: 60,
-    borderRadius: 21,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 5,
-    borderColor: "#DFF1FF",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#0F4ECC",
-    shadowOpacity: 0.14,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 5,
-  },
-
-  robotFace: {
-    width: 46,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#0F274E",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-evenly",
-  },
-
-  robotEye: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#76E7FF",
-  },
-
-  robotSmile: {
-    marginTop: 4,
-    width: 18,
-    height: 8,
-    borderBottomWidth: 2,
-    borderColor: "#76E7FF",
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-  },
-
-  robotBody: {
-    marginTop: -2,
-    width: 38,
-    height: 32,
-    borderTopLeftRadius: 13,
-    borderTopRightRadius: 13,
-    borderBottomLeftRadius: 11,
-    borderBottomRightRadius: 11,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 4,
-    borderColor: "#DFF1FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  globeWrap: {
-    position: "absolute",
-    right: -2,
-    bottom: -10,
-    width: 118,
-    height: 118,
-    borderRadius: 59,
-    overflow: "hidden",
-    zIndex: 1,
-  },
-
-  globe: {
-    flex: 1,
-    borderRadius: 59,
-    backgroundColor: "#6ACC58",
-  },
-
-  continentOne: {
-    position: "absolute",
-    top: 28,
-    left: 18,
-    width: 34,
-    height: 18,
-    borderRadius: 11,
-    backgroundColor: "#2E89FF",
-    transform: [{ rotate: "-18deg" }],
-  },
-
-  continentTwo: {
-    position: "absolute",
-    top: 48,
-    right: 14,
-    width: 32,
-    height: 15,
-    borderRadius: 9,
-    backgroundColor: "#2E89FF",
-    transform: [{ rotate: "22deg" }],
-  },
-
-  continentThree: {
-    position: "absolute",
-    bottom: 24,
-    left: 28,
-    width: 42,
-    height: 20,
-    borderRadius: 12,
-    backgroundColor: "#2E89FF",
-    transform: [{ rotate: "10deg" }],
-  },
-
-  continentFour: {
-    position: "absolute",
-    bottom: 16,
-    right: 24,
-    width: 18,
-    height: 10,
-    borderRadius: 6,
-    backgroundColor: "#2E89FF",
-    transform: [{ rotate: "-12deg" }],
-  },
-
-  promptCard: {
-    marginTop: 16,
-    minHeight: 56,
-    borderRadius: 18,
-    backgroundColor: "#FFFFFF",
-    paddingLeft: 16,
-    paddingRight: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  promptLeft: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingRight: 10,
-  },
-
-  promptText: {
-    marginLeft: 10,
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#12233C",
-    lineHeight: 20,
-  },
-
-  promptArrow: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#0D2754",
-  },
-
-  generateButton: {
-    marginTop: 10,
-    minHeight: 48,
-    borderRadius: 18,
-    backgroundColor: "#FF6D39",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#FF6D39",
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
-  },
-
-  generateButtonText: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: -0.4,
   },
 
   sectionTitle: {
