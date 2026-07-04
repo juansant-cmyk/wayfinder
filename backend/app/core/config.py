@@ -10,6 +10,10 @@ class Settings(BaseSettings):
         "http://localhost:8081,http://localhost:19006,"
         "http://127.0.0.1:8081,http://127.0.0.1:19006"
     )
+    google_maps_api_key: str = ""
+    hotel_api_key: str = ""
+    use_mock_providers: bool = True
+    external_request_timeout_seconds: int = 10
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
