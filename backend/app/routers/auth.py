@@ -26,11 +26,11 @@ def normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
-def database_unavailable_error(exc: SQLAlchemyError) -> HTTPException:
+def database_unavailable_error(_exc: SQLAlchemyError) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail="Database unavailable. Check DATABASE_URL and Supabase schema on the server.",
-    ) from exc
+    )
 
 
 async def get_current_user(
