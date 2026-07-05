@@ -20,5 +20,19 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
+    def async_database_url(self) -> str:
+        """Normalize Supabase/Render Postgres URLs for SQLAlchemy asyncpg."""
+        url = self.database_url
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+        if "supabase.co" in url and "ssl=" not in url:
+            separator = "&" if "?" in url else "?"
+            url = f"{url}{separator}ssl=require"
+
+        return url
+
 
 settings = Settings()

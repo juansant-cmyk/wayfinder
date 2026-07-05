@@ -145,6 +145,7 @@ See [.env.example](.env.example):
 
 ## Related docs
 
+- [../docs/DEPLOY.md](../docs/DEPLOY.md) — **Supabase + Render production deploy**
 - [../docs/PROJECT_OVERVIEW.md](../docs/PROJECT_OVERVIEW.md)
 - [../docs/SPRINT_PLAN.md](../docs/SPRINT_PLAN.md)
 - [../database/README.md](../database/README.md)
