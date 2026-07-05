@@ -5,7 +5,12 @@ from httpx import AsyncClient
 async def auth_headers(client: AsyncClient) -> dict[str, str]:
     response = await client.post(
         "/auth/register",
-        json={"email": "dashboard@example.com", "password": "password123"},
+        json={
+            "email": "dashboard@example.com",
+            "password": "password123",
+            "full_name": "Dashboard User",
+            "username": "dashboarduser",
+        },
     )
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}

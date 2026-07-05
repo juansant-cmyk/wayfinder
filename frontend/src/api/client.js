@@ -1,11 +1,17 @@
 const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || "";
 
+let unauthorizedHandler = null;
+
 export function getApiUrl() {
   return API_URL;
 }
 
 export function isBackendConfigured() {
   return Boolean(API_URL);
+}
+
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = handler;
 }
 
 async function parseError(response) {
@@ -48,6 +54,11 @@ export async function apiRequest(path, { method = "GET", body, token } = {}) {
     );
   }
 
+  if (response.status === 401 && token && unauthorizedHandler) {
+    await unauthorizedHandler();
+    throw new Error("Your session expired. Sign in again.");
+  }
+
   if (!response.ok) {
     throw new Error(await parseError(response));
   }
@@ -59,17 +70,22 @@ export async function apiRequest(path, { method = "GET", body, token } = {}) {
   return response.json();
 }
 
-export function register(email, password) {
+export function register({ email, password, fullName, username }) {
   return apiRequest("/auth/register", {
     method: "POST",
-    body: { email, password },
+    body: {
+      email,
+      password,
+      full_name: fullName,
+      username,
+    },
   });
 }
 
-export function login(email, password) {
+export function login(identity, password) {
   return apiRequest("/auth/login", {
     method: "POST",
-    body: { email, password },
+    body: { identity, password },
   });
 }
 

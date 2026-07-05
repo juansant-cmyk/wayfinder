@@ -144,8 +144,10 @@ function renderProfile(profile, onLogout) {
   return (
     <>
       <View style={cardStyles.card}>
-        <Text style={cardStyles.cardTitle}>{profile.email}</Text>
-        <Text style={cardStyles.cardSubtitle}>
+        <Text style={cardStyles.cardTitle}>{profile.full_name}</Text>
+        <Text style={cardStyles.cardSubtitle}>@{profile.username}</Text>
+        <Text style={[cardStyles.cardSubtitle, { marginTop: 8 }]}>{profile.email}</Text>
+        <Text style={cardStyles.metaText}>
           Member since {new Date(profile.created_at).toLocaleDateString()}
         </Text>
       </View>

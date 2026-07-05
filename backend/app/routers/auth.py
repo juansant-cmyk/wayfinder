@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,15 +59,23 @@ async def register(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TokenResponse:
     email = normalize_email(body.email)
-    user = User(email=email, password_hash=hash_password(body.password))
+    user = User(
+        email=email,
+        full_name=body.full_name,
+        username=body.username,
+        password_hash=hash_password(body.password),
+    )
     db.add(user)
     try:
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
+        detail = "Email already registered"
+        if "users_username_unique" in str(exc.orig) or "username" in str(exc.orig).lower():
+            detail = "Username already taken"
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
+            detail=detail,
         ) from exc
     await db.refresh(user)
     token = create_access_token(user.id)
@@ -82,8 +90,12 @@ async def login(
     body: LoginRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TokenResponse:
-    email = normalize_email(body.email)
-    result = await db.execute(select(User).where(User.email == email))
+    identity = body.identity
+    if "@" in identity:
+        result = await db.execute(select(User).where(User.email == identity))
+    else:
+        result = await db.execute(select(User).where(User.username == identity))
+
     user = result.scalar_one_or_none()
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(

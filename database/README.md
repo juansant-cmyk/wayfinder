@@ -41,11 +41,13 @@ Apply migrations (run after first `docker compose up`):
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/001_users.sql
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/002_travel_plans.sql
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/003_places_hotels_bookmarks.sql
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/004_user_profile.sql
 
 # macOS / Linux
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/001_users.sql
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/002_travel_plans.sql
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/003_places_hotels_bookmarks.sql
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/004_user_profile.sql
 ```
 
 Default connection (matches `backend/.env.example`):
@@ -73,9 +75,9 @@ cd ../backend
 python scripts/seed_test_user.py
 ```
 
-| Email | Password |
-|-------|----------|
-| `test@wayfinder.dev` | `wayfinder1` |
+| Email | Username | Password |
+|-------|----------|----------|
+| `test@wayfinder.dev` | `testuser` | `wayfinder1` |
 
 ## Related docs
 

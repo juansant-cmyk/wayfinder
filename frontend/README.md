@@ -60,18 +60,11 @@ After changing `.env`, restart Expo (`npx expo start`).
 
 ---
 
-## Hybrid auth (Sprint 1 dev)
+## Hybrid auth (Sprint 1)
 
-Two modes controlled by `frontend/.env`:
+Registration and login call the real backend. The app opens the login screen until a valid session exists (`SecureStore` token + `GET /auth/me`).
 
-| Variable | Purpose |
-|----------|---------|
-| `EXPO_PUBLIC_SKIP_AUTH=true` | Skip login and open the dashboard immediately (UI/dev) |
-| `EXPO_PUBLIC_SKIP_AUTH=false` | Use real backend auth (`/auth/login`, `/auth/register`, `/auth/me`) |
-
-**Recommended workflow today:** keep `SKIP_AUTH=true` while polishing the dashboard, then set it to `false` and sign in with the test user above.
-
-Login/register call the backend when bypass is off. Use an **email address** (username/phone login is not wired yet).
+Sign up with email, full name, username, and password. Sign in with **email or username** plus password. Invalid credentials are rejected by the API.
 
 ---
 

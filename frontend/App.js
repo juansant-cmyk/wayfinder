@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
 
-import { fetchMe, isBackendConfigured, login, register } from "./src/api/client";
+import { fetchMe, isBackendConfigured, login, register, setUnauthorizedHandler } from "./src/api/client";
 import { clearToken, getToken, saveToken } from "./src/auth/tokenStorage";
 import { getHashForScreen, getScreenFromHash } from "./src/navigation/screens";
 import ChatScreen from "./screens/ChatScreen";
@@ -11,13 +11,7 @@ import HomeScreen from "./screens/HomeScreen";
 import LoginScreen from "./screens/LoginScreen";
 import SignupScreen from "./screens/SignupScreen";
 
-const SKIP_AUTH = process.env.EXPO_PUBLIC_SKIP_AUTH === "true";
-
-const DEV_USER = {
-  id: "dev-bypass",
-  email: "dev@wayfinder.local",
-  fullName: "Dev User",
-};
+const AUTH_ONLY_SCREENS = new Set(["login", "signup", "forgotPassword"]);
 
 function normalizeText(value) {
   return value.trim().toLowerCase();
@@ -45,13 +39,13 @@ function getDisplayName(user) {
   return user.username || "Traveler";
 }
 
-function mapApiUser(apiUser, extras = {}) {
+function mapApiUser(apiUser) {
   return {
     id: apiUser.id,
     email: apiUser.email,
     createdAt: apiUser.created_at,
-    fullName: extras.fullName || "",
-    username: extras.username || "",
+    fullName: apiUser.full_name || "",
+    username: apiUser.username || "",
   };
 }
 
@@ -75,27 +69,33 @@ const FEATURE_SCREENS = new Set([
 ]);
 
 export default function App() {
-  const [bootstrapping, setBootstrapping] = useState(!SKIP_AUTH);
+  const [bootstrapping, setBootstrapping] = useState(true);
   const [currentScreen, setCurrentScreen] = useState(() => {
-    if (SKIP_AUTH) {
-      return "home";
-    }
-
     if (isWebPreview()) {
-      return getScreenFromHash(window.location.hash);
+      const fromHash = getScreenFromHash(window.location.hash);
+      return AUTH_ONLY_SCREENS.has(fromHash) ? fromHash : "login";
     }
 
     return "login";
   });
   const [screenParams, setScreenParams] = useState({});
-  const [currentUser, setCurrentUser] = useState(SKIP_AUTH ? DEV_USER : null);
+  const [currentUser, setCurrentUser] = useState(null);
   const lastWebHashRef = useRef("");
 
   useEffect(() => {
-    if (SKIP_AUTH) {
-      return undefined;
-    }
+    setUnauthorizedHandler(async () => {
+      await clearToken();
+      setCurrentUser(null);
+      setScreenParams({});
+      setCurrentScreen("login");
+    });
 
+    return () => {
+      setUnauthorizedHandler(null);
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function restoreSession() {
@@ -136,7 +136,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isWebPreview() || SKIP_AUTH) {
+    if (!isWebPreview()) {
       return undefined;
     }
 
@@ -165,7 +165,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isWebPreview() || SKIP_AUTH) {
+    if (!isWebPreview()) {
       return;
     }
 
@@ -212,16 +212,37 @@ export default function App() {
     setCurrentScreen("login");
   };
 
-  const handleLogin = async ({ identity, password, rememberMe }) => {
-    const normalizedIdentity = normalizeText(identity);
+  const handleLogin = async ({ identity, password }) => {
+    const trimmedIdentity = identity.trim();
     const trimmedPassword = password.trim();
+    const normalizedIdentity = trimmedIdentity.includes("@")
+      ? normalizeText(trimmedIdentity)
+      : trimmedIdentity.toLowerCase();
 
     if (!normalizedIdentity || !trimmedPassword) {
       return {
         ok: false,
         fieldErrors: {
-          identity: !normalizedIdentity ? "Enter your username, email, or phone number." : "",
+          identity: !normalizedIdentity ? "Enter your email or username." : "",
           password: !trimmedPassword ? "Enter your password." : "",
+        },
+      };
+    }
+
+    if (normalizedIdentity.includes("@") && !isEmail(normalizedIdentity)) {
+      return {
+        ok: false,
+        fieldErrors: {
+          identity: "Enter a valid email address.",
+        },
+      };
+    }
+
+    if (!normalizedIdentity.includes("@") && normalizedIdentity.length < 3) {
+      return {
+        ok: false,
+        fieldErrors: {
+          identity: "Usernames must be at least 3 characters.",
         },
       };
     }
@@ -233,24 +254,9 @@ export default function App() {
       };
     }
 
-    if (!isEmail(normalizedIdentity)) {
-      return {
-        ok: false,
-        fieldErrors: {
-          identity: "Sign in with your email address for now.",
-        },
-      };
-    }
-
     try {
       const data = await login(normalizedIdentity, trimmedPassword);
-
-      if (rememberMe !== false) {
-        await saveToken(data.access_token);
-      } else {
-        await clearToken();
-      }
-
+      await saveToken(data.access_token);
       setCurrentUser(mapApiUser(data.user));
       navigateHome();
 
@@ -290,12 +296,13 @@ export default function App() {
     const trimmedPassword = password.trim();
     const trimmedConfirmPassword = confirmPassword.trim();
     const normalizedContact = normalizeText(trimmedContact);
+    const normalizedUsername = trimmedUsername.toLowerCase();
     const fieldErrors = {};
 
     if (!trimmedContact) {
-      fieldErrors.contact = "Enter your email or phone number.";
+      fieldErrors.contact = "Enter your email address.";
     } else if (!isEmail(normalizedContact)) {
-      fieldErrors.contact = "Use an email address to create your account for now.";
+      fieldErrors.contact = "Enter a valid email address.";
     }
 
     if (!trimmedFullName) {
@@ -304,8 +311,10 @@ export default function App() {
 
     if (!trimmedUsername) {
       fieldErrors.username = "Create a username.";
-    } else if (trimmedUsername.length < 3) {
+    } else if (normalizedUsername.length < 3) {
       fieldErrors.username = "Use at least 3 characters for your username.";
+    } else if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) {
+      fieldErrors.username = "Use letters, numbers, and underscores only.";
     }
 
     if (!trimmedPassword) {
@@ -335,14 +344,14 @@ export default function App() {
     }
 
     try {
-      const data = await register(normalizedContact, trimmedPassword);
+      const data = await register({
+        email: normalizedContact,
+        password: trimmedPassword,
+        fullName: trimmedFullName,
+        username: normalizedUsername,
+      });
       await saveToken(data.access_token);
-      setCurrentUser(
-        mapApiUser(data.user, {
-          fullName: trimmedFullName,
-          username: trimmedUsername,
-        })
-      );
+      setCurrentUser(mapApiUser(data.user));
       navigateHome();
 
       return {
@@ -357,6 +366,15 @@ export default function App() {
           ok: false,
           fieldErrors: {
             contact: "An account already exists for that email.",
+          },
+        };
+      }
+
+      if (message === "Username already taken") {
+        return {
+          ok: false,
+          fieldErrors: {
+            username: "That username is already taken.",
           },
         };
       }
@@ -394,24 +412,24 @@ export default function App() {
     );
   }
 
-  if (currentScreen === "login") {
+  if (!currentUser) {
+    if (currentScreen === "signup") {
+      return <SignupScreen onSignup={handleSignup} onNavigateLogin={navigateLogin} />;
+    }
+
+    if (currentScreen === "forgotPassword") {
+      return (
+        <ForgotPasswordScreen
+          onForgotPassword={handleForgotPassword}
+          onNavigateSignup={navigateSignup}
+        />
+      );
+    }
+
     return (
       <LoginScreen
         onLogin={handleLogin}
         onNavigateForgotPassword={navigateForgotPassword}
-        onNavigateSignup={navigateSignup}
-      />
-    );
-  }
-
-  if (currentScreen === "signup") {
-    return <SignupScreen onSignup={handleSignup} onNavigateLogin={navigateLogin} />;
-  }
-
-  if (currentScreen === "forgotPassword") {
-    return (
-      <ForgotPasswordScreen
-        onForgotPassword={handleForgotPassword}
         onNavigateSignup={navigateSignup}
       />
     );
@@ -428,7 +446,7 @@ export default function App() {
         params={screenParams}
         onBack={navigateHome}
         onNavigate={navigate}
-        onLogout={SKIP_AUTH ? undefined : handleLogout}
+        onLogout={handleLogout}
       />
     );
   }
@@ -436,7 +454,6 @@ export default function App() {
   return (
     <HomeScreen
       displayName={getDisplayName(currentUser)}
-      onLogout={SKIP_AUTH ? undefined : handleLogout}
       onNavigate={navigate}
     />
   );

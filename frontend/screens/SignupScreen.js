@@ -64,7 +64,7 @@ export default function SignupScreen({ onSignup, onNavigateLogin }) {
 
       <View style={styles.formBlock}>
         <UnderlineField
-          label="Email or Phone Number"
+          label="Email address"
           value={contact}
           onChangeText={(value) => {
             setContact(value);

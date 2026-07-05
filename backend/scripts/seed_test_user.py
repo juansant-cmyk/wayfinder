@@ -14,6 +14,8 @@ from app.models.user import User
 
 TEST_EMAIL = "test@wayfinder.dev"
 TEST_PASSWORD = "wayfinder1"
+TEST_FULL_NAME = "Test User"
+TEST_USERNAME = "testuser"
 
 
 async def main() -> None:
@@ -25,11 +27,17 @@ async def main() -> None:
             print(f"Test user already exists: {TEST_EMAIL}")
             return
 
-        user = User(email=TEST_EMAIL, password_hash=hash_password(TEST_PASSWORD))
+        user = User(
+            email=TEST_EMAIL,
+            full_name=TEST_FULL_NAME,
+            username=TEST_USERNAME,
+            password_hash=hash_password(TEST_PASSWORD),
+        )
         session.add(user)
         await session.commit()
         print("Created test user:")
         print(f"  email:    {TEST_EMAIL}")
+        print(f"  username: {TEST_USERNAME}")
         print(f"  password: {TEST_PASSWORD}")
 
 

@@ -61,7 +61,7 @@ export default function LoginScreen({
 
       <View style={styles.formBlock}>
         <UnderlineField
-          label="Username, Email or Phone Number"
+          label="Email or username"
           value={identity}
           onChangeText={(value) => {
             setIdentity(value);

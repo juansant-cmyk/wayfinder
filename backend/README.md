@@ -68,14 +68,17 @@ All auth responses use JSON. Errors return `{ "detail": "..." }`.
 
 | Method | Path | Auth | Body | Success |
 |--------|------|------|------|---------|
-| `POST` | `/auth/register` | No | `{ "email", "password" }` | `201` — `{ "access_token", "token_type": "bearer", "user": { "id", "email", "created_at" } }` |
-| `POST` | `/auth/login` | No | `{ "email", "password" }` | `200` — same shape as register |
-| `GET` | `/auth/me` | `Authorization: Bearer <token>` | — | `200` — `{ "id", "email", "created_at" }` |
+| `POST` | `/auth/register` | No | `{ "email", "password", "full_name", "username" }` | `201` — `{ "access_token", "token_type": "bearer", "user": { "id", "email", "full_name", "username", "created_at" } }` |
+| `POST` | `/auth/login` | No | `{ "identity", "password" }` | `200` — same shape as register |
+| `GET` | `/auth/me` | `Authorization: Bearer <token>` | — | `200` — `{ "id", "email", "full_name", "username", "created_at" }` |
 
 **Validation**
 
 - Email must be a valid address (stored lowercase).
 - Password minimum length: 8 characters.
+- `full_name` is required (1–120 characters).
+- `username` is required (3–40 characters, letters/numbers/underscore, stored lowercase, unique).
+- Login `identity` accepts the account email or username. Only credentials stored in PostgreSQL succeed.
 
 **Frontend integration notes**
 
