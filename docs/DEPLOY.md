@@ -174,6 +174,8 @@ Keep local `.env` files **out of git**. Use Render/Supabase dashboards for produ
 | `postgis` extension missing | Enable in Supabase → Extensions |
 | Sign up shows "Something went wrong" or 500 | Open `/health/db` — if 503, fix `DATABASE_URL` on Render (Supabase **Session** or **Direct** pooler, port 5432) and run [`database/supabase_init.sql`](../database/supabase_init.sql) in Supabase SQL Editor |
 | `/health/db` returns 503 | Wrong Supabase password, missing `ssl`, transaction pooler without code fix, or schema not applied |
+| Deploy log: `tenant/user postgres.[ref] not found` | Pooler **region/host is wrong** — re-copy the Session pooler URI from Supabase (do not guess `aws-0-us-west-1`; use your project's exact host) |
+| Render deploy exits on startup | Fixed in latest backend — DB check logs a warning but app still starts; fix `DATABASE_URL` then check `/health/db` |
 | Login works locally, not on phone | `EXPO_PUBLIC_API_URL=https://wayfinder-e30f.onrender.com` (not `localhost`) |
 | Move to Fly.io later | Same FastAPI code — redeploy with new host + update app URL |
 

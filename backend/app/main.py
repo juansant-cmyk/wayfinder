@@ -42,7 +42,8 @@ async def lifespan(app: FastAPI):
         async with AsyncSessionLocal() as session:
             await session.execute(text("SELECT 1"))
         logger.info("Database connection verified")
-    except SQLAlchemyError:
+    except Exception:
+        # Do not block deploy when DATABASE_URL is wrong — /health/db reports status instead.
         logger.exception(
             "Database connection failed at startup — auth routes will not work until "
             "DATABASE_URL is fixed and Supabase schema is applied"
