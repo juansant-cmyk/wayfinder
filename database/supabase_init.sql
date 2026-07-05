@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     CONSTRAINT users_username_unique UNIQUE (username)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS users_username_unique ON users (LOWER(username));
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (LOWER(username));
 
 -- 002 travel plans
 CREATE TABLE IF NOT EXISTS travel_plans (

@@ -15,7 +15,17 @@ export function setUnauthorizedHandler(handler) {
 }
 
 async function parseError(response) {
-  const body = await response.json().catch(() => ({}));
+  const raw = await response.text();
+  let body = {};
+
+  if (raw) {
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      return raw.trim() || `Request failed (${response.status}).`;
+    }
+  }
+
   const { detail } = body;
 
   if (typeof detail === "string") {
@@ -23,10 +33,15 @@ async function parseError(response) {
   }
 
   if (Array.isArray(detail)) {
-    return detail.map((item) => item.msg).join(", ");
+    const messages = detail
+      .map((item) => (typeof item === "string" ? item : item?.msg))
+      .filter(Boolean);
+    if (messages.length > 0) {
+      return messages.join(", ");
+    }
   }
 
-  return "Something went wrong. Please try again.";
+  return `Request failed (${response.status}). Please try again.`;
 }
 
 export async function apiRequest(path, { method = "GET", body, token } = {}) {
@@ -50,7 +65,9 @@ export async function apiRequest(path, { method = "GET", body, token } = {}) {
     });
   } catch (error) {
     throw new Error(
-      "Cannot reach the backend. Start Docker, then run the API on port 8000."
+      `Cannot reach the API at ${API_URL}. Check your internet connection, ` +
+        "confirm EXPO_PUBLIC_API_URL in frontend/.env, and restart Expo (npx expo start --clear). " +
+        "If the API is on Render, the first request after idle can take up to a minute."
     );
   }
 

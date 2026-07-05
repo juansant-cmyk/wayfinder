@@ -12,6 +12,22 @@ Local dev still uses Docker Postgres in [`database/`](../database/README.md).
 
 ---
 
+## Production URLs (Wayfinder)
+
+| Resource | URL |
+|----------|-----|
+| API base | `https://wayfinder-e30f.onrender.com` |
+| Health check | [https://wayfinder-e30f.onrender.com/health](https://wayfinder-e30f.onrender.com/health) |
+| API docs | [https://wayfinder-e30f.onrender.com/docs](https://wayfinder-e30f.onrender.com/docs) |
+
+Set in `frontend/.env` for production / TestFlight builds:
+
+```env
+EXPO_PUBLIC_API_URL=https://wayfinder-e30f.onrender.com
+```
+
+---
+
 ## 1. Supabase (database)
 
 ### Create project
@@ -75,10 +91,10 @@ Local dev still uses Docker Postgres in [`database/`](../database/README.md).
 | `USE_MOCK_PROVIDERS` | `true` |
 | `CORS_ORIGINS` | Comma-separated origins (see below) |
 
-**CORS example** (adjust for your Expo web URL if needed):
+**CORS example** (set in Render **Environment** → `CORS_ORIGINS`):
 
 ```
-https://your-app.onrender.com,http://localhost:8081,http://localhost:19006
+https://wayfinder-e30f.onrender.com,http://localhost:8081,http://localhost:19006
 ```
 
 Native iOS (Expo Go / TestFlight) does not use CORS — only web builds do.
@@ -88,7 +104,7 @@ Native iOS (Expo Go / TestFlight) does not use CORS — only web builds do.
 Open:
 
 ```
-https://wayfinder-api.onrender.com/health
+https://wayfinder-e30f.onrender.com/health
 ```
 
 Should return `{"status":"healthy"}`.
@@ -96,7 +112,7 @@ Should return `{"status":"healthy"}`.
 API docs:
 
 ```
-https://wayfinder-api.onrender.com/docs
+https://wayfinder-e30f.onrender.com/docs
 ```
 
 ### Seed test user (optional)
@@ -116,10 +132,10 @@ python scripts/seed_test_user.py
 In `frontend/.env` (or EAS build secrets):
 
 ```env
-EXPO_PUBLIC_API_URL=https://wayfinder-api.onrender.com
+EXPO_PUBLIC_API_URL=https://wayfinder-e30f.onrender.com
 ```
 
-Replace with your actual Render URL. **Restart Expo** or **rebuild TestFlight** after changing this.
+**Restart Expo** or **rebuild TestFlight** after changing this.
 
 ---
 
@@ -142,8 +158,8 @@ Supabase — PostgreSQL + PostGIS (users, plans, places, hotels)
 | | Local | Production |
 |---|-------|------------|
 | Database | Docker `:55432` | Supabase |
-| API | `localhost:8000` | `*.onrender.com` |
-| Frontend env | `http://10.0.0.34:8000` or `localhost` | `https://...onrender.com` |
+| API | `localhost:8000` | `https://wayfinder-e30f.onrender.com` |
+| Frontend env | `http://10.0.0.34:8000` or `localhost` | `https://wayfinder-e30f.onrender.com` |
 
 Keep local `.env` files **out of git**. Use Render/Supabase dashboards for production secrets.
 
@@ -156,8 +172,9 @@ Keep local `.env` files **out of git**. Use Render/Supabase dashboards for produ
 | Render build fails | Check **Root Directory** is `backend` |
 | DB connection error | Verify Supabase URI, password, and **Direct/Session** pooler |
 | `postgis` extension missing | Enable in Supabase → Extensions |
-| Login works locally, not on phone | `EXPO_PUBLIC_API_URL` must be Render HTTPS URL, not `localhost` |
-| Slow first request | Render free tier cold start — use **Starter** plan for demos |
+| Sign up shows "Something went wrong" or 500 | Open `/health/db` — if 503, fix `DATABASE_URL` on Render (Supabase **Session** or **Direct** pooler, port 5432) and run [`database/supabase_init.sql`](../database/supabase_init.sql) in Supabase SQL Editor |
+| `/health/db` returns 503 | Wrong Supabase password, missing `ssl`, transaction pooler without code fix, or schema not applied |
+| Login works locally, not on phone | `EXPO_PUBLIC_API_URL=https://wayfinder-e30f.onrender.com` (not `localhost`) |
 | Move to Fly.io later | Same FastAPI code — redeploy with new host + update app URL |
 
 ---

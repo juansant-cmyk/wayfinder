@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy import or_, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import (
@@ -24,6 +24,13 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 def normalize_email(email: str) -> str:
     return email.strip().lower()
+
+
+def database_unavailable_error(exc: SQLAlchemyError) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Database unavailable. Check DATABASE_URL and Supabase schema on the server.",
+    ) from exc
 
 
 async def get_current_user(
@@ -77,7 +84,13 @@ async def register(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=detail,
         ) from exc
-    await db.refresh(user)
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        raise database_unavailable_error(exc) from exc
+    try:
+        await db.refresh(user)
+    except SQLAlchemyError as exc:
+        raise database_unavailable_error(exc) from exc
     token = create_access_token(user.id)
     return TokenResponse(
         access_token=token,
@@ -91,10 +104,13 @@ async def login(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TokenResponse:
     identity = body.identity
-    if "@" in identity:
-        result = await db.execute(select(User).where(User.email == identity))
-    else:
-        result = await db.execute(select(User).where(User.username == identity))
+    try:
+        if "@" in identity:
+            result = await db.execute(select(User).where(User.email == identity))
+        else:
+            result = await db.execute(select(User).where(User.username == identity))
+    except SQLAlchemyError as exc:
+        raise database_unavailable_error(exc) from exc
 
     user = result.scalar_one_or_none()
     if user is None or not verify_password(body.password, user.password_hash):

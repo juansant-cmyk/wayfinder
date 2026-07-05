@@ -13,4 +13,4 @@ ALTER TABLE users
     ALTER COLUMN full_name SET NOT NULL,
     ALTER COLUMN username SET NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS users_username_unique ON users (LOWER(username));
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (LOWER(username));

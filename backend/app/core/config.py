@@ -28,11 +28,19 @@ class Settings(BaseSettings):
         elif url.startswith("postgresql://"):
             url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-        if "supabase.co" in url and "ssl=" not in url:
+        uses_supabase = "supabase.co" in url or "pooler.supabase.com" in url
+        if uses_supabase and "ssl=" not in url:
             separator = "&" if "?" in url else "?"
             url = f"{url}{separator}ssl=require"
 
         return url
+
+    def database_connect_args(self) -> dict[str, int]:
+        """asyncpg options for Supabase pooler compatibility."""
+        if "supabase.co" in self.database_url or "pooler.supabase.com" in self.database_url:
+            # PgBouncer (transaction pooler) rejects prepared statement caching.
+            return {"statement_cache_size": 0}
+        return {}
 
 
 settings = Settings()
