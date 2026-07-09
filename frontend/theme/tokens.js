@@ -11,15 +11,34 @@ export const colors = {
   muted: "#6E6659", // secondary text
   faint: "#A79E90", // tertiary text / micro-labels
   line: "rgba(28,27,25,0.12)", // hairline borders
-  gold: "#9A7B4F", // primary accent (labels, active states)
-  navy: "#23324A", // dark CTA + hero card
-  terracotta: "#B4603E", // sparing warm pop (ratings, alerts)
+  gold: "#B0813A", // warm accent (labels, links, secondary actions)
+  navy: "#2E5C8C", // refined steel blue — hero cards & active states
+  cta: "#C4693B", // muted clay orange — primary action buttons
+  terracotta: "#C25E3A", // sparing warm pop (ratings, alerts)
   onDark: "#F1ECE2", // text on navy
   onDarkMuted: "rgba(241,236,226,0.70)",
   onDarkLine: "rgba(241,236,226,0.22)",
   danger: "#B23B36",
   star: "#C8912F",
 };
+
+// Harmonized jewel tones — muted enough to sit on warm paper, vibrant enough
+// to give the icon grids life. Use `tint(color)` for their soft badge backgrounds.
+export const accents = {
+  blue: "#3A6EA5",
+  teal: "#2E8B7F",
+  terracotta: "#C25E3A",
+  amber: "#C0902F",
+  plum: "#7A5A9E",
+  green: "#4E8A4E",
+  rose: "#C25E7A",
+  indigo: "#4A5BA6",
+};
+
+// ~12% alpha wash of a 6-digit hex, for badge backgrounds.
+export function tint(hex) {
+  return `${hex}1F`;
+}
 
 export const fonts = {
   // Native gets a single family; web gets a full editorial stack.

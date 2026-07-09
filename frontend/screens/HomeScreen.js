@@ -12,17 +12,17 @@ import {
 
 import * as dashboardApi from "../src/api/dashboard";
 import { getToken } from "../src/auth/tokenStorage";
-import { colors, fonts, radius, softShadow, spacing } from "../theme/tokens";
+import { accents, colors, fonts, radius, softShadow, spacing, tint } from "../theme/tokens";
 
 const quickTools = [
-  { label: "Itinerary", icon: "calendar-outline", screen: "itinerary" },
-  { label: "Hotels", icon: "bed-outline", screen: "hotels" },
-  { label: "Flights", icon: "airplane-outline", screen: "flights" },
-  { label: "Saved", icon: "heart-outline", screen: "favorites" },
-  { label: "Safety", icon: "shield-checkmark-outline", screen: "safety" },
-  { label: "Weather", icon: "partly-sunny-outline", screen: "weather" },
-  { label: "AI Chat", icon: "chatbubble-ellipses-outline", screen: "chat" },
-  { label: "Maps", icon: "map-outline", screen: "maps" },
+  { label: "Itinerary", icon: "calendar-outline", screen: "itinerary", accent: accents.blue },
+  { label: "Hotels", icon: "bed-outline", screen: "hotels", accent: accents.terracotta },
+  { label: "Flights", icon: "airplane-outline", screen: "flights", accent: accents.teal },
+  { label: "Saved", icon: "heart-outline", screen: "favorites", accent: accents.rose },
+  { label: "Safety", icon: "shield-checkmark-outline", screen: "safety", accent: accents.green },
+  { label: "Weather", icon: "partly-sunny-outline", screen: "weather", accent: accents.amber },
+  { label: "AI Chat", icon: "chatbubble-ellipses-outline", screen: "chat", accent: accents.plum },
+  { label: "Maps", icon: "map-outline", screen: "maps", accent: accents.indigo },
 ];
 
 const fallbackDestinations = [
@@ -178,7 +178,7 @@ export default function HomeScreen({ displayName = "User", onNavigate }) {
 
           <View style={styles.heroButton}>
             <Text style={styles.heroButtonText}>Generate trip</Text>
-            <Ionicons name="sparkles" size={14} color={colors.navy} />
+            <Ionicons name="sparkles" size={14} color="#FFFFFF" />
           </View>
         </Pressable>
 
@@ -191,7 +191,9 @@ export default function HomeScreen({ displayName = "User", onNavigate }) {
               style={styles.toolCard}
               onPress={() => onNavigate?.(tool.screen)}
             >
-              <Ionicons name={tool.icon} size={23} color={colors.ink} />
+              <View style={[styles.toolIcon, { backgroundColor: tint(tool.accent) }]}>
+                <Ionicons name={tool.icon} size={21} color={tool.accent} />
+              </View>
               <Text style={styles.toolLabel}>{tool.label}</Text>
             </Pressable>
           ))}
@@ -425,7 +427,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: 14,
     borderRadius: radius.sm,
-    backgroundColor: colors.gold,
+    backgroundColor: colors.cta,
   },
 
   heroButtonText: {
@@ -433,7 +435,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     letterSpacing: 0.3,
-    color: colors.navy,
+    color: "#FFFFFF",
   },
 
   sectionTitle: {
@@ -462,6 +464,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.sm,
+  },
+
+  toolIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   toolLabel: {

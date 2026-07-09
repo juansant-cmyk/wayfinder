@@ -6,10 +6,16 @@ import { clearToken, getToken, saveToken } from "./src/auth/tokenStorage";
 import { getHashForScreen, getScreenFromHash } from "./src/navigation/screens";
 import ChatScreen from "./screens/ChatScreen";
 import DashboardFeatureScreen from "./screens/DashboardFeatureScreen";
+import FlightsScreen from "./screens/FlightsScreen";
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
 import HomeScreen from "./screens/HomeScreen";
+import HotelsScreen from "./screens/HotelsScreen";
+import ItineraryScreen from "./screens/ItineraryScreen";
 import LoginScreen from "./screens/LoginScreen";
+import MapsScreen from "./screens/MapsScreen";
+import SafetyScreen from "./screens/SafetyScreen";
 import SignupScreen from "./screens/SignupScreen";
+import WeatherScreen from "./screens/WeatherScreen";
 
 const AUTH_ONLY_SCREENS = new Set(["login", "signup", "forgotPassword"]);
 
@@ -437,6 +443,30 @@ export default function App() {
 
   if (currentScreen === "chat") {
     return <ChatScreen onBack={navigateHome} />;
+  }
+
+  if (currentScreen === "hotels") {
+    return <HotelsScreen onBack={navigateHome} onNavigate={navigate} />;
+  }
+
+  if (currentScreen === "flights") {
+    return <FlightsScreen onBack={navigateHome} onNavigate={navigate} />;
+  }
+
+  if (currentScreen === "itinerary") {
+    return <ItineraryScreen onBack={navigateHome} onNavigate={navigate} />;
+  }
+
+  if (currentScreen === "maps") {
+    return <MapsScreen onBack={navigateHome} onNavigate={navigate} />;
+  }
+
+  if (currentScreen === "safety") {
+    return <SafetyScreen onBack={navigateHome} onNavigate={navigate} />;
+  }
+
+  if (currentScreen === "weather") {
+    return <WeatherScreen onBack={navigateHome} onNavigate={navigate} />;
   }
 
   if (FEATURE_SCREENS.has(currentScreen)) {
