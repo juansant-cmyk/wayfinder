@@ -407,7 +407,7 @@ export default function App() {
   if (bootstrapping) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator size="large" color="#FF7344" />
+        <ActivityIndicator size="large" color="#9A7B4F" />
       </View>
     );
   }

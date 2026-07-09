@@ -9,6 +9,7 @@ import {
   WayfinderBrand,
   authColors,
 } from "./AuthShared";
+import { colors, fonts } from "../theme/tokens";
 
 export default function LoginScreen({
   onLogin,
@@ -131,33 +132,34 @@ export default function LoginScreen({
 
 const styles = StyleSheet.create({
   heroBlock: {
-    marginTop: 74,
+    marginTop: 64,
   },
 
   title: {
     maxWidth: 350,
+    fontFamily: fonts.serif,
     fontSize: 34,
-    fontWeight: "800",
     lineHeight: 42,
-    letterSpacing: -1.3,
+    letterSpacing: -0.3,
     color: authColors.heading,
   },
 
   subtitle: {
-    marginTop: 30,
+    marginTop: 18,
     maxWidth: 332,
-    fontSize: 17,
-    lineHeight: 26,
-    color: authColors.accent,
+    fontFamily: fonts.sans,
+    fontSize: 16,
+    lineHeight: 25,
+    color: colors.muted,
   },
 
   formBlock: {
-    marginTop: 104,
+    marginTop: 56,
   },
 
   utilityRow: {
-    marginTop: -6,
-    marginBottom: 24,
+    marginTop: 2,
+    marginBottom: 28,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -169,11 +171,11 @@ const styles = StyleSheet.create({
   },
 
   checkbox: {
-    width: 26,
-    height: 26,
-    borderWidth: 2,
+    width: 22,
+    height: 22,
+    borderWidth: 1.5,
     borderRadius: 4,
-    borderColor: authColors.accent,
+    borderColor: colors.faint,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 8,
@@ -181,39 +183,44 @@ const styles = StyleSheet.create({
   },
 
   checkboxSelected: {
-    backgroundColor: authColors.accent,
+    backgroundColor: colors.gold,
+    borderColor: colors.gold,
   },
 
   checkboxCheck: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "800",
     color: "#FFFFFF",
   },
 
   utilityText: {
-    fontSize: 16,
-    color: authColors.accent,
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    color: colors.muted,
   },
 
   forgotLink: {
-    fontSize: 16,
-    color: authColors.accent,
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.gold,
   },
 
   statusMessage: {
     marginTop: 14,
+    fontFamily: fonts.sans,
     fontSize: 14,
     lineHeight: 20,
-    color: authColors.body,
+    color: colors.danger,
   },
 
   errorText: {
-    color: "#C53A36",
+    color: colors.danger,
   },
 
   footerSpacer: {
     flexGrow: 1,
-    minHeight: 96,
+    minHeight: 72,
   },
 
   footerRow: {
@@ -225,15 +232,16 @@ const styles = StyleSheet.create({
   },
 
   footerPrompt: {
-    fontSize: 17,
-    color: authColors.accent,
+    fontFamily: fonts.sans,
+    fontSize: 15,
+    color: colors.muted,
   },
 
   footerAction: {
-    marginLeft: 12,
-    fontSize: 20,
-    fontWeight: "800",
-    color: authColors.button,
-    letterSpacing: -0.4,
+    marginLeft: 8,
+    fontFamily: fonts.sans,
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.ink,
   },
 });
