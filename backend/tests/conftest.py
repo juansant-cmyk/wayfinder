@@ -2,7 +2,7 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
@@ -10,7 +10,11 @@ from app.db.session import get_db
 from app.main import app
 from app.models import Base
 
-test_engine = create_async_engine(settings.database_url, poolclass=NullPool)
+test_engine = create_async_engine(
+    settings.async_database_url(),
+    poolclass=NullPool,
+    connect_args=settings.database_connect_args(),
+)
 TestSessionLocal = async_sessionmaker(test_engine, expire_on_commit=False)
 
 

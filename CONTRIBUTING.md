@@ -20,6 +20,20 @@ docs: update sprint 2 backlog
 
 ## Pull requests
 
+CI runs on every PR to `main`:
+
+| Job | What it runs |
+|-----|----------------|
+| **Backend unit tests** | `ruff check` + `pytest -m unit` (mock providers, no DB) |
+| **Backend integration tests** | `pytest -m integration` (auth + dashboard API against Postgres) |
+| **Backend prod smoke** | `pip install -r requirements-prod.txt` + verify FastAPI app imports |
+| **Database schema apply** | Apply `database/schema/*.sql` to fresh PostGIS Postgres |
+| **Backend dependency audit** | `pip-audit` on prod requirements (advisory — does not block merge) |
+| **Frontend lint** | `npm run lint` |
+| **Frontend dependency audit** | `npm audit --audit-level=high` (advisory — does not block merge) |
+
+Fix failing checks before merging.
+
 1. Link the user story ID (e.g. US-02)
 2. Fill out the PR template checklist
 3. Request review from at least one teammate

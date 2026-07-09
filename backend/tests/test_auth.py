@@ -2,6 +2,8 @@
 import pytest
 from httpx import AsyncClient
 
+pytestmark = pytest.mark.integration
+
 
 def register_payload(**overrides):
     payload = {

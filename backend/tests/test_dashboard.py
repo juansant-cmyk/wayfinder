@@ -1,6 +1,8 @@
 import pytest
 from httpx import AsyncClient
 
+pytestmark = pytest.mark.integration
+
 
 async def auth_headers(client: AsyncClient) -> dict[str, str]:
     response = await client.post(

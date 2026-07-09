@@ -2,6 +2,8 @@ import pytest
 
 from app.providers.mock import MockHotelProvider, MockPlacesProvider
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.asyncio
 async def test_mock_places_provider_returns_limited_places():

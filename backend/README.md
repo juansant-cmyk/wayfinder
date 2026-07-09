@@ -55,12 +55,27 @@ python scripts/seed_test_user.py
 
 ### 5. Run tests
 
-Requires the database container and `001_users.sql` migration applied:
+**Unit** (no database):
 
 ```bash
 cd backend
+pytest -m unit
+```
+
+**Integration** (requires `docker compose up -d` in `database/`):
+
+```bash
+cd backend
+pytest -m integration
+```
+
+**All tests:**
+
+```bash
 pytest
 ```
+
+Pull requests run unit, integration, lint, schema, and prod-smoke checks automatically via [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 
 ## Auth API (frontend contract)
 
