@@ -1,19 +1,37 @@
 # Shared test fixtures — isolated async DB sessions and ASGI client for auth tests.
+import os
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.core.config import settings
+from app.core.config import Settings
 from app.db.session import get_db
 from app.main import app
 from app.models import Base
 
+# Local Docker Postgres (database/docker-compose.yml maps 55432 -> 5432).
+# Ignore backend/.env Supabase URL during tests unless TEST_DATABASE_URL or
+# DATABASE_URL is set in the environment (e.g. GitHub Actions).
+DEFAULT_TEST_DATABASE_URL = (
+    "postgresql+asyncpg://wayfinder:wayfinder@localhost:55432/wayfinder"
+)
+
+test_settings = Settings(
+    _env_file=None,
+    database_url=(
+        os.environ.get("TEST_DATABASE_URL")
+        or os.environ.get("DATABASE_URL")
+        or DEFAULT_TEST_DATABASE_URL
+    ),
+)
+
 test_engine = create_async_engine(
-    settings.async_database_url(),
+    test_settings.async_database_url(),
     poolclass=NullPool,
-    connect_args=settings.database_connect_args(),
+    connect_args=test_settings.database_connect_args(),
 )
 TestSessionLocal = async_sessionmaker(test_engine, expire_on_commit=False)
 

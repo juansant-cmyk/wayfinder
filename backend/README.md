@@ -69,6 +69,14 @@ cd backend
 pytest -m integration
 ```
 
+Integration tests connect to local Docker Postgres on port **55432** by default (`wayfinder` / `wayfinder`). They do **not** use your Supabase URL from `.env` unless you set `TEST_DATABASE_URL` or export `DATABASE_URL`.
+
+If you see `InvalidPasswordError: password authentication failed for user "wayfinder"`:
+
+1. Start the database: `cd database && docker compose up -d`
+2. Ensure `.env` uses port **55432**, not 5432 (5432 is CI-only unless you run Postgres there)
+3. Or override for one run: `TEST_DATABASE_URL=postgresql+asyncpg://wayfinder:wayfinder@localhost:55432/wayfinder pytest -m integration`
+
 **All tests:**
 
 ```bash
