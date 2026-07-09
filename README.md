@@ -15,6 +15,14 @@ Travelers juggle maps, hotels, safety info, and budget tools in separate apps. W
 
 Full overview: [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md)
 
+## Current status
+
+**Shipped foundation (Sprint 1):** Expo app with auth, tab dashboard, and feature screens wired to the API. FastAPI backend with JWT auth, travel-plan CRUD, and dashboard routes backed by mock providers (`USE_MOCK_PROVIDERS=true` by default).
+
+**Production:** API on [Render](docs/DEPLOY.md); database on [Supabase](docs/DEPLOY.md) (PostgreSQL + PostGIS).
+
+**In progress / upcoming:** Live Google Maps, hotel, and weather providers (Sprint 2+); themes, bookmark CRUD, and bookmark-aware AI chat (Sprint 3); safety feeds and fare alerts (Sprint 4).
+
 ## Team directories
 
 Each squad owns a top-level folder:
@@ -28,18 +36,16 @@ Each squad owns a top-level folder:
 
 Product docs live in [`docs/`](docs/) (shared by all teams).
 
-**PO / QA / Backend:** backlog ownership, quality gates, FastAPI MVP delivery.
-
 ## Tech stack
 
 | Layer | Choice |
 |-------|--------|
 | Mobile | React Native (Expo) → `frontend/` |
 | API | Python + FastAPI → `backend/` |
-| Database | PostgreSQL + PostGIS → `database/` |
-| External APIs | Google Maps, Weather, Travel Advisory, trip/hotel DBs |
-| AI | OpenAI (or equivalent LLM) |
-| Cloud | AWS / Azure / Firebase *(Sprint 1 decision)* |
+| Database | PostgreSQL + PostGIS → `database/` (local Docker; Supabase in prod) |
+| Hosting | Render (API) + Supabase (DB) — see [docs/DEPLOY.md](docs/DEPLOY.md) |
+| External APIs | Google Maps, Weather, Travel Advisory, trip/hotel DBs *(mocked in dev)* |
+| AI | OpenAI (or equivalent LLM) — chat proxy in backend |
 
 ## Repository structure
 
@@ -47,12 +53,48 @@ Product docs live in [`docs/`](docs/) (shared by all teams).
 wayfinder/
 ├── frontend/             # Expo React Native app
 ├── backend/              # FastAPI services
-├── database/             # Migrations, PostGIS, local DB setup
+├── database/             # Schema SQL, PostGIS, local Docker setup
 ├── design/               # Wireframes, themes, UI assets
 ├── docs/                 # Product & sprint documentation
-├── .github/
+├── .github/workflows/    # CI (lint, tests, schema apply)
 └── README.md
 ```
+
+## Backend API (summary)
+
+Local: http://127.0.0.1:8000 — OpenAPI docs at `/docs`  
+Production: https://wayfinder-e30f.onrender.com
+
+Full request/response shapes: [backend/README.md](backend/README.md)
+
+### Public
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/` | Service identity |
+| `GET` | `/health` | Liveness check (Render) |
+| `GET` | `/health/db` | Database connectivity |
+| `POST` | `/auth/register` | Create account (`email`, `password`, `full_name`, `username`) |
+| `POST` | `/auth/login` | Login with `identity` (email or username) + `password` |
+
+### Protected (`Authorization: Bearer <token>`)
+
+| Area | Routes |
+|------|--------|
+| **Profile** | `GET /auth/me` |
+| **Travel plans** | `GET/POST /plans`, `GET/PATCH/DELETE /plans/{plan_id}` |
+| **Places** | `GET /places/popular`, `GET /places/{place_id}` |
+| **Hotels** | `GET /hotels/search`, `GET /hotels/{hotel_id}` |
+| **Flights** | `GET /flights/search` |
+| **Destinations** | `GET /destinations/recommended`, `GET /destinations/{slug}` |
+| **Favorites** | `GET /favorites` |
+| **Safety** | `GET /safety/summary` |
+| **Weather** | `GET /weather/current` |
+| **Travel check** | `GET /travel-check` |
+| **Notifications** | `GET /notifications` |
+| **AI chat** | `POST /chat/messages` |
+
+Dashboard feeds (places, hotels, flights, safety, weather, chat, etc.) return deterministic mock data until live provider keys are configured.
 
 ## MVP (Sprint 4 release)
 
@@ -88,7 +130,11 @@ Then open your team's folder:
 - Database → [database/README.md](database/README.md)
 - Design → [design/README.md](design/README.md)
 
+## CI
+
+Pull requests to `main` run GitHub Actions: backend lint + unit/integration tests, SQL schema apply, prod dependency smoke test, and frontend lint. Details: [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Scrum
 
-- **Sprints:** 4 × 2 weeks → v1.0  
+- **Sprints:** 4 × 1 week → v1.0  
 - **DoD:** [docs/DEFINITION_OF_DONE.md](docs/DEFINITION_OF_DONE.md)
