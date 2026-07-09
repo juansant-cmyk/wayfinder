@@ -13,19 +13,15 @@ from app.main import app
 from app.models import Base
 
 # Local Docker Postgres (database/docker-compose.yml maps 55432 -> 5432).
-# Ignore backend/.env Supabase URL during tests unless TEST_DATABASE_URL or
-# DATABASE_URL is set in the environment (e.g. GitHub Actions).
+# Use TEST_DATABASE_URL to override (e.g. GitHub Actions). We intentionally do
+# not read DATABASE_URL here — it often points at Supabase or the wrong port.
 DEFAULT_TEST_DATABASE_URL = (
     "postgresql+asyncpg://wayfinder:wayfinder@localhost:55432/wayfinder"
 )
 
 test_settings = Settings(
     _env_file=None,
-    database_url=(
-        os.environ.get("TEST_DATABASE_URL")
-        or os.environ.get("DATABASE_URL")
-        or DEFAULT_TEST_DATABASE_URL
-    ),
+    database_url=os.environ.get("TEST_DATABASE_URL", DEFAULT_TEST_DATABASE_URL),
 )
 
 test_engine = create_async_engine(

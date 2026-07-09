@@ -44,7 +44,7 @@ jobs:
         image: postgis/postgis:15-3.4
         env:
           POSTGRES_USER: wayfinder
-          POSTGRES_PASSWORD: password
+          POSTGRES_PASSWORD: wayfinder
           POSTGRES_DB: wayfinder
         ports:
           - 5432:5432
@@ -55,9 +55,9 @@ jobs:
           --health-retries 10
 
     env:
-      DATABASE_URL: postgresql+asyncpg://wayfinder:wayfinder@localhost:5432/wayfinder
+      TEST_DATABASE_URL: postgresql+asyncpg://wayfinder:wayfinder@localhost:5432/wayfinder
       JWT_SECRET: ci-test-secret
-      USE_MOCK_PROVIDERS: true
+      USE_MOCK_PROVIDERS: "true"
     steps:
       - uses: actions/checkout@v4
 
