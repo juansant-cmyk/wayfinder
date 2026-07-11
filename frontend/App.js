@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
 import HomeScreen from "./screens/HomeScreen";
+import HotelsScreen from "./screens/HotelsScreen";
 import LoginScreen from "./screens/LoginScreen";
 import SignupScreen from "./screens/SignupScreen";
 
@@ -47,6 +48,8 @@ function getScreenFromHash(hash) {
       return "forgotPassword";
     case "#home":
       return "home";
+    case "#hotels":
+      return "hotels";
     case "#login":
     default:
       return "login";
@@ -61,6 +64,8 @@ function getHashForScreen(screen) {
       return "#forgot-password";
     case "home":
       return "#home";
+    case "hotels":
+      return "#hotels";
     case "login":
     default:
       return "#login";
@@ -185,6 +190,10 @@ export default function App() {
 
   const navigateHome = () => {
     setCurrentScreen("home");
+  };
+
+  const navigateHotels = () => {
+    setCurrentScreen("hotels");
   };
 
   const navigateLogin = () => {
@@ -432,10 +441,15 @@ export default function App() {
     );
   }
 
+  if (currentScreen === "hotels") {
+    return <HotelsScreen onGoBack={navigateHome} onNavigateHome={navigateHome} />;
+  }
+
   return (
     <HomeScreen
       currentUser={currentUser}
       displayName={getDisplayName(currentUser)}
+      onNavigateHotels={navigateHotels}
       onLogout={handleLogout}
       onNavigateLogin={!currentUser ? navigateLogin : undefined}
       onNavigateSignup={!currentUser ? navigateSignup : undefined}

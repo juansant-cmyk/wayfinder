@@ -92,7 +92,7 @@ function QuickToolIcon({ tool }) {
   );
 }
 
-export default function HomeScreen() {
+export default function HomeScreen({ onNavigateHotels }) {
   const showPlaceholder = (label) => {
     if (label === "Home") {
       Alert.alert("Home", "You are already on Home");
@@ -100,6 +100,15 @@ export default function HomeScreen() {
     }
 
     Alert.alert(label, "Coming soon");
+  };
+
+  const handleQuickToolPress = (tool) => {
+    if (tool.label === "Hotels" && onNavigateHotels) {
+      onNavigateHotels();
+      return;
+    }
+
+    showPlaceholder(tool.label);
   };
 
   return (
@@ -156,7 +165,7 @@ export default function HomeScreen() {
             <Pressable
               key={tool.label}
               style={styles.toolCard}
-              onPress={() => showPlaceholder(tool.label)}
+              onPress={() => handleQuickToolPress(tool)}
             >
               <QuickToolIcon tool={tool} />
               <Text style={styles.toolLabel}>{tool.label}</Text>
