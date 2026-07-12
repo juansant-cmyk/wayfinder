@@ -99,72 +99,8 @@ function QuickToolIcon({ tool }) {
   );
 }
 
-function destinationImageUri(destination) {
-  return { uri: destination.image_url || destination.image };
-}
-
-export default function HomeScreen({ displayName = "User", onNavigate }) {
-  const [recommendedDestinations, setRecommendedDestinations] =
-    useState(fallbackDestinations);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadRecommended() {
-      try {
-        const token = await getToken();
-        if (!token) {
-          return;
-        }
-
-        const destinations = await dashboardApi.fetchRecommendedDestinations(token);
-        if (!cancelled && destinations?.length) {
-          setRecommendedDestinations(destinations);
-        }
-      } catch (error) {
-        // Keep fallback cards when the API is unavailable.
-      }
-    }
-
-    loadRecommended();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const handleQuickTool = (label) => {
-    switch (label) {
-      case "Itinerary":
-        onNavigate?.("itinerary");
-        break;
-      case "Hotels":
-        onNavigate?.("hotels");
-        break;
-      case "Flights":
-        onNavigate?.("flights");
-        break;
-      case "Favorites":
-        onNavigate?.("favorites");
-        break;
-      case "Safety":
-        onNavigate?.("safety");
-        break;
-      case "Weather":
-        onNavigate?.("weather");
-        break;
-      case "AI Chat":
-        onNavigate?.("chat");
-        break;
-      case "Maps":
-        onNavigate?.("maps");
-        break;
-      default:
-        break;
-    }
-  };
-
-  const handleBottomNav = (label) => {
+export default function HomeScreen({ onNavigateHotels }) {
+  const showPlaceholder = (label) => {
     if (label === "Home") {
       return;
     }
@@ -182,6 +118,15 @@ export default function HomeScreen({ displayName = "User", onNavigate }) {
     if (label === "Profile") {
       onNavigate?.("profile");
     }
+  };
+
+  const handleQuickToolPress = (tool) => {
+    if (tool.label === "Hotels" && onNavigateHotels) {
+      onNavigateHotels();
+      return;
+    }
+
+    showPlaceholder(tool.label);
   };
 
   return (
@@ -238,7 +183,7 @@ export default function HomeScreen({ displayName = "User", onNavigate }) {
             <Pressable
               key={tool.label}
               style={styles.toolCard}
-              onPress={() => handleQuickTool(tool.label)}
+              onPress={() => handleQuickToolPress(tool)}
             >
               <QuickToolIcon tool={tool} />
               <Text style={styles.toolLabel}>{tool.label}</Text>
