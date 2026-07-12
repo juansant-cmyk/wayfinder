@@ -6,6 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.travel import Hotel
 from app.providers.base import HotelProvider, ProviderHotel
+from app.schemas.travel import HotelResponse
+from app.services.geo import haversine_miles
+from app.services.hotel_sort import sort_hotels
 
 
 async def _upsert_hotel(db: AsyncSession, item: ProviderHotel) -> Hotel:
@@ -42,6 +45,38 @@ async def _upsert_hotel(db: AsyncSession, item: ProviderHotel) -> Hotel:
     return hotel
 
 
+def hotel_to_response(
+    hotel: Hotel,
+    origin_lat: float | None = None,
+    origin_lng: float | None = None,
+) -> HotelResponse:
+    distance_miles = None
+    if (
+        origin_lat is not None
+        and origin_lng is not None
+        and hotel.lat is not None
+        and hotel.lng is not None
+    ):
+        distance_miles = round(haversine_miles(origin_lat, origin_lng, hotel.lat, hotel.lng), 1)
+
+    return HotelResponse(
+        id=hotel.id,
+        provider=hotel.provider,
+        provider_hotel_id=hotel.provider_hotel_id,
+        name=hotel.name,
+        address=hotel.address,
+        lat=hotel.lat,
+        lng=hotel.lng,
+        nightly_rate=hotel.nightly_rate,
+        total_estimate=hotel.total_estimate,
+        currency=hotel.currency,
+        amenities=hotel.amenities,
+        rating=hotel.rating,
+        metadata_json=hotel.metadata_json,
+        distance_miles=distance_miles,
+    )
+
+
 async def search_hotels(
     db: AsyncSession,
     provider: HotelProvider,
@@ -60,7 +95,7 @@ async def search_hotels(
     await db.commit()
     for hotel in hotels:
         await db.refresh(hotel)
-    return hotels
+    return sort_hotels(hotels, sort, lat, lng)
 
 
 async def get_hotel(db: AsyncSession, hotel_id: UUID) -> Hotel:

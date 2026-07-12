@@ -27,19 +27,24 @@ async def search_hotels(
     check_in: date | None = None,
     check_out: date | None = None,
     guests: int = Query(default=1, ge=1, le=20),
-    sort: str = Query(default="price", pattern="^(price|rating)$"),
+    sort: str = Query(default="price", pattern="^(price|rating|distance)$"),
 ):
     if not destination and (lat is None or lng is None):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="destination or lat/lng is required",
         )
+    if sort == "distance" and (lat is None or lng is None):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="lat and lng are required when sort=distance",
+        )
     if check_in and check_out and check_out < check_in:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="check_out must be on or after check_in",
         )
-    return await hotel_service.search_hotels(
+    hotels = await hotel_service.search_hotels(
         db,
         provider,
         destination,
@@ -50,6 +55,7 @@ async def search_hotels(
         guests,
         sort,
     )
+    return [hotel_service.hotel_to_response(hotel, lat, lng) for hotel in hotels]
 
 
 @router.get("/{hotel_id}", response_model=HotelResponse)

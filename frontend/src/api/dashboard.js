@@ -1,20 +1,64 @@
 import { apiRequest } from "./client";
+import { DEFAULT_LAT, DEFAULT_LNG, milesBetween } from "../location/geo";
 
 const DEFAULT_DESTINATION = "Bali";
-const DEFAULT_LAT = -8.3405;
-const DEFAULT_LNG = 115.092;
 
 function withDestination(destination) {
   const value = destination || DEFAULT_DESTINATION;
   return `destination=${encodeURIComponent(value)}`;
 }
 
+function withCoordinates(params, coords = null) {
+  if (coords?.source === "gps" && coords.lat != null && coords.lng != null) {
+    params.set("lat", String(coords.lat));
+    params.set("lng", String(coords.lng));
+  }
+}
+
+function sortHotelsByDistance(hotels, origin = null) {
+  return [...hotels].sort((a, b) => {
+    const left =
+      a.distance_miles ??
+      milesBetween(origin, { lat: a.lat, lng: a.lng }) ??
+      Number.POSITIVE_INFINITY;
+    const right =
+      b.distance_miles ??
+      milesBetween(origin, { lat: b.lat, lng: b.lng }) ??
+      Number.POSITIVE_INFINITY;
+    return left - right;
+  });
+}
+
+async function requestHotels(token, destination, sort, coords) {
+  const params = new URLSearchParams({ destination, sort });
+  withCoordinates(params, coords);
+  return apiRequest(`/hotels/search?${params}`, { token });
+}
+
 export function fetchPlans(token) {
   return apiRequest("/plans", { token });
 }
 
-export function searchHotels(token, destination = DEFAULT_DESTINATION) {
-  return apiRequest(`/hotels/search?${withDestination(destination)}`, { token });
+export async function searchHotels(token, destination = DEFAULT_DESTINATION, sort = "price", coords = null) {
+  try {
+    return await requestHotels(token, destination, sort, coords);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    const isDistanceUnsupported =
+      sort === "distance" &&
+      (message.includes("pattern") || message.includes("sort=distance"));
+
+    if (!isDistanceUnsupported) {
+      throw error;
+    }
+
+    const results = await requestHotels(token, destination, "price", coords);
+    return sortHotelsByDistance(results, coords);
+  }
+}
+
+export function fetchHotel(token, hotelId) {
+  return apiRequest(`/hotels/${hotelId}`, { token });
 }
 
 export function searchFlights(token, destination = DEFAULT_DESTINATION) {
@@ -41,9 +85,9 @@ export function sendChatMessage(token, message) {
   });
 }
 
-export function fetchPopularPlaces(token, lat = DEFAULT_LAT, lng = DEFAULT_LNG) {
+export function fetchPopularPlaces(token, lat = DEFAULT_LAT, lng = DEFAULT_LNG, radiusKm = 5, limit = 5) {
   return apiRequest(
-    `/places/popular?lat=${lat}&lng=${lng}&radius_km=5&limit=5`,
+    `/places/popular?lat=${lat}&lng=${lng}&radius_km=${radiusKm}&limit=${limit}`,
     { token }
   );
 }
@@ -68,4 +112,4 @@ export function fetchProfile(token) {
   return apiRequest("/auth/me", { token });
 }
 
-export { DEFAULT_DESTINATION };
+export { DEFAULT_DESTINATION, DEFAULT_LAT, DEFAULT_LNG };

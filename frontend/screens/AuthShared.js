@@ -118,9 +118,14 @@ export function PasswordVisibilityToggle({ visible, onPress }) {
   );
 }
 
-export function PrimaryButton({ label, onPress }) {
+export function PrimaryButton({ label, onPress, disabled = false }) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={styles.primaryButton}>
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={styles.primaryButton}
+    >
       <Text style={styles.primaryButtonText}>{label}</Text>
     </Pressable>
   );

@@ -9,6 +9,8 @@ import {
   View,
 } from "react-native";
 
+import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./BottomNav";
+
 export default function ScreenLayout({
   title,
   onBack,
@@ -16,7 +18,10 @@ export default function ScreenLayout({
   error = null,
   children,
   footer,
+  onNavigate,
+  activeLabel = null,
 }) {
+  const showBottomNav = Boolean(onNavigate);
   return (
     <View style={styles.screen}>
       <StatusBar style="dark" />
@@ -41,14 +46,21 @@ export default function ScreenLayout({
       ) : (
         <ScrollView
           style={styles.content}
-          contentContainerStyle={styles.contentContainer}
+          contentContainerStyle={[
+            styles.contentContainer,
+            showBottomNav && styles.contentContainerWithBottomNav,
+          ]}
           showsVerticalScrollIndicator={false}
         >
           {children}
         </ScrollView>
       )}
 
-      {footer}
+      {showBottomNav ? (
+        <BottomNav activeLabel={activeLabel} onNavigate={onNavigate} />
+      ) : (
+        footer
+      )}
     </View>
   );
 }
@@ -115,5 +127,9 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 20,
     paddingBottom: 32,
+  },
+
+  contentContainerWithBottomNav: {
+    paddingBottom: BOTTOM_NAV_CONTENT_PADDING,
   },
 });

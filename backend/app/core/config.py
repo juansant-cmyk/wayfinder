@@ -7,8 +7,10 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-production"
     jwt_expire_hours: int = 24
     cors_origins: str = (
-        "http://localhost:8081,http://localhost:19006,"
-        "http://127.0.0.1:8081,http://127.0.0.1:19006"
+        "http://localhost:8081,http://localhost:8085,http://localhost:8086,"
+        "http://localhost:8087,http://localhost:19006,"
+        "http://127.0.0.1:8081,http://127.0.0.1:8085,http://127.0.0.1:8086,"
+        "http://127.0.0.1:8087,http://127.0.0.1:19006"
     )
     google_maps_api_key: str = ""
     hotel_api_key: str = ""

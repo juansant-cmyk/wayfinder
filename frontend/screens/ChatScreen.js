@@ -13,7 +13,7 @@ import { getToken } from "../src/auth/tokenStorage";
 import ScreenLayout from "./shared/ScreenLayout";
 import { cardStyles } from "./shared/screenStyles";
 
-export default function ChatScreen({ onBack }) {
+export default function ChatScreen({ onBack, onNavigate }) {
   const [message, setMessage] = useState("Help me plan my next trip.");
   const [reply, setReply] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -49,7 +49,7 @@ export default function ChatScreen({ onBack }) {
   }
 
   return (
-    <ScreenLayout title="Ask Wayfinder" onBack={onBack}>
+    <ScreenLayout title="Ask Wayfinder" onBack={onBack} onNavigate={onNavigate}>
       <View style={cardStyles.card}>
         <Text style={cardStyles.cardTitle}>Your question</Text>
         <TextInput

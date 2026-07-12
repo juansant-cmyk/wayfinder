@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { APP_SCREENS, loadScreenData } from "../src/navigation/screens";
 import { getToken } from "../src/auth/tokenStorage";
+import { useUserLocation } from "../src/location/UserLocationContext";
 import ScreenLayout from "./shared/ScreenLayout";
+import { getBottomNavActiveLabel } from "./shared/BottomNav";
+import DimPressable from "./shared/DimPressable";
 import { cardStyles } from "./shared/screenStyles";
 
 function EmptyState({ message }) {
@@ -98,7 +101,10 @@ function renderMaps(places) {
     <View key={place.id} style={cardStyles.card}>
       <Text style={cardStyles.cardTitle}>{place.name}</Text>
       <Text style={cardStyles.cardSubtitle}>{place.category}</Text>
-      <Text style={cardStyles.metaText}>★ {place.rating}</Text>
+      <Text style={cardStyles.metaText}>
+        {place.distance_km != null ? `${place.distance_km.toFixed(1)} km away` : "Nearby"}
+        {place.rating ? ` · ★ ${place.rating}` : ""}
+      </Text>
     </View>
   ));
 }
@@ -152,9 +158,9 @@ function renderProfile(profile, onLogout) {
         </Text>
       </View>
       {onLogout ? (
-        <Pressable style={[cardStyles.card, { alignItems: "center" }]} onPress={onLogout}>
+        <DimPressable style={[cardStyles.card, { alignItems: "center" }]} onPress={onLogout}>
           <Text style={{ fontSize: 16, fontWeight: "700", color: "#B42318" }}>Log out</Text>
-        </Pressable>
+        </DimPressable>
       ) : null}
     </>
   );
@@ -168,31 +174,31 @@ function renderDestination(detail, onNavigate) {
         <Text style={cardStyles.cardSubtitle}>{detail.subtitle}</Text>
         <Text style={cardStyles.metaText}>Rating {detail.rating}</Text>
       </View>
-      <Pressable
+      <DimPressable
         style={cardStyles.card}
         onPress={() => onNavigate("hotels", { destination: detail.name })}
       >
         <Text style={cardStyles.cardTitle}>Search hotels in {detail.name}</Text>
-      </Pressable>
-      <Pressable
+      </DimPressable>
+      <DimPressable
         style={cardStyles.card}
         onPress={() => onNavigate("flights", { destination: detail.name })}
       >
         <Text style={cardStyles.cardTitle}>Search flights to {detail.name}</Text>
-      </Pressable>
-      <Pressable
+      </DimPressable>
+      <DimPressable
         style={cardStyles.card}
         onPress={() => onNavigate("safety", { destination: detail.name })}
       >
         <Text style={cardStyles.cardTitle}>Safety summary</Text>
-      </Pressable>
+      </DimPressable>
     </>
   );
 }
 
 function renderRecommended(destinations, onNavigate) {
   return destinations.map((destination) => (
-    <Pressable
+    <DimPressable
       key={destination.slug || destination.name}
       style={cardStyles.card}
       onPress={() =>
@@ -202,7 +208,7 @@ function renderRecommended(destinations, onNavigate) {
       <Text style={cardStyles.cardTitle}>{destination.name}</Text>
       <Text style={cardStyles.cardSubtitle}>{destination.subtitle}</Text>
       <Text style={cardStyles.metaText}>Rating {destination.rating}</Text>
-    </Pressable>
+    </DimPressable>
   ));
 }
 
@@ -244,6 +250,7 @@ export default function DashboardFeatureScreen({
   onNavigate,
   onLogout,
 }) {
+  const { location } = useUserLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -266,7 +273,7 @@ export default function DashboardFeatureScreen({
         return;
       }
 
-      const result = await loadScreenData(screen, token, params);
+      const result = await loadScreenData(screen, token, params, location);
       setData(result);
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : "Request failed.";
@@ -275,14 +282,21 @@ export default function DashboardFeatureScreen({
     } finally {
       setLoading(false);
     }
-  }, [screen, params.destination, params.slug]);
+  }, [screen, params.destination, params.slug, location]);
 
   useEffect(() => {
     load();
   }, [load]);
 
   return (
-    <ScreenLayout title={title} onBack={onBack} loading={loading} error={error}>
+    <ScreenLayout
+      title={title}
+      onBack={onBack}
+      loading={loading}
+      error={error}
+      onNavigate={onNavigate}
+      activeLabel={getBottomNavActiveLabel(screen)}
+    >
       {!loading && !error ? renderContent(screen, data, onNavigate, onLogout) : null}
     </ScreenLayout>
   );

@@ -29,14 +29,14 @@ export function getScreenFromHash(hash) {
   return match?.[0] || "login";
 }
 
-export async function loadScreenData(screen, token, params = {}) {
+export async function loadScreenData(screen, token, params = {}, location = null) {
   const destination = params.destination || dashboardApi.DEFAULT_DESTINATION;
 
   switch (screen) {
     case "itinerary":
       return dashboardApi.fetchPlans(token);
     case "hotels":
-      return dashboardApi.searchHotels(token, destination);
+      return dashboardApi.searchHotels(token, destination, "price", location);
     case "flights":
       return dashboardApi.searchFlights(token, destination);
     case "favorites":
@@ -46,7 +46,11 @@ export async function loadScreenData(screen, token, params = {}) {
     case "weather":
       return dashboardApi.fetchWeather(token, destination);
     case "maps":
-      return dashboardApi.fetchPopularPlaces(token);
+      return dashboardApi.fetchPopularPlaces(
+        token,
+        location?.source === "gps" ? location.lat : dashboardApi.DEFAULT_LAT,
+        location?.source === "gps" ? location.lng : dashboardApi.DEFAULT_LNG
+      );
     case "travelCheck":
       return dashboardApi.fetchTravelCheck(token, destination);
     case "notifications":

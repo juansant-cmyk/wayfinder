@@ -3,6 +3,7 @@ import { ActivityIndicator, Platform, View } from "react-native";
 
 import { fetchMe, isBackendConfigured, login, register, setUnauthorizedHandler } from "./src/api/client";
 import { clearToken, getToken, saveToken } from "./src/auth/tokenStorage";
+import { UserLocationProvider } from "./src/location/UserLocationContext";
 import { getHashForScreen, getScreenFromHash } from "./src/navigation/screens";
 import ChatScreen from "./screens/ChatScreen";
 import DashboardFeatureScreen from "./screens/DashboardFeatureScreen";
@@ -33,46 +34,15 @@ function getDisplayName(user) {
     return fullName.split(" ")[0];
   }
 
-  return account.username || "Traveler";
+  if (user.email) {
+    return user.email.split("@")[0];
+  }
+
+  return user.username || "Traveler";
 }
 
 function isWebPreview() {
   return Platform.OS === "web" && typeof window !== "undefined";
-}
-
-function getScreenFromHash(hash) {
-  switch (hash) {
-    case "#signup":
-      return "signup";
-    case "#forgot-password":
-      return "forgotPassword";
-    case "#home":
-      return "home";
-    case "#hotels":
-      return "hotels";
-    case "#login":
-    default:
-      return "login";
-  }
-
-function getHashForScreen(screen) {
-  switch (screen) {
-    case "signup":
-      return "#signup";
-    case "forgotPassword":
-      return "#forgot-password";
-    case "home":
-      return "#home";
-    case "hotels":
-      return "#hotels";
-    case "login":
-    default:
-      return "#login";
-  }
-}
-
-function isPlainObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function mapApiUser(apiUser) {
@@ -85,13 +55,8 @@ function mapApiUser(apiUser) {
   };
 }
 
-function isWebPreview() {
-  return Platform.OS === "web" && typeof window !== "undefined";
-}
-
 const FEATURE_SCREENS = new Set([
   "itinerary",
-  "hotels",
   "flights",
   "favorites",
   "safety",
@@ -103,6 +68,8 @@ const FEATURE_SCREENS = new Set([
   "destination",
   "recommended",
 ]);
+
+const BOTTOM_NAV_TAB_SCREENS = new Set(["itinerary", "favorites", "profile"]);
 
 export default function App() {
   const [bootstrapping, setBootstrapping] = useState(true);
@@ -117,6 +84,7 @@ export default function App() {
   const [screenParams, setScreenParams] = useState({});
   const [currentUser, setCurrentUser] = useState(null);
   const lastWebHashRef = useRef("");
+  const historyActionRef = useRef("push");
 
   useEffect(() => {
     setUnauthorizedHandler(async () => {
@@ -211,26 +179,54 @@ export default function App() {
       return;
     }
 
-    window.history.pushState(
+    window.history[historyActionRef.current === "replace" ? "replaceState" : "pushState"](
       { screen: currentScreen, params: screenParams },
       "",
       `${window.location.pathname}${window.location.search}${nextHash}`
     );
     lastWebHashRef.current = nextHash;
+    historyActionRef.current = "push";
   }, [currentScreen, screenParams]);
 
-  const navigate = (screen, params = {}) => {
+  const navigate = (screen, params = {}, { history = "push" } = {}) => {
+    historyActionRef.current = history;
     setScreenParams(params);
     setCurrentScreen(screen);
   };
 
+  const navigateFromTab = (screen) => {
+    if (screen === "home") {
+      navigate("home", {}, { history: "replace" });
+      return;
+    }
+
+    const switchingTabs =
+      BOTTOM_NAV_TAB_SCREENS.has(currentScreen) && BOTTOM_NAV_TAB_SCREENS.has(screen);
+
+    navigate(screen, {}, { history: switchingTabs ? "replace" : "push" });
+  };
+
+  const handleNavigate = (screen, params = {}) => {
+    const hasParams = Object.keys(params).length > 0;
+
+    if (!hasParams && (screen === "home" || BOTTOM_NAV_TAB_SCREENS.has(screen))) {
+      navigateFromTab(screen);
+      return;
+    }
+
+    navigate(screen, params);
+  };
+
   const navigateHome = () => {
-    setScreenParams({});
-    setCurrentScreen("home");
+    navigate("home", {}, { history: "replace" });
+  };
+
+  const navigateBack = () => {
+    navigateHome();
   };
 
   const navigateHotels = () => {
-    setCurrentScreen("hotels");
+    navigate("hotels");
   };
 
   const navigateLogin = () => {
@@ -475,33 +471,39 @@ export default function App() {
     );
   }
 
-  if (currentScreen === "chat") {
-    return <ChatScreen onBack={navigateHome} />;
-  }
+  let screenContent;
 
-  if (FEATURE_SCREENS.has(currentScreen)) {
-    return (
+  if (currentScreen === "chat") {
+    screenContent = <ChatScreen onBack={navigateBack} onNavigate={handleNavigate} />;
+  } else if (currentScreen === "hotels") {
+    screenContent = (
+      <HotelsScreen
+        onGoBack={navigateBack}
+        onNavigateHome={navigateHome}
+        onNavigate={handleNavigate}
+        params={screenParams}
+      />
+    );
+  } else if (FEATURE_SCREENS.has(currentScreen)) {
+    screenContent = (
       <DashboardFeatureScreen
         screen={currentScreen}
         params={screenParams}
-        onBack={navigateHome}
-        onNavigate={navigate}
+        onBack={navigateBack}
+        onNavigate={handleNavigate}
+        onLogout={handleLogout}
+      />
+    );
+  } else {
+    screenContent = (
+      <HomeScreen
+        displayName={getDisplayName(currentUser)}
+        onNavigate={handleNavigate}
+        onNavigateHotels={navigateHotels}
         onLogout={handleLogout}
       />
     );
   }
 
-  if (currentScreen === "hotels") {
-    return <HotelsScreen onGoBack={navigateHome} onNavigateHome={navigateHome} />;
-  }
-
-  return (
-    <HomeScreen
-      displayName={getDisplayName(currentUser)}
-      onNavigateHotels={navigateHotels}
-      onLogout={handleLogout}
-      onNavigateLogin={!currentUser ? navigateLogin : undefined}
-      onNavigateSignup={!currentUser ? navigateSignup : undefined}
-    />
-  );
+  return <UserLocationProvider>{screenContent}</UserLocationProvider>;
 }

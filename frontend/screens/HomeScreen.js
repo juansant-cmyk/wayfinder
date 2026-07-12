@@ -11,7 +11,10 @@ import {
 } from "react-native";
 
 import * as dashboardApi from "../src/api/dashboard";
+import { mapSafetyLevel } from "../src/api/mappers";
 import { getToken } from "../src/auth/tokenStorage";
+import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
+import DimPressable from "./shared/DimPressable";
 
 const quickTools = [
   { label: "Itinerary", icon: "calendar-month", color: "#1F78FF", iconSize: 44 },
@@ -25,7 +28,16 @@ const quickTools = [
 ];
 
 const heroWidgetImage = require("../assets/images/ask-wayfinder-widget-final.png");
-const travelCheckCardImage = require("../assets/images/travel-check-clear.png");
+
+const QUICK_TOOL_SCREENS = {
+  Itinerary: "itinerary",
+  Flights: "flights",
+  Favorites: "favorites",
+  Safety: "safety",
+  Weather: "weather",
+  "AI Chat": "chat",
+  Maps: "maps",
+};
 
 const fallbackDestinations = [
   {
@@ -62,14 +74,6 @@ const fallbackDestinations = [
   },
 ];
 
-const bottomNavItems = [
-  { label: "Home", icon: "home", active: true },
-  { label: "Itinerary", icon: "calendar-clear", active: false },
-  { label: "Saved", icon: "bookmark-outline", active: false },
-  { label: "Trips", icon: "briefcase-outline", active: false },
-  { label: "Profile", icon: "person-outline", active: false },
-];
-
 function QuickToolIcon({ tool }) {
   if (tool.variant === "weather") {
     return (
@@ -99,35 +103,91 @@ function QuickToolIcon({ tool }) {
   );
 }
 
-export default function HomeScreen({ onNavigateHotels }) {
-  const showPlaceholder = (label) => {
-    if (label === "Home") {
-      return;
+export default function HomeScreen({ displayName = "Traveler", onNavigate, onNavigateHotels }) {
+  const [recommendedDestinations, setRecommendedDestinations] = useState(fallbackDestinations);
+  const [travelCheck, setTravelCheck] = useState(null);
+  const [travelCheckLoading, setTravelCheckLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRecommended() {
+      try {
+        const token = await getToken();
+        if (!token) {
+          return;
+        }
+
+        const destinations = await dashboardApi.fetchRecommendedDestinations(token);
+        if (!cancelled && destinations?.length) {
+          setRecommendedDestinations(destinations);
+        }
+      } catch (error) {
+        // Keep fallback cards when the API is unavailable.
+      }
     }
 
-    if (label === "Itinerary" || label === "Trips") {
-      onNavigate?.("itinerary");
-      return;
+    loadRecommended();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTravelCheck() {
+      setTravelCheckLoading(true);
+
+      try {
+        const token = await getToken();
+        if (!token) {
+          return;
+        }
+
+        const check = await dashboardApi.fetchTravelCheck(token);
+        if (!cancelled) {
+          setTravelCheck(check);
+        }
+      } catch (error) {
+        // Keep placeholder values when the API is unavailable.
+      } finally {
+        if (!cancelled) {
+          setTravelCheckLoading(false);
+        }
+      }
     }
 
-    if (label === "Saved") {
-      onNavigate?.("favorites");
-      return;
-    }
+    loadTravelCheck();
 
-    if (label === "Profile") {
-      onNavigate?.("profile");
-    }
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const travelWeather = travelCheck?.weather;
+  const travelSafety = travelCheck?.safety;
+  const safetyLabel = travelSafety ? mapSafetyLevel(travelSafety.overall_level) : "Safe";
+  const safetyMeta = travelSafety?.alerts?.length
+    ? `${travelSafety.alerts.length} active alert${travelSafety.alerts.length === 1 ? "" : "s"}`
+    : "No active alerts";
 
   const handleQuickToolPress = (tool) => {
-    if (tool.label === "Hotels" && onNavigateHotels) {
-      onNavigateHotels();
+    if (tool.label === "Hotels") {
+      onNavigateHotels?.();
       return;
     }
 
-    showPlaceholder(tool.label);
+    const screen = QUICK_TOOL_SCREENS[tool.label];
+    if (screen) {
+      onNavigate?.(screen);
+    }
   };
+
+  function destinationImageUri(destination) {
+    return { uri: destination.image_url || destination.image };
+  }
 
   return (
     <View style={styles.screen}>
@@ -180,27 +240,60 @@ export default function HomeScreen({ onNavigateHotels }) {
         <Text style={styles.sectionTitle}>Quick Tools</Text>
         <View style={styles.toolsGrid}>
           {quickTools.map((tool) => (
-            <Pressable
+            <DimPressable
               key={tool.label}
               style={styles.toolCard}
               onPress={() => handleQuickToolPress(tool)}
             >
               <QuickToolIcon tool={tool} />
               <Text style={styles.toolLabel}>{tool.label}</Text>
-            </Pressable>
+            </DimPressable>
           ))}
         </View>
 
-        <Pressable
+        <DimPressable
           style={styles.travelCard}
           onPress={() => onNavigate?.("travelCheck")}
         >
-          <Image
-            source={travelCheckCardImage}
-            style={styles.travelCardImage}
-            resizeMode="contain"
-          />
-        </Pressable>
+          <View style={styles.travelCardHeader}>
+            <Text style={styles.travelCardEyebrow}>TRAVEL CHECK</Text>
+            <Ionicons name="chevron-forward" size={18} color="#7D8AA5" />
+          </View>
+
+          <View style={styles.travelStatsRow}>
+            <View style={styles.travelStat}>
+              <Ionicons name="partly-sunny-outline" size={22} color="#1F78FF" />
+              <View style={styles.travelStatCopy}>
+                <Text style={styles.travelStatValue}>
+                  {travelCheckLoading
+                    ? "—"
+                    : `${Math.round(travelWeather?.temp_f || 70)}°F`}
+                </Text>
+                <Text style={styles.travelStatMeta}>
+                  {travelCheckLoading ? "Loading..." : travelWeather?.condition || "Partly cloudy"}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.travelDivider} />
+
+            <View style={styles.travelStat}>
+              <Ionicons name="shield-checkmark-outline" size={22} color="#10B24C" />
+              <View style={styles.travelStatCopy}>
+                <Text style={styles.travelStatValue}>
+                  {travelCheckLoading ? "—" : safetyLabel}
+                </Text>
+                <Text style={styles.travelStatMeta}>
+                  {travelCheckLoading ? "Loading..." : safetyMeta}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {!travelCheckLoading && travelCheck?.summary ? (
+            <Text style={styles.travelSummary}>{travelCheck.summary}</Text>
+          ) : null}
+        </DimPressable>
 
         <View style={styles.recommendationHeader}>
           <Text style={styles.recommendationTitle}>Recommended by Wayfinder</Text>
@@ -234,24 +327,7 @@ export default function HomeScreen({ onNavigateHotels }) {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        {bottomNavItems.map((item) => (
-          <Pressable
-            key={item.label}
-            style={styles.bottomNavItem}
-            onPress={() => handleBottomNav(item.label)}
-          >
-            <Ionicons
-              name={item.icon}
-              size={24}
-              color={item.active ? "#1F78FF" : "#334155"}
-            />
-            <Text style={[styles.bottomNavLabel, item.active && styles.bottomNavLabelActive]}>
-              {item.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <BottomNav activeLabel="Home" onNavigate={onNavigate} />
     </View>
   );
 }
@@ -270,7 +346,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingTop: 52,
     paddingHorizontal: 20,
-    paddingBottom: 122,
+    paddingBottom: BOTTOM_NAV_CONTENT_PADDING,
   },
 
   headerRow: {
@@ -468,7 +544,7 @@ const styles = StyleSheet.create({
     marginTop: 18,
     width: "100%",
     borderRadius: 19,
-    overflow: "hidden",
+    padding: 18,
     backgroundColor: "#FFFFFF",
     shadowColor: "#8FA3BF",
     shadowOpacity: 0.12,
@@ -477,10 +553,60 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
-  travelCardImage: {
-    width: "100%",
-    alignSelf: "center",
-    aspectRatio: 2014 / 436,
+  travelCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+
+  travelCardEyebrow: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    color: "#1F78FF",
+  },
+
+  travelStatsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  travelStat: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  travelStatCopy: {
+    flex: 1,
+  },
+
+  travelStatValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#14253E",
+  },
+
+  travelStatMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "#64748B",
+  },
+
+  travelDivider: {
+    width: 1,
+    alignSelf: "stretch",
+    marginHorizontal: 12,
+    backgroundColor: "#D7E3F4",
+  },
+
+  travelSummary: {
+    marginTop: 12,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#475569",
   },
 
   recommendationHeader: {
@@ -565,42 +691,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: "#FFFFFF",
-  },
-
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingTop: 12,
-    paddingBottom: 20,
-    paddingHorizontal: 12,
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    shadowColor: "#8FA3BF",
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: -5 },
-    elevation: 12,
-  },
-
-  bottomNavItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  bottomNavLabel: {
-    marginTop: 5,
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#334155",
-  },
-
-  bottomNavLabelActive: {
-    color: "#1F78FF",
   },
 });

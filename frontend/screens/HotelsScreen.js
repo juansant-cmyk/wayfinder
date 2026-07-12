@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import {
-  Alert,
   Image,
   Pressable,
   SafeAreaView,
@@ -13,54 +12,15 @@ import {
   View,
 } from "react-native";
 
+import * as dashboardApi from "../src/api/dashboard";
+import { mapHotelForAlly, sortKeyToApi } from "../src/api/mappers";
+import { getToken } from "../src/auth/tokenStorage";
+import { useUserLocation } from "../src/location/UserLocationContext";
+import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
+import DimPressable from "./shared/DimPressable";
 import { WayfinderBrand } from "./AuthShared";
 
 const hotelHeroImage = require("../assets/images/hotels/hotel-hero-reference.png");
-
-const mockHotels = [
-  {
-    id: "sunset-inn",
-    rank: 1,
-    name: "Sunset Inn",
-    location: "Los Angeles, CA",
-    neighborhood: "West Hollywood",
-    distanceMiles: 2.1,
-    rating: 4.6,
-    reviewCount: 532,
-    price: 149,
-    amenities: ["WiFi", "Pool", "Parking"],
-    image: require("../assets/images/hotels/hotel-card-sunset-inn.png"),
-    searchTerms: ["los angeles", "la", "west hollywood", "hollywood", "sunset"],
-    recommendation:
-      "Great value with excellent amenities and an easy ride to major attractions.",
-    details:
-      "A bright, modern stay with a courtyard pool, valet parking, and quick access to restaurants, nightlife, and rideshare pickup points.",
-    noteBackground: "#EFF5FF",
-    noteIconColor: "#2563EB",
-    detailChips: ["Free cancellation", "Late checkout", "Pool view rooms"],
-  },
-  {
-    id: "city-view-hotel",
-    rank: 2,
-    name: "City View Hotel",
-    location: "Downtown LA",
-    neighborhood: "City Center",
-    distanceMiles: 1.4,
-    rating: 4.4,
-    reviewCount: 318,
-    price: 119,
-    amenities: ["WiFi", "Breakfast", "Gym"],
-    image: require("../assets/images/hotels/hotel-card-city-view.png"),
-    searchTerms: ["downtown", "downtown la", "los angeles", "la", "city center"],
-    recommendation:
-      "Affordable and close to popular spots, with the fastest access to downtown plans.",
-    details:
-      "An upbeat hotel near museums, transit, and coffee shops, with free breakfast, a compact fitness room, and reliable WiFi for work or trip planning.",
-    noteBackground: "#EDF8F3",
-    noteIconColor: "#0F9F5B",
-    detailChips: ["Breakfast included", "Walkable area", "Gym access"],
-  },
-];
 
 const sortOptions = [
   { key: "bestMatch", label: "Best Match", icon: "star-outline", library: "ionicons" },
@@ -73,83 +33,6 @@ const sortOptions = [
   },
   { key: "closest", label: "Closest", icon: "location-outline", library: "ionicons" },
 ];
-
-const bottomNavItems = [
-  { label: "Home", icon: "home", active: true },
-  { label: "Itinerary", icon: "calendar-clear", active: false },
-  { label: "Saved", icon: "bookmark-outline", active: false },
-  { label: "Trips", icon: "briefcase-outline", active: false },
-  { label: "Profile", icon: "person-outline", active: false },
-];
-
-function normalizeText(value = "") {
-  return value.trim().toLowerCase();
-}
-
-function getMatchScore(hotel, query) {
-  const normalizedQuery = normalizeText(query);
-
-  if (!normalizedQuery) {
-    return 1;
-  }
-
-  const searchableFields = [
-    hotel.name,
-    hotel.location,
-    hotel.neighborhood,
-    ...(hotel.searchTerms || []),
-  ];
-
-  return searchableFields.reduce((bestScore, field) => {
-    const normalizedField = normalizeText(field);
-
-    if (!normalizedField) {
-      return bestScore;
-    }
-
-    if (normalizedField === normalizedQuery) {
-      return Math.max(bestScore, 5);
-    }
-
-    if (normalizedField.startsWith(normalizedQuery)) {
-      return Math.max(bestScore, 4);
-    }
-
-    if (normalizedField.includes(normalizedQuery)) {
-      return Math.max(bestScore, 3);
-    }
-
-    return bestScore;
-  }, 0);
-}
-
-function getSortedHotels(hotels, selectedSort, appliedDestination) {
-  const hotelsToSort = [...hotels];
-
-  hotelsToSort.sort((firstHotel, secondHotel) => {
-    if (selectedSort === "lowestPrice") {
-      return firstHotel.price - secondHotel.price || secondHotel.rating - firstHotel.rating;
-    }
-
-    if (selectedSort === "highestRated") {
-      return secondHotel.rating - firstHotel.rating || firstHotel.price - secondHotel.price;
-    }
-
-    if (selectedSort === "closest") {
-      return (
-        firstHotel.distanceMiles - secondHotel.distanceMiles ||
-        secondHotel.rating - firstHotel.rating
-      );
-    }
-
-    const secondScore = getMatchScore(secondHotel, appliedDestination);
-    const firstScore = getMatchScore(firstHotel, appliedDestination);
-
-    return secondScore - firstScore || firstHotel.rank - secondHotel.rank;
-  });
-
-  return hotelsToSort;
-}
 
 function renderSortIcon(option, isSelected) {
   const iconColor = isSelected ? "#FFFFFF" : "#1F78FF";
@@ -182,8 +65,10 @@ function renderAmenityIcon(amenity) {
 }
 
 function SortPill({ option, isSelected, onPress }) {
+  const Button = isSelected ? Pressable : DimPressable;
+
   return (
-    <Pressable
+    <Button
       accessibilityRole="button"
       onPress={onPress}
       style={[styles.sortPill, isSelected && styles.sortPillSelected]}
@@ -192,23 +77,81 @@ function SortPill({ option, isSelected, onPress }) {
       <Text style={[styles.sortPillLabel, isSelected && styles.sortPillLabelSelected]}>
         {option.label}
       </Text>
-    </Pressable>
+    </Button>
   );
 }
 
-export default function HotelsScreen({ onGoBack, onNavigateHome }) {
-  const [destination, setDestination] = useState("");
-  const [appliedDestination, setAppliedDestination] = useState("");
+export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, params = {} }) {
+  const { location, status, isUsingDeviceLocation, refreshLocation } = useUserLocation();
+  const [destination, setDestination] = useState(params.destination || dashboardApi.DEFAULT_DESTINATION);
+  const [appliedDestination, setAppliedDestination] = useState(params.destination || dashboardApi.DEFAULT_DESTINATION);
   const [selectedSort, setSelectedSort] = useState("bestMatch");
   const [savedHotels, setSavedHotels] = useState([]);
   const [expandedHotelId, setExpandedHotelId] = useState(null);
+  const [hotels, setHotels] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const filteredHotels = mockHotels.filter((hotel) => getMatchScore(hotel, appliedDestination) > 0);
-  const visibleHotels = getSortedHotels(filteredHotels, selectedSort, appliedDestination);
-  const resultsLabel = `${visibleHotels.length} result${visibleHotels.length === 1 ? "" : "s"}`;
+  const runSearch = useCallback(async () => {
+    if (status === "loading") {
+      return;
+    }
+
+    const query = (appliedDestination || dashboardApi.DEFAULT_DESTINATION).trim();
+    const apiSort = sortKeyToApi(selectedSort);
+
+    if (apiSort === "distance" && !isUsingDeviceLocation) {
+      setError("Enable location access to sort by closest.");
+      setHotels([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        setError("Sign in to search hotels.");
+        setHotels([]);
+        return;
+      }
+
+      const results = await dashboardApi.searchHotels(
+        token,
+        query,
+        apiSort,
+        location
+      );
+      setHotels(results.map((hotel, index) => mapHotelForAlly(hotel, index, location)));
+    } catch (searchError) {
+      const message = searchError instanceof Error ? searchError.message : "Search failed.";
+      setError(message);
+      setHotels([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [appliedDestination, selectedSort, location, status, isUsingDeviceLocation]);
+
+  const locationLabel =
+    status === "loading"
+      ? "Locating you..."
+      : isUsingDeviceLocation
+        ? `Using your GPS (${location.lat.toFixed(2)}, ${location.lng.toFixed(2)})`
+        : "Location access needed — allow GPS for real distances";
+
+  useEffect(() => {
+    runSearch();
+  }, [runSearch]);
+
+  const visibleHotels = hotels;
+  const resultsLabel = loading
+    ? "Searching..."
+    : `${visibleHotels.length} result${visibleHotels.length === 1 ? "" : "s"}`;
 
   const handleFindHotels = () => {
-    setAppliedDestination(destination.trim());
+    setAppliedDestination(destination.trim() || dashboardApi.DEFAULT_DESTINATION);
     setExpandedHotelId(null);
   };
 
@@ -218,15 +161,6 @@ export default function HotelsScreen({ onGoBack, onNavigateHome }) {
         ? currentSavedHotels.filter((savedHotelId) => savedHotelId !== hotelId)
         : [...currentSavedHotels, hotelId]
     );
-  };
-
-  const handleBottomNavPress = (label) => {
-    if (label === "Home" && onNavigateHome) {
-      onNavigateHome();
-      return;
-    }
-
-    Alert.alert(label, "Coming soon");
   };
 
   return (
@@ -242,14 +176,14 @@ export default function HotelsScreen({ onGoBack, onNavigateHome }) {
         >
           <View style={styles.contentInner}>
             <View style={styles.headerRow}>
-              <Pressable
+              <DimPressable
                 accessibilityRole="button"
                 accessibilityLabel="Go back"
                 onPress={onGoBack || onNavigateHome}
                 style={styles.roundHeaderButton}
               >
                 <Ionicons name="arrow-back" size={28} color="#14253E" />
-              </Pressable>
+              </DimPressable>
 
               <View style={styles.brandSlot}>
                 <WayfinderBrand
@@ -262,7 +196,7 @@ export default function HotelsScreen({ onGoBack, onNavigateHome }) {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Notifications"
-                  onPress={() => Alert.alert("Notifications", "Coming soon")}
+                  onPress={() => onNavigate?.("notifications")}
                   style={styles.headerActionButton}
                 >
                   <Ionicons name="notifications-outline" size={28} color="#111827" />
@@ -272,7 +206,7 @@ export default function HotelsScreen({ onGoBack, onNavigateHome }) {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Profile"
-                  onPress={() => Alert.alert("Profile", "Coming soon")}
+                  onPress={() => onNavigate?.("profile")}
                   style={styles.headerActionButton}
                 >
                   <Ionicons name="person-circle-outline" size={33} color="#111827" />
@@ -353,6 +287,19 @@ export default function HotelsScreen({ onGoBack, onNavigateHome }) {
             </View>
 
             <Text style={styles.sortHeading}>Sort by</Text>
+            <View style={styles.locationStatusRow}>
+              <Ionicons
+                name={isUsingDeviceLocation ? "navigate" : "location-outline"}
+                size={16}
+                color="#1F78FF"
+              />
+              <Text style={styles.locationStatusText}>{locationLabel}</Text>
+              {status !== "loading" ? (
+                <Pressable onPress={refreshLocation} hitSlop={8}>
+                  <Text style={styles.locationRefreshText}>Refresh</Text>
+                </Pressable>
+              ) : null}
+            </View>
 
             <View style={styles.sortRow}>
               {sortOptions.map((option) => (
@@ -387,14 +334,31 @@ export default function HotelsScreen({ onGoBack, onNavigateHome }) {
               </View>
             ) : null}
 
-            {visibleHotels.length > 0 ? (
+            {error ? (
+              <View style={styles.emptyStateCard}>
+                <MaterialCommunityIcons name="bed-outline" size={32} color="#1F78FF" />
+                <Text style={styles.emptyStateTitle}>Could not load hotels</Text>
+                <Text style={styles.emptyStateCopy}>{error}</Text>
+                <Pressable accessibilityRole="button" onPress={runSearch} style={styles.clearSearchButton}>
+                  <Text style={styles.clearSearchButtonText}>Try again</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            {!error && loading ? (
+              <View style={styles.emptyStateCard}>
+                <Text style={styles.emptyStateTitle}>Finding hotels...</Text>
+              </View>
+            ) : null}
+
+            {!error && !loading && visibleHotels.length > 0 ? (
               visibleHotels.map((hotel) => {
                 const isSaved = savedHotels.includes(hotel.id);
                 const isExpanded = expandedHotelId === hotel.id;
 
                 return (
                   <View key={hotel.id} style={styles.hotelCard}>
-                    <Pressable
+                    <DimPressable
                       accessibilityRole="button"
                       accessibilityLabel={isSaved ? "Remove hotel from saved" : "Save hotel"}
                       onPress={() => handleToggleSaved(hotel.id)}
@@ -405,7 +369,7 @@ export default function HotelsScreen({ onGoBack, onNavigateHome }) {
                         size={28}
                         color={isSaved ? "#FF5A4E" : "#14253E"}
                       />
-                    </Pressable>
+                    </DimPressable>
 
                     <View style={styles.hotelCardRow}>
                       <Image source={hotel.image} style={styles.hotelImage} resizeMode="cover" />
@@ -418,10 +382,14 @@ export default function HotelsScreen({ onGoBack, onNavigateHome }) {
                             <View style={styles.locationRow}>
                               <Ionicons name="location" size={16} color="#1F78FF" />
                               <Text style={styles.locationText}>{hotel.location}</Text>
-                              <Text style={styles.inlineSeparator}>|</Text>
-                              <Text style={styles.locationText}>
-                                {hotel.distanceMiles.toFixed(1)} mi from center
-                              </Text>
+                              {hotel.distanceMiles != null ? (
+                                <>
+                                  <Text style={styles.inlineSeparator}>|</Text>
+                                  <Text style={styles.locationText}>
+                                    {hotel.distanceMiles.toFixed(1)} mi from you
+                                  </Text>
+                                </>
+                              ) : null}
                             </View>
                           </View>
 
@@ -434,11 +402,15 @@ export default function HotelsScreen({ onGoBack, onNavigateHome }) {
                         <View style={styles.ratingRow}>
                           <View style={styles.ratingBadge}>
                             <Ionicons name="star" size={16} color="#F5B402" />
-                            <Text style={styles.ratingValue}>{hotel.rating.toFixed(1)}</Text>
+                            <Text style={styles.ratingValue}>{Number(hotel.rating).toFixed(1)}</Text>
                           </View>
 
                           <Text style={styles.inlineSeparator}>|</Text>
-                          <Text style={styles.reviewText}>({hotel.reviewCount} reviews)</Text>
+                          <Text style={styles.reviewText}>
+                            {hotel.reviewCount > 0
+                              ? `(${hotel.reviewCount} reviews)`
+                              : "(via Wayfinder)"}
+                          </Text>
                         </View>
 
                         <View style={styles.amenitiesRow}>
@@ -466,7 +438,7 @@ export default function HotelsScreen({ onGoBack, onNavigateHome }) {
                             </Text>
                           </View>
 
-                          <Pressable
+                          <DimPressable
                             accessibilityRole="button"
                             onPress={() =>
                               setExpandedHotelId((currentHotelId) =>
@@ -484,7 +456,7 @@ export default function HotelsScreen({ onGoBack, onNavigateHome }) {
                               color="#1F5EE9"
                               style={styles.detailsButtonIcon}
                             />
-                          </Pressable>
+                          </DimPressable>
                         </View>
 
                         {isExpanded ? (
@@ -506,48 +478,32 @@ export default function HotelsScreen({ onGoBack, onNavigateHome }) {
                   </View>
                 );
               })
-            ) : (
+            ) : null}
+
+            {!error && !loading && visibleHotels.length === 0 ? (
               <View style={styles.emptyStateCard}>
                 <MaterialCommunityIcons name="bed-outline" size={32} color="#1F78FF" />
                 <Text style={styles.emptyStateTitle}>No stays match that destination yet.</Text>
                 <Text style={styles.emptyStateCopy}>
-                  Try a broader search like Los Angeles, LA, or Downtown.
+                  Try another destination such as Bali or Japan.
                 </Text>
 
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => {
-                    setDestination("");
-                    setAppliedDestination("");
+                    setDestination(dashboardApi.DEFAULT_DESTINATION);
+                    setAppliedDestination(dashboardApi.DEFAULT_DESTINATION);
                   }}
                   style={styles.clearSearchButton}
                 >
-                  <Text style={styles.clearSearchButtonText}>Show all hotels</Text>
+                  <Text style={styles.clearSearchButtonText}>Search {dashboardApi.DEFAULT_DESTINATION}</Text>
                 </Pressable>
               </View>
-            )}
+            ) : null}
           </View>
         </ScrollView>
 
-        <View style={styles.bottomNav}>
-          {bottomNavItems.map((item) => (
-            <Pressable
-              key={item.label}
-              accessibilityRole="button"
-              onPress={() => handleBottomNavPress(item.label)}
-              style={styles.bottomNavItem}
-            >
-              <Ionicons
-                name={item.icon}
-                size={24}
-                color={item.active ? "#1F78FF" : "#334155"}
-              />
-              <Text style={[styles.bottomNavLabel, item.active && styles.bottomNavLabelActive]}>
-                {item.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <BottomNav activeLabel="Home" onNavigate={onNavigate} />
       </View>
     </SafeAreaView>
   );
@@ -572,7 +528,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: 18,
     paddingHorizontal: 18,
-    paddingBottom: 146,
+    paddingBottom: BOTTOM_NAV_CONTENT_PADDING,
     alignItems: "center",
   },
 
@@ -854,6 +810,26 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "800",
     color: "#14253E",
+  },
+
+  locationStatusRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  locationStatusText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475569",
+  },
+
+  locationRefreshText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1F78FF",
   },
 
   sortRow: {
@@ -1273,42 +1249,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
-  },
-
-  bottomNav: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingTop: 12,
-    paddingBottom: 20,
-    paddingHorizontal: 12,
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    shadowColor: "#8FA3BF",
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: -5 },
-    elevation: 12,
-  },
-
-  bottomNavItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  bottomNavLabel: {
-    marginTop: 5,
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#334155",
-  },
-
-  bottomNavLabelActive: {
-    color: "#1F78FF",
   },
 });

@@ -1,4 +1,8 @@
 from app.providers.base import ProviderHotel, ProviderPlace
+from app.services.hotel_sort import sort_provider_hotels
+
+DEFAULT_CENTER_LAT = -8.3405
+DEFAULT_CENTER_LNG = 115.092
 
 
 class MockPlacesProvider:
@@ -52,8 +56,8 @@ class MockHotelProvider:
                 provider_hotel_id=f"mock-hotel-{location.lower().replace(' ', '-')}-1",
                 name=f"{location} Garden Hotel",
                 address=f"12 Main Street, {location}",
-                lat=lat,
-                lng=lng,
+                lat=DEFAULT_CENTER_LAT + 0.005,
+                lng=DEFAULT_CENTER_LNG + 0.005,
                 nightly_rate=149.0,
                 total_estimate=298.0,
                 currency="USD",
@@ -66,8 +70,8 @@ class MockHotelProvider:
                 provider_hotel_id=f"mock-hotel-{location.lower().replace(' ', '-')}-2",
                 name=f"{location} Central Stay",
                 address=f"45 Center Avenue, {location}",
-                lat=lat,
-                lng=lng,
+                lat=DEFAULT_CENTER_LAT + 0.03,
+                lng=DEFAULT_CENTER_LNG + 0.03,
                 nightly_rate=119.0,
                 total_estimate=238.0,
                 currency="USD",
@@ -76,6 +80,4 @@ class MockHotelProvider:
                 metadata_json={"guests": guests, "check_in": check_in, "check_out": check_out},
             ),
         ]
-        if sort == "price":
-            return sorted(hotels, key=lambda hotel: hotel.nightly_rate)
-        return hotels
+        return sort_provider_hotels(hotels, sort, lat, lng)
