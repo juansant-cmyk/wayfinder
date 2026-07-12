@@ -14,9 +14,15 @@ function amenityIconName(label) {
   const key = label.trim().toLowerCase();
   if (key.includes("wifi") || key.includes("wi-fi")) return "wifi";
   if (key.includes("pool")) return "water-outline";
-  if (key.includes("breakfast")) return "cafe-outline";
-  if (key.includes("gym")) return "barbell-outline";
-  if (key.includes("parking")) return "car-outline";
+  if (key.includes("breakfast") || key.includes("board")) return "cafe-outline";
+  if (key.includes("gym") || key.includes("fitness")) return "barbell-outline";
+  if (key.includes("parking") || key.includes("garage")) return "car-outline";
+  if (key.includes("free cancellation") || key === "refundable") {
+    return "shield-checkmark-outline";
+  }
+  if (key.includes("non-refundable") || key.includes("non refundable")) {
+    return "close-circle-outline";
+  }
   return "checkmark-circle-outline";
 }
 
@@ -31,7 +37,7 @@ export function mapSafetyLevel(level) {
 
 export function mapHotelForAlly(hotel, index = 0, origin = null) {
   const style = NOTE_STYLES[index % NOTE_STYLES.length];
-  const amenities = (hotel.amenities || []).slice(0, 3);
+  const amenities = (hotel.amenities || []).slice(0, 6);
   const address = hotel.address || "Destination area";
   const remoteImage = hotel.metadata_json?.image_url;
 
@@ -61,7 +67,7 @@ export function mapHotelForAlly(hotel, index = 0, origin = null) {
     lat: hotel.lat,
     lng: hotel.lng,
     rating: hotel.rating ?? 4.0,
-    reviewCount: 0,
+    reviewCount: Number(hotel.metadata_json?.review_count) || 0,
     price: Math.round(hotel.nightly_rate),
     currency: hotel.currency || "USD",
     amenities,

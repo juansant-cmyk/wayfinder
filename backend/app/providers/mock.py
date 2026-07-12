@@ -62,7 +62,7 @@ class MockHotelProvider:
                 nightly_rate=149.0,
                 total_estimate=298.0,
                 currency="USD",
-                amenities=["Wi-Fi", "Breakfast", "Pool"],
+                amenities=["Pool", "Parking", "Gym", "Wi-Fi included", "Free cancellation"],
                 rating=4.4,
                 metadata_json={
                     "guests": guests,
@@ -70,6 +70,7 @@ class MockHotelProvider:
                     "check_out": check_out,
                     "image_url": None,
                     "description": f"A garden-side stay in {location}.",
+                    "cancellation": "Free cancellation",
                 },
             ),
             ProviderHotel(
@@ -82,7 +83,7 @@ class MockHotelProvider:
                 nightly_rate=119.0,
                 total_estimate=238.0,
                 currency="USD",
-                amenities=["Wi-Fi", "Kitchenette"],
+                amenities=["Parking", "Wi-Fi included", "Non-refundable"],
                 rating=4.1,
                 metadata_json={
                     "guests": guests,
@@ -90,6 +91,7 @@ class MockHotelProvider:
                     "check_out": check_out,
                     "image_url": None,
                     "description": f"A central base in {location}.",
+                    "cancellation": "Non-refundable",
                 },
             ),
         ]

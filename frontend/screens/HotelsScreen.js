@@ -52,23 +52,37 @@ function renderSortIcon(option, isSelected) {
 }
 
 function renderAmenityIcon(amenity) {
-  if (amenity === "Pool") {
+  const key = String(amenity || "").trim().toLowerCase();
+
+  if (key.includes("pool")) {
     return <MaterialCommunityIcons name="pool" size={20} color="#14253E" />;
   }
 
-  if (amenity === "Parking") {
+  if (key.includes("parking") || key.includes("garage")) {
     return <Ionicons name="car-outline" size={20} color="#14253E" />;
   }
 
-  if (amenity === "Breakfast") {
+  if (key.includes("breakfast") || key.includes("board")) {
     return <Ionicons name="cafe-outline" size={20} color="#14253E" />;
   }
 
-  if (amenity === "Gym") {
+  if (key.includes("gym") || key.includes("fitness")) {
     return <Ionicons name="barbell-outline" size={20} color="#14253E" />;
   }
 
-  return <Ionicons name="wifi-outline" size={20} color="#14253E" />;
+  if (key.includes("free cancellation") || key === "refundable") {
+    return <Ionicons name="shield-checkmark-outline" size={20} color="#14253E" />;
+  }
+
+  if (key.includes("non-refundable") || key.includes("non refundable")) {
+    return <Ionicons name="close-circle-outline" size={20} color="#14253E" />;
+  }
+
+  if (key.includes("wifi") || key.includes("wi-fi")) {
+    return <Ionicons name="wifi-outline" size={20} color="#14253E" />;
+  }
+
+  return <Ionicons name="checkmark-circle-outline" size={20} color="#14253E" />;
 }
 
 function SortPill({ option, isSelected, onPress }) {

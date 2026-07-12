@@ -15,7 +15,13 @@ pytestmark = pytest.mark.unit
 SAMPLE_ROOM_CHEAP = {
     "offerId": "offer-cheap",
     "offerRetailRate": {"amount": 120.0, "currency": "USD"},
-    "rates": [{"boardName": "Room Only", "name": "Queen"}],
+    "rates": [
+        {
+            "boardName": "Room Only",
+            "name": "Queen",
+            "cancellationPolicies": {"refundableTag": "RFN"},
+        }
+    ],
 }
 
 SAMPLE_ROOM_EXPENSIVE = {
@@ -41,7 +47,8 @@ SAMPLE_HOTEL_INFO = {
     "rating": 4.6,
     "stars": 4,
     "review_count": 128,
-    "tags": ["Pool", "Wi-Fi"],
+    "tags": ["Outdoor pool", "Free parking", "Fitness centre", "Wi-Fi"],
+    "hotelFacilities": ["Swimming pool", "Parking", "Gym"],
 }
 
 
@@ -76,9 +83,36 @@ def test_map_liteapi_search_hotel():
     assert hotel.nightly_rate == 60.0
     assert hotel.currency == "USD"
     assert hotel.lat == -8.34
-    assert "Pool" in hotel.amenities
+    assert hotel.amenities[:5] == ["Pool", "Parking", "Gym", "Wi-Fi included", "Free cancellation"]
+    assert "Room Only" in hotel.amenities
     assert hotel.metadata_json["offer_id"] == "offer-cheap"
     assert hotel.metadata_json["image_url"] == "https://example.com/hotel.jpg"
+    assert hotel.metadata_json["cancellation"] == "Free cancellation"
+
+
+def test_extract_featured_amenities_and_cancellation():
+    from app.providers.liteapi import (
+        classify_facility_label,
+        extract_cancellation_label,
+        extract_featured_amenities,
+        featured_amenities_from_facility_ids,
+    )
+
+    assert extract_featured_amenities(["Free WiFi", "Outdoor pool", "On-site parking"]) == [
+        "Pool",
+        "Parking",
+        "Wi-Fi included",
+    ]
+    assert classify_facility_label("Free WiFi") == "Wi-Fi included"
+    assert classify_facility_label("billiards or pool table") is None
+    assert classify_facility_label("Fitness facilities") == "Gym"
+    assert featured_amenities_from_facility_ids(
+        [492, 47, 999],
+        {492: "Gym", 47: "Parking"},
+    ) == ["Parking", "Gym"]
+    assert extract_cancellation_label(
+        {"rates": [{"cancellationPolicies": {"refundableTag": "NRFN"}}]}
+    ) == "Non-refundable"
 
 
 def test_map_liteapi_hotel_details():
@@ -93,7 +127,7 @@ def test_map_liteapi_hotel_details():
                 "starRating": 4,
                 "main_photo": "https://example.com/hotel.jpg",
                 "hotelDescription": "<p>A <strong>lovely</strong> stay.</p>",
-                "hotelFacilities": ["Pool", "Spa", "Wi-Fi"],
+                "hotelFacilities": ["Pool", "Spa", "Wi-Fi", "Parking", "Gym"],
                 "location": {"latitude": -8.34, "longitude": 115.09},
                 "hotelImages": [{"url": "https://example.com/a.jpg", "defaultImage": True}],
             }
@@ -101,7 +135,8 @@ def test_map_liteapi_hotel_details():
     )
     assert hotel.provider_hotel_id == "lp1897"
     assert hotel.rating == 4.0
-    assert hotel.amenities[:2] == ["Pool", "Spa"]
+    assert hotel.amenities[:4] == ["Pool", "Parking", "Gym", "Wi-Fi included"]
+    assert "Spa" in hotel.amenities
     assert hotel.metadata_json["description"] == "A lovely stay."
     assert hotel.metadata_json["image_url"] == "https://example.com/hotel.jpg"
     assert hotel.nightly_rate == 0.0
@@ -110,16 +145,41 @@ def test_map_liteapi_hotel_details():
 @pytest.mark.asyncio
 async def test_liteapi_search_hotels_happy_path():
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "POST"
-        assert request.url.path.endswith("/hotels/rates")
-        assert request.headers.get("X-API-Key") == "test-key"
-        return httpx.Response(
-            200,
-            json={
-                "data": [SAMPLE_RATE_ROW],
-                "hotels": [SAMPLE_HOTEL_INFO],
-            },
-        )
+        path = request.url.path
+        if request.method == "POST" and path.endswith("/hotels/rates"):
+            assert request.headers.get("X-API-Key") == "test-key"
+            return httpx.Response(
+                200,
+                json={
+                    "data": [SAMPLE_RATE_ROW],
+                    "hotels": [SAMPLE_HOTEL_INFO],
+                },
+            )
+        if request.method == "GET" and path.endswith("/data/hotels"):
+            return httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {
+                            "id": "lp1897",
+                            "facilityIds": [3, 47, 492, 107],
+                        }
+                    ]
+                },
+            )
+        if request.method == "GET" and path.endswith("/data/facilities"):
+            return httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"facility_id": 3, "facility": "Swimming pool"},
+                        {"facility_id": 47, "facility": "Parking"},
+                        {"facility_id": 492, "facility": "Fitness facilities"},
+                        {"facility_id": 107, "facility": "Free WiFi"},
+                    ]
+                },
+            )
+        return httpx.Response(404, json={"error": "unexpected"})
 
     transport = httpx.MockTransport(handler)
     async with httpx.AsyncClient(transport=transport) as client:
@@ -130,6 +190,7 @@ async def test_liteapi_search_hotels_happy_path():
 
     assert len(hotels) == 1
     assert hotels[0].provider_hotel_id == "lp1897"
+    assert hotels[0].amenities[:4] == ["Pool", "Parking", "Gym", "Wi-Fi included"]
     assert hotels[0].metadata_json["check_in"] == "2026-11-01"
     assert hotels[0].metadata_json["check_out"] == "2026-11-03"
 
@@ -139,8 +200,10 @@ async def test_liteapi_search_uses_geo_when_provided():
     captured: dict = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        captured["body"] = request.read()
-        return httpx.Response(200, json={"data": [], "hotels": []})
+        if request.method == "POST" and request.url.path.endswith("/hotels/rates"):
+            captured["body"] = request.read()
+            return httpx.Response(200, json={"data": [], "hotels": []})
+        return httpx.Response(200, json={"data": []})
 
     transport = httpx.MockTransport(handler)
     async with httpx.AsyncClient(transport=transport) as client:

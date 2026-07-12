@@ -6,6 +6,7 @@ Auth header: X-API-Key
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 from datetime import date, timedelta
 from typing import Any
@@ -101,6 +102,148 @@ def pick_cheapest_room_type(room_types: list[dict[str, Any]]) -> dict[str, Any] 
     return priced[0][1]
 
 
+# Card-first amenities — match flexible LiteAPI facility/tag strings.
+FEATURED_AMENITY_ORDER = ("Pool", "Parking", "Gym", "Wi-Fi included")
+
+FEATURED_AMENITY_MATCHERS: list[tuple[str, tuple[str, ...]]] = [
+    ("Pool", ("swimming pool", "outdoor pool", "indoor pool", "rooftop pool")),
+    ("Parking", ("parking", "car park", "garage")),
+    ("Gym", ("gym", "fitness", "fitness centre", "fitness center", "fitness room", "fitness facilities")),
+    ("Wi-Fi included", ("wifi", "wi-fi", "wireless", "internet")),
+]
+
+
+def _looks_like_pool(text: str) -> bool:
+    low = text.lower()
+    if "pool table" in low or "billiards" in low:
+        return False
+    if any(needle in low for needle in FEATURED_AMENITY_MATCHERS[0][1]):
+        return True
+    # Generic "pool" / "swim" without billiards false-positives.
+    return "pool" in low or "swim" in low
+
+
+def _facility_strings(info: dict[str, Any]) -> list[str]:
+    values: list[str] = []
+    for key in ("tags", "hotelFacilities", "hotel_facilities"):
+        for item in info.get(key) or []:
+            if isinstance(item, str) and item.strip():
+                values.append(item.strip())
+            elif isinstance(item, dict):
+                name = item.get("name") or item.get("facility")
+                if name:
+                    values.append(str(name).strip())
+    for item in info.get("facilities") or []:
+        if isinstance(item, str) and item.strip():
+            values.append(item.strip())
+        elif isinstance(item, dict) and item.get("name"):
+            values.append(str(item["name"]).strip())
+    return values
+
+
+def classify_facility_label(name: str) -> str | None:
+    """Map a facility/tag string to a featured card label when relevant."""
+    low = name.lower().strip()
+    if not low:
+        return None
+    if _looks_like_pool(low):
+        return "Pool"
+    if "parking" in low:
+        return "Parking"
+    if any(needle in low for needle in FEATURED_AMENITY_MATCHERS[2][1]) or "fitness" in low:
+        return "Gym"
+    if any(needle in low for needle in FEATURED_AMENITY_MATCHERS[3][1]):
+        return "Wi-Fi included"
+    return None
+
+
+def extract_featured_amenities(sources: list[str]) -> list[str]:
+    """Return Pool / Parking / Gym / Wi-Fi included when any source string matches."""
+    found: list[str] = []
+    for src in sources:
+        label = classify_facility_label(str(src))
+        if label and label not in found:
+            found.append(label)
+    return [label for label in FEATURED_AMENITY_ORDER if label in found]
+
+
+def featured_amenities_from_facility_ids(
+    facility_ids: list[Any],
+    id_to_label: dict[int, str],
+) -> list[str]:
+    found: set[str] = set()
+    for raw in facility_ids:
+        try:
+            fid = int(raw)
+        except (TypeError, ValueError):
+            continue
+        label = id_to_label.get(fid)
+        if label:
+            found.add(label)
+    return [label for label in FEATURED_AMENITY_ORDER if label in found]
+
+
+def extract_cancellation_label(room_type: dict[str, Any] | None) -> str | None:
+    """Map LiteAPI refundableTag to a short card label when present."""
+    if not room_type:
+        return None
+    rates = room_type.get("rates") or []
+    if not rates:
+        return None
+    policies = rates[0].get("cancellationPolicies") or {}
+    tag = str(policies.get("refundableTag") or "").upper()
+    if tag in {"RFN", "REFUNDABLE"}:
+        return "Free cancellation"
+    if tag in {"NRFN", "NON_REFUNDABLE", "NON-REFUNDABLE"}:
+        return "Non-refundable"
+    return None
+
+
+def build_card_amenities(
+    *,
+    info: dict[str, Any],
+    room_type: dict[str, Any] | None,
+    limit: int = 6,
+) -> list[str]:
+    """Prioritize featured amenities + cancellation, then board / other tags."""
+    facility_sources = _facility_strings(info)
+    amenities: list[str] = []
+
+    precomputed = list(info.get("_featured_amenities") or [])
+    for label in FEATURED_AMENITY_ORDER:
+        if label in precomputed and label not in amenities:
+            amenities.append(label)
+
+    for label in extract_featured_amenities(facility_sources):
+        if label not in amenities:
+            amenities.append(label)
+
+    cancellation = extract_cancellation_label(room_type)
+    if cancellation and cancellation not in amenities:
+        amenities.append(cancellation)
+
+    board = None
+    rates = (room_type or {}).get("rates") or []
+    if rates:
+        board = rates[0].get("boardName") or rates[0].get("name")
+    if board:
+        board_label = str(board).strip()
+        if board_label and board_label not in amenities:
+            amenities.append(board_label)
+
+    for raw in facility_sources:
+        label = str(raw).strip()
+        if not label or label in amenities:
+            continue
+        if classify_facility_label(label):
+            continue
+        amenities.append(label)
+        if len(amenities) >= limit:
+            break
+
+    return amenities[:limit]
+
+
 def map_liteapi_search_hotel(
     rate_row: dict[str, Any],
     hotel_info: dict[str, Any] | None,
@@ -128,13 +271,8 @@ def map_liteapi_search_hotel(
     elif not address and city:
         address = str(city)
 
-    amenities = list(info.get("tags") or [])[:8]
-    board = None
-    rates = room_type.get("rates") or []
-    if rates:
-        board = rates[0].get("boardName") or rates[0].get("name")
-        if board and board not in amenities:
-            amenities = [str(board), *amenities][:8]
+    amenities = build_card_amenities(info=info, room_type=room_type)
+    cancellation = extract_cancellation_label(room_type)
 
     image_url = info.get("main_photo") or info.get("thumbnail")
     nightly = total / max(nights, 1)
@@ -158,6 +296,7 @@ def map_liteapi_search_hotel(
             "stars": info.get("stars"),
             "review_count": info.get("review_count"),
             "story": info.get("story"),
+            "cancellation": cancellation,
             "rates_included": True,
         },
     )
@@ -170,7 +309,6 @@ def map_liteapi_hotel_details(payload: dict[str, Any]) -> ProviderHotel:
         raise LookupError("LiteAPI hotel details missing id")
 
     location = data.get("location") or {}
-    facilities = list(data.get("hotelFacilities") or data.get("facilities") or [])
     images = data.get("hotelImages") or []
     image_url = data.get("main_photo")
     if not image_url and images:
@@ -183,6 +321,15 @@ def map_liteapi_hotel_details(payload: dict[str, Any]) -> ProviderHotel:
     parts = [part for part in (address, city, country) if part]
     full_address = ", ".join(str(part) for part in parts) if parts else None
 
+    amenities = build_card_amenities(info=data if isinstance(data, dict) else {}, room_type=None, limit=8)
+    if not amenities:
+        raw_facilities = list(data.get("hotelFacilities") or data.get("facilities") or [])
+        amenities = [
+            str(item.get("name") if isinstance(item, dict) else item)
+            for item in raw_facilities[:8]
+            if item
+        ]
+
     return ProviderHotel(
         provider="liteapi",
         provider_hotel_id=hotel_id,
@@ -193,7 +340,7 @@ def map_liteapi_hotel_details(payload: dict[str, Any]) -> ProviderHotel:
         nightly_rate=0.0,
         total_estimate=0.0,
         currency="USD",
-        amenities=[str(item) for item in facilities[:12]],
+        amenities=amenities,
         rating=_parse_float(data.get("rating") if data.get("rating") is not None else data.get("starRating")),
         metadata_json={
             "image_url": image_url,
@@ -233,6 +380,7 @@ class LiteApiHotelProvider:
         )
         self.currency = currency if currency is not None else (settings.liteapi_currency or "USD")
         self.search_limit = search_limit
+        self._featured_facility_ids: dict[int, str] | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -243,6 +391,102 @@ class LiteApiHotelProvider:
         if self._owns_client and self._client is not None:
             await self._client.aclose()
             self._client = None
+
+    async def _featured_facility_id_map(self) -> dict[int, str]:
+        """Cache facility_id → featured card labels from LiteAPI catalog."""
+        if self._featured_facility_ids is not None:
+            return self._featured_facility_ids
+
+        client = await self._get_client()
+        response = await client.get(f"{self.base_url}/data/facilities", headers=self._headers())
+        response.raise_for_status()
+        rows = response.json().get("data") or []
+        mapping: dict[int, str] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            raw_id = row.get("facility_id", row.get("id", row.get("facilityId")))
+            name = row.get("facility") or row.get("name") or ""
+            label = classify_facility_label(str(name))
+            if raw_id is None or label is None:
+                continue
+            try:
+                mapping[int(raw_id)] = label
+            except (TypeError, ValueError):
+                continue
+        self._featured_facility_ids = mapping
+        return mapping
+
+    async def _hotel_facility_ids(self, hotel_ids: list[str]) -> dict[str, list[int]]:
+        """Batch-fetch facilityIds via /data/hotels (search payload lacks full facilities)."""
+        unique_ids = [hotel_id for hotel_id in dict.fromkeys(hotel_ids) if hotel_id]
+        if not unique_ids:
+            return {}
+
+        client = await self._get_client()
+        result: dict[str, list[int]] = {}
+
+        def _parse_ids(raw_ids: list[Any]) -> list[int]:
+            parsed: list[int] = []
+            for value in raw_ids:
+                try:
+                    parsed.append(int(value))
+                except (TypeError, ValueError):
+                    continue
+            return parsed
+
+        chunk_size = 20
+        for start in range(0, len(unique_ids), chunk_size):
+            chunk = unique_ids[start : start + chunk_size]
+            response = await client.get(
+                f"{self.base_url}/data/hotels",
+                headers=self._headers(),
+                params=[("hotelIds", hotel_id) for hotel_id in chunk],
+            )
+            if response.status_code >= 400:
+                response = await client.get(
+                    f"{self.base_url}/data/hotels",
+                    headers=self._headers(),
+                    params={"hotelIds": ",".join(chunk)},
+                )
+            if response.status_code >= 400:
+                continue
+            for row in response.json().get("data") or []:
+                if not isinstance(row, dict) or row.get("id") is None:
+                    continue
+                result[str(row["id"])] = _parse_ids(list(row.get("facilityIds") or []))
+
+        return result
+
+    async def _featured_amenities_from_details(self, hotel_ids: list[str]) -> dict[str, list[str]]:
+        """Fallback: read hotelFacilities from /data/hotel when batch facilityIds are missing."""
+        if not hotel_ids:
+            return {}
+
+        client = await self._get_client()
+        semaphore = asyncio.Semaphore(5)
+        featured_by_hotel: dict[str, list[str]] = {}
+
+        async def _load_one(hotel_id: str) -> None:
+            async with semaphore:
+                response = await client.get(
+                    f"{self.base_url}/data/hotel",
+                    headers=self._headers(),
+                    params={"hotelId": hotel_id},
+                )
+                if response.status_code >= 400:
+                    return
+                data = response.json().get("data") or {}
+                names = [str(item) for item in (data.get("hotelFacilities") or []) if item]
+                for item in data.get("facilities") or []:
+                    if isinstance(item, dict) and item.get("name"):
+                        names.append(str(item["name"]))
+                featured = extract_featured_amenities(names)
+                if featured:
+                    featured_by_hotel[hotel_id] = featured
+
+        await asyncio.gather(*[_load_one(hotel_id) for hotel_id in hotel_ids])
+        return featured_by_hotel
 
     def _headers(self) -> dict[str, str]:
         if not self.api_key:
@@ -324,8 +568,46 @@ class LiteApiHotelProvider:
         rate_rows = list(payload.get("data") or [])
         hotel_rows = list(payload.get("hotels") or [])
         info_by_id = {
-            str(item.get("id")): item for item in hotel_rows if item.get("id") is not None
+            str(item.get("id")): dict(item) for item in hotel_rows if item.get("id") is not None
         }
+
+        hotel_ids = [str(row.get("hotelId") or "") for row in rate_rows if row.get("hotelId")]
+        if hotel_ids:
+            facility_ids_by_hotel = await self._hotel_facility_ids(hotel_ids)
+            featured_id_map = await self._featured_facility_id_map() if facility_ids_by_hotel else {}
+
+            for hotel_id, facility_ids in facility_ids_by_hotel.items():
+                featured = featured_amenities_from_facility_ids(facility_ids, featured_id_map)
+                if not featured:
+                    continue
+                info = info_by_id.get(hotel_id) or {"id": hotel_id}
+                merged = {
+                    *(info.get("_featured_amenities") or []),
+                    *featured,
+                }
+                info["_featured_amenities"] = [
+                    label for label in FEATURED_AMENITY_ORDER if label in merged
+                ]
+                info_by_id[hotel_id] = info
+
+            # Hotels missing from batch (or with empty facilityIds) → details fallback.
+            needs_details = [
+                hotel_id
+                for hotel_id in dict.fromkeys(hotel_ids)
+                if hotel_id not in facility_ids_by_hotel or not facility_ids_by_hotel.get(hotel_id)
+            ]
+            if needs_details:
+                featured_from_details = await self._featured_amenities_from_details(needs_details)
+                for hotel_id, featured in featured_from_details.items():
+                    info = info_by_id.get(hotel_id) or {"id": hotel_id}
+                    merged = {
+                        *(info.get("_featured_amenities") or []),
+                        *featured,
+                    }
+                    info["_featured_amenities"] = [
+                        label for label in FEATURED_AMENITY_ORDER if label in merged
+                    ]
+                    info_by_id[hotel_id] = info
 
         mapped: list[ProviderHotel] = []
         for row in rate_rows:
