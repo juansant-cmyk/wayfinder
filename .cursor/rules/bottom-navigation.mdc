@@ -15,11 +15,12 @@ Every **authenticated** screen in the Wayfinder app must show the **same** botto
 | Home | `home` | `home` |
 | Itinerary | `calendar-clear` | `itinerary` |
 | Saved | `bookmark-outline` | `favorites` |
-| Trips | `briefcase-outline` | `itinerary` |
+| Trips | `briefcase-outline` | `trips` |
 | Profile | `person-outline` | `profile` |
 
 - **Active tab**: highlight label/icon with `#1F78FF`; inactive `#334155`.
-- **Home** on the home screen is a no-op (already there).
+- **Home** always navigates to `home` (including from Hotels). Do not treat Hotels as the Home tab.
+- **Trips** and **Itinerary** are separate routes (`trips` vs `itinerary`).
 
 ## Implementation rules
 

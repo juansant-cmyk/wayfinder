@@ -42,7 +42,7 @@ async def test_quick_tools_endpoints(client: AsyncClient):
 
     favorites = await client.get("/favorites", headers=headers)
     assert favorites.status_code == 200
-    assert favorites.json()[0]["item_type"] == "destination"
+    assert favorites.json() == []
 
     safety = await client.get("/safety/summary?destination=Bali", headers=headers)
     assert safety.status_code == 200

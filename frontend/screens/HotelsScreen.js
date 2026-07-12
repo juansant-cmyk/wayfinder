@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import {
+  Alert,
   Image,
   Pressable,
   SafeAreaView,
@@ -13,8 +14,14 @@ import {
 } from "react-native";
 
 import * as dashboardApi from "../src/api/dashboard";
-import { mapHotelForAlly, sortKeyToApi } from "../src/api/mappers";
+import {
+  favoriteKeyFromItem,
+  hotelFavoriteKey,
+  mapHotelForAlly,
+  sortKeyToApi,
+} from "../src/api/mappers";
 import { getToken } from "../src/auth/tokenStorage";
+import { geocodeQuery, reverseGeocodeLabel } from "../src/location/geo";
 import { useUserLocation } from "../src/location/UserLocationContext";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
@@ -83,25 +90,135 @@ function SortPill({ option, isSelected, onPress }) {
 
 export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, params = {} }) {
   const { location, status, isUsingDeviceLocation, refreshLocation } = useUserLocation();
-  const [destination, setDestination] = useState(params.destination || dashboardApi.DEFAULT_DESTINATION);
-  const [appliedDestination, setAppliedDestination] = useState(params.destination || dashboardApi.DEFAULT_DESTINATION);
+  const seededDestination = params.destination?.trim() || "";
+  const [destination, setDestination] = useState(seededDestination);
+  const [appliedDestination, setAppliedDestination] = useState(seededDestination);
+  const [searchOrigin, setSearchOrigin] = useState(null);
+  const [destinationReady, setDestinationReady] = useState(Boolean(seededDestination));
   const [selectedSort, setSelectedSort] = useState("bestMatch");
   const [savedHotels, setSavedHotels] = useState([]);
+  const [pendingFavoriteKeys, setPendingFavoriteKeys] = useState([]);
   const [expandedHotelId, setExpandedHotelId] = useState(null);
   const [hotels, setHotels] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [invalidLocationQuery, setInvalidLocationQuery] = useState(null);
+  const pendingFavoriteKeysRef = useRef(new Set());
+
+  const loadSavedFavorites = useCallback(async () => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        setSavedHotels([]);
+        return;
+      }
+      const favorites = await dashboardApi.fetchFavorites(token);
+      const keys = (favorites || [])
+        .filter((item) => item.item_type === "hotel")
+        .map((item) => favoriteKeyFromItem(item))
+        .filter(Boolean);
+      setSavedHotels(keys);
+    } catch {
+      // Keep local heart state if refresh fails; search still works.
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSavedFavorites();
+  }, [loadSavedFavorites]);
+
+  // Seed destination from GPS → nearest city (unless navigated here with a destination).
+  useEffect(() => {
+    if (seededDestination) {
+      let cancelled = false;
+      (async () => {
+        const resolved = await geocodeQuery(seededDestination);
+        if (cancelled) {
+          return;
+        }
+        if (resolved) {
+          setSearchOrigin(resolved);
+          setDestination(resolved.label);
+          setAppliedDestination(resolved.label);
+        } else {
+          setInvalidLocationQuery(seededDestination);
+          setError(
+            `No results found for ${seededDestination}. Please enter a valid location.`
+          );
+        }
+        setDestinationReady(true);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (status === "loading") {
+      return undefined;
+    }
+
+    // Keep keyword-driven search centers; don't overwrite with GPS refresh.
+    if (searchOrigin?.source === "search") {
+      setDestinationReady(true);
+      return undefined;
+    }
+
+    let cancelled = false;
+    (async () => {
+      if (location?.lat != null && location?.lng != null) {
+        const city = await reverseGeocodeLabel(location.lat, location.lng);
+        if (cancelled) {
+          return;
+        }
+        const label =
+          city || `${Number(location.lat).toFixed(2)}, ${Number(location.lng).toFixed(2)}`;
+        setDestination(label);
+        setAppliedDestination(label);
+        setSearchOrigin({
+          lat: location.lat,
+          lng: location.lng,
+          source: location.source || "gps",
+          label,
+        });
+        setInvalidLocationQuery(null);
+        setDestinationReady(true);
+        return;
+      }
+
+      setDestination("");
+      setAppliedDestination("");
+      setSearchOrigin(null);
+      setDestinationReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [seededDestination, status, location?.lat, location?.lng, location?.source, searchOrigin?.source]);
 
   const runSearch = useCallback(async () => {
-    if (status === "loading") {
+    if (!destinationReady || status === "loading") {
       return;
     }
 
-    const query = (appliedDestination || dashboardApi.DEFAULT_DESTINATION).trim();
-    const apiSort = sortKeyToApi(selectedSort);
+    if (invalidLocationQuery) {
+      setHotels([]);
+      setLoading(false);
+      return;
+    }
 
-    if (apiSort === "distance" && !isUsingDeviceLocation) {
-      setError("Enable location access to sort by closest.");
+    const query = appliedDestination.trim();
+    if (!query) {
+      setHotels([]);
+      setLoading(false);
+      return;
+    }
+
+    const apiSort = sortKeyToApi(selectedSort);
+    const origin = searchOrigin;
+
+    if (apiSort === "distance" && (origin?.lat == null || origin?.lng == null)) {
+      setError("Enable location access or search a valid city to sort by closest.");
       setHotels([]);
       setLoading(false);
       return;
@@ -118,13 +235,8 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
         return;
       }
 
-      const results = await dashboardApi.searchHotels(
-        token,
-        query,
-        apiSort,
-        location
-      );
-      setHotels(results.map((hotel, index) => mapHotelForAlly(hotel, index, location)));
+      const results = await dashboardApi.searchHotels(token, query, apiSort, origin);
+      setHotels(results.map((hotel, index) => mapHotelForAlly(hotel, index, origin)));
     } catch (searchError) {
       const message = searchError instanceof Error ? searchError.message : "Search failed.";
       setError(message);
@@ -132,14 +244,25 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
     } finally {
       setLoading(false);
     }
-  }, [appliedDestination, selectedSort, location, status, isUsingDeviceLocation]);
+  }, [
+    appliedDestination,
+    selectedSort,
+    searchOrigin,
+    status,
+    destinationReady,
+    invalidLocationQuery,
+  ]);
 
   const locationLabel =
-    status === "loading"
+    status === "loading" && !searchOrigin
       ? "Locating you..."
-      : isUsingDeviceLocation
-        ? `Using your GPS (${location.lat.toFixed(2)}, ${location.lng.toFixed(2)})`
-        : "Location access needed — allow GPS for real distances";
+      : searchOrigin?.label
+        ? searchOrigin.source === "search"
+          ? `Searching near ${searchOrigin.label}`
+          : `Near you · ${searchOrigin.label}`
+        : isUsingDeviceLocation
+          ? `Using your GPS (${location.lat.toFixed(2)}, ${location.lng.toFixed(2)})`
+          : "Enter a city to search hotels nearby";
 
   useEffect(() => {
     runSearch();
@@ -150,17 +273,117 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
     ? "Searching..."
     : `${visibleHotels.length} result${visibleHotels.length === 1 ? "" : "s"}`;
 
-  const handleFindHotels = () => {
-    setAppliedDestination(destination.trim() || dashboardApi.DEFAULT_DESTINATION);
+  const handleFindHotels = async () => {
+    const query = destination.trim();
+    if (!query) {
+      setInvalidLocationQuery("");
+      setError("Please enter a valid location.");
+      setHotels([]);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setInvalidLocationQuery(null);
+
+    const resolved = await geocodeQuery(query);
+    if (!resolved) {
+      setInvalidLocationQuery(query);
+      setAppliedDestination(query);
+      setSearchOrigin(null);
+      setHotels([]);
+      setError(`No results found for ${query}. Please enter a valid location.`);
+      setLoading(false);
+      return;
+    }
+
+    setSearchOrigin(resolved);
+    setDestination(resolved.label);
+    setAppliedDestination(resolved.label);
     setExpandedHotelId(null);
+    setInvalidLocationQuery(null);
+    // runSearch triggers via appliedDestination / searchOrigin
   };
 
-  const handleToggleSaved = (hotelId) => {
-    setSavedHotels((currentSavedHotels) =>
-      currentSavedHotels.includes(hotelId)
-        ? currentSavedHotels.filter((savedHotelId) => savedHotelId !== hotelId)
-        : [...currentSavedHotels, hotelId]
+  const handleToggleSaved = async (hotel) => {
+    const key = hotelFavoriteKey(hotel.provider, hotel.providerHotelId);
+    if (!key || pendingFavoriteKeysRef.current.has(key)) {
+      return;
+    }
+
+    const token = await getToken();
+    if (!token) {
+      Alert.alert("Sign in required", "Sign in to save hotels to your favorites.", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign in",
+          onPress: () => onNavigate?.("login"),
+        },
+      ]);
+      return;
+    }
+
+    const wasSaved = savedHotels.includes(key);
+    pendingFavoriteKeysRef.current.add(key);
+    setPendingFavoriteKeys(Array.from(pendingFavoriteKeysRef.current));
+    setSavedHotels((current) =>
+      wasSaved ? current.filter((savedKey) => savedKey !== key) : [...current, key]
     );
+
+    try {
+      if (wasSaved) {
+        await dashboardApi.removeFavorite(token, {
+          itemType: "hotel",
+          provider: hotel.provider,
+          providerItemId: hotel.providerHotelId,
+        });
+      } else {
+        await dashboardApi.addFavorite(token, {
+          item_type: "hotel",
+          provider: hotel.provider,
+          provider_item_id: hotel.providerHotelId,
+          entity_id: hotel.id,
+          snapshot: {
+            name: hotel.name,
+            price: hotel.price,
+            currency: hotel.currency || "USD",
+            rating: hotel.rating,
+            address: hotel.location,
+            image_url: hotel.imageUrl || null,
+            subtitle: (hotel.amenities || []).slice(0, 3).join(" • ") || null,
+            lat: hotel.lat ?? null,
+            lng: hotel.lng ?? null,
+          },
+        });
+      }
+    } catch (err) {
+      setSavedHotels((current) =>
+        wasSaved
+          ? current.includes(key)
+            ? current
+            : [...current, key]
+          : current.filter((savedKey) => savedKey !== key)
+      );
+      Alert.alert("Couldn't update favorites", err?.message || "Please try again.");
+    } finally {
+      pendingFavoriteKeysRef.current.delete(key);
+      setPendingFavoriteKeys(Array.from(pendingFavoriteKeysRef.current));
+    }
+  };
+
+  const handleUseMyLocation = async () => {
+    setInvalidLocationQuery(null);
+    setError(null);
+    const next = await refreshLocation();
+    if (!next) {
+      setError("Location access needed — allow GPS to use your area.");
+      return;
+    }
+    const city = await reverseGeocodeLabel(next.lat, next.lng);
+    const label = city || `${next.lat.toFixed(2)}, ${next.lng.toFixed(2)}`;
+    setDestination(label);
+    setAppliedDestination(label);
+    setSearchOrigin({ ...next, label, source: "gps" });
   };
 
   return (
@@ -289,14 +512,14 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
             <Text style={styles.sortHeading}>Sort by</Text>
             <View style={styles.locationStatusRow}>
               <Ionicons
-                name={isUsingDeviceLocation ? "navigate" : "location-outline"}
+                name={searchOrigin?.source === "search" ? "search" : isUsingDeviceLocation ? "navigate" : "location-outline"}
                 size={16}
                 color="#1F78FF"
               />
               <Text style={styles.locationStatusText}>{locationLabel}</Text>
               {status !== "loading" ? (
-                <Pressable onPress={refreshLocation} hitSlop={8}>
-                  <Text style={styles.locationRefreshText}>Refresh</Text>
+                <Pressable onPress={handleUseMyLocation} hitSlop={8}>
+                  <Text style={styles.locationRefreshText}>Use my location</Text>
                 </Pressable>
               ) : null}
             </View>
@@ -336,12 +559,28 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
 
             {error ? (
               <View style={styles.emptyStateCard}>
-                <MaterialCommunityIcons name="bed-outline" size={32} color="#1F78FF" />
-                <Text style={styles.emptyStateTitle}>Could not load hotels</Text>
+                <MaterialCommunityIcons
+                  name={invalidLocationQuery != null ? "map-marker-off" : "bed-outline"}
+                  size={32}
+                  color="#1F78FF"
+                />
+                <Text style={styles.emptyStateTitle}>
+                  {invalidLocationQuery != null ? "No results found" : "Could not load hotels"}
+                </Text>
                 <Text style={styles.emptyStateCopy}>{error}</Text>
-                <Pressable accessibilityRole="button" onPress={runSearch} style={styles.clearSearchButton}>
-                  <Text style={styles.clearSearchButtonText}>Try again</Text>
-                </Pressable>
+                {invalidLocationQuery != null ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={handleUseMyLocation}
+                    style={styles.clearSearchButton}
+                  >
+                    <Text style={styles.clearSearchButtonText}>Use my location</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable accessibilityRole="button" onPress={runSearch} style={styles.clearSearchButton}>
+                    <Text style={styles.clearSearchButtonText}>Try again</Text>
+                  </Pressable>
+                )}
               </View>
             ) : null}
 
@@ -353,7 +592,9 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
 
             {!error && !loading && visibleHotels.length > 0 ? (
               visibleHotels.map((hotel) => {
-                const isSaved = savedHotels.includes(hotel.id);
+                const favoriteKey = hotelFavoriteKey(hotel.provider, hotel.providerHotelId);
+                const isSaved = savedHotels.includes(favoriteKey);
+                const isFavoritePending = pendingFavoriteKeys.includes(favoriteKey);
                 const isExpanded = expandedHotelId === hotel.id;
 
                 return (
@@ -361,7 +602,9 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
                     <DimPressable
                       accessibilityRole="button"
                       accessibilityLabel={isSaved ? "Remove hotel from saved" : "Save hotel"}
-                      onPress={() => handleToggleSaved(hotel.id)}
+                      accessibilityState={{ disabled: isFavoritePending }}
+                      disabled={isFavoritePending}
+                      onPress={() => handleToggleSaved(hotel)}
                       style={styles.favoriteButton}
                     >
                       <Ionicons
@@ -386,7 +629,8 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
                                 <>
                                   <Text style={styles.inlineSeparator}>|</Text>
                                   <Text style={styles.locationText}>
-                                    {hotel.distanceMiles.toFixed(1)} mi from you
+                                    {hotel.distanceMiles.toFixed(1)} mi
+                                    {searchOrigin?.source === "search" ? " from search" : " from you"}
                                   </Text>
                                 </>
                               ) : null}
@@ -483,27 +727,28 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
             {!error && !loading && visibleHotels.length === 0 ? (
               <View style={styles.emptyStateCard}>
                 <MaterialCommunityIcons name="bed-outline" size={32} color="#1F78FF" />
-                <Text style={styles.emptyStateTitle}>No stays match that destination yet.</Text>
+                <Text style={styles.emptyStateTitle}>
+                  {appliedDestination
+                    ? `No stays near ${appliedDestination.trim()} yet.`
+                    : "Search a city to find stays."}
+                </Text>
                 <Text style={styles.emptyStateCopy}>
-                  Try another destination such as Bali or Japan.
+                  Try another city name, or use your current location.
                 </Text>
 
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => {
-                    setDestination(dashboardApi.DEFAULT_DESTINATION);
-                    setAppliedDestination(dashboardApi.DEFAULT_DESTINATION);
-                  }}
+                  onPress={handleUseMyLocation}
                   style={styles.clearSearchButton}
                 >
-                  <Text style={styles.clearSearchButtonText}>Search {dashboardApi.DEFAULT_DESTINATION}</Text>
+                  <Text style={styles.clearSearchButtonText}>Use my location</Text>
                 </Pressable>
               </View>
             ) : null}
           </View>
         </ScrollView>
 
-        <BottomNav activeLabel="Home" onNavigate={onNavigate} />
+        <BottomNav activeLabel={null} onNavigate={onNavigate} />
       </View>
     </SafeAreaView>
   );

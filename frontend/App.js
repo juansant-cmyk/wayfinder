@@ -57,6 +57,7 @@ function mapApiUser(apiUser) {
 
 const FEATURE_SCREENS = new Set([
   "itinerary",
+  "trips",
   "flights",
   "favorites",
   "safety",
@@ -69,7 +70,7 @@ const FEATURE_SCREENS = new Set([
   "recommended",
 ]);
 
-const BOTTOM_NAV_TAB_SCREENS = new Set(["itinerary", "favorites", "profile"]);
+const BOTTOM_NAV_TAB_SCREENS = new Set(["itinerary", "trips", "favorites", "profile"]);
 
 export default function App() {
   const [bootstrapping, setBootstrapping] = useState(true);

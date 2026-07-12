@@ -9,33 +9,30 @@ const NAV_ITEMS = [
   { label: "Home", icon: "home", route: "home" },
   { label: "Itinerary", icon: "calendar-clear", route: "itinerary" },
   { label: "Saved", icon: "bookmark-outline", route: "favorites" },
-  { label: "Trips", icon: "briefcase-outline", route: "itinerary" },
+  { label: "Trips", icon: "briefcase-outline", route: "trips" },
   { label: "Profile", icon: "person-outline", route: "profile" },
 ];
 
 export function getBottomNavActiveLabel(screen) {
   const activeByScreen = {
     home: "Home",
-    hotels: "Home",
     itinerary: "Itinerary",
+    trips: "Trips",
     favorites: "Saved",
     profile: "Profile",
   };
 
+  // Hotels and other feature screens are not bottom-nav tabs — no tab stays lit.
   return activeByScreen[screen] || null;
+}
+
+export function getBottomNavRoute(label) {
+  return NAV_ITEMS.find((item) => item.label === label)?.route || null;
 }
 
 export default function BottomNav({ activeLabel = null, onNavigate }) {
   function handlePress(item) {
-    if (item.label === "Home") {
-      if (activeLabel === "Home") {
-        return;
-      }
-
-      onNavigate?.("home");
-      return;
-    }
-
+    // Always navigate so Home works from Hotels and Trips ≠ Itinerary.
     onNavigate?.(item.route);
   }
 
@@ -48,6 +45,7 @@ export default function BottomNav({ activeLabel = null, onNavigate }) {
           <DimPressable
             key={item.label}
             accessibilityRole="button"
+            accessibilityLabel={item.label}
             style={styles.bottomNavItem}
             onPress={() => handlePress(item)}
           >

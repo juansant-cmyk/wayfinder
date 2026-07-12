@@ -14,8 +14,13 @@ class Settings(BaseSettings):
     )
     google_maps_api_key: str = ""
     hotel_api_key: str = ""
+    liteapi_api_key: str = ""
+    liteapi_base_url: str = "https://api.liteapi.travel/v3.0"
+    liteapi_guest_nationality: str = "US"
+    liteapi_currency: str = "USD"
+    hotel_provider: str = "mock"
     use_mock_providers: bool = True
-    external_request_timeout_seconds: int = 10
+    external_request_timeout_seconds: int = 30
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

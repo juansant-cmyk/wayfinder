@@ -54,13 +54,21 @@ function renderFlights(flights) {
 
 function renderFavorites(favorites) {
   if (!favorites.length) {
-    return <EmptyState message="No saved favorites yet." />;
+    return <EmptyState message="No saved favorites yet. Heart a hotel to save it here." />;
   }
 
   return favorites.map((item) => (
     <View key={item.id} style={cardStyles.card}>
       <Text style={cardStyles.cardTitle}>{item.title}</Text>
       {item.subtitle ? <Text style={cardStyles.cardSubtitle}>{item.subtitle}</Text> : null}
+      {item.price != null ? (
+        <Text style={cardStyles.metaText}>
+          {item.currency || "USD"} {Math.round(item.price)}
+          {item.rating != null ? ` · ★ ${Number(item.rating).toFixed(1)}` : ""}
+        </Text>
+      ) : item.rating != null ? (
+        <Text style={cardStyles.metaText}>★ {Number(item.rating).toFixed(1)}</Text>
+      ) : null}
     </View>
   ));
 }
@@ -215,6 +223,8 @@ function renderRecommended(destinations, onNavigate) {
 function renderContent(screen, data, onNavigate, onLogout) {
   switch (screen) {
     case "itinerary":
+      return renderItinerary(data);
+    case "trips":
       return renderItinerary(data);
     case "hotels":
       return renderHotels(data);

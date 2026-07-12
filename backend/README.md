@@ -121,6 +121,8 @@ All routes below require `Authorization: Bearer <token>`. Mock data matches the 
 | **Hotels** | `GET` | `/hotels/search?destination=Bali` |
 | **Flights** | `GET` | `/flights/search?destination=Bali` |
 | **Favorites** / **Saved** (nav) | `GET` | `/favorites` |
+| | `POST` | `/favorites` (upsert heart) |
+| | `DELETE` | `/favorites?item_type=&provider=&provider_item_id=` |
 | **Safety** | `GET` | `/safety/summary?destination=Bali` |
 | **Weather** | `GET` | `/weather/current?destination=Bali` |
 | **AI Chat** / **Ask Wayfinder** | `POST` | `/chat/messages` `{ "message": "..." }` |
@@ -141,7 +143,7 @@ Protected routes require `Authorization: Bearer <token>`.
 | Discovery | `GET /places/popular`, `GET /places/{place_id}` |
 | Hotels | `GET /hotels/search`, `GET /hotels/{hotel_id}` |
 | Flights | `GET /flights/search` |
-| Favorites | `GET /favorites` |
+| Favorites | `GET /favorites`, `POST /favorites`, `DELETE /favorites` |
 | Safety | `GET /safety/summary` |
 | Weather | `GET /weather/current` |
 | Chat | `POST /chat/messages` |
@@ -161,10 +163,15 @@ See [.env.example](.env.example):
 | `JWT_SECRET` | HS256 signing secret |
 | `JWT_EXPIRE_HOURS` | Access token lifetime (default `24`) |
 | `CORS_ORIGINS` | Comma-separated Expo dev origins |
-| `GOOGLE_MAPS_API_KEY` | Google Places provider key |
-| `HOTEL_API_KEY` | Hotel provider key |
-| `USE_MOCK_PROVIDERS` | Use mock provider adapters by default |
-| `EXTERNAL_REQUEST_TIMEOUT_SECONDS` | Timeout for future live provider calls |
+| `GOOGLE_MAPS_API_KEY` | Google Places key (maps / POI features) |
+| `HOTEL_API_KEY` | Legacy unused key |
+| `LITEAPI_API_KEY` | LiteAPI / Nuitee Connect API key |
+| `LITEAPI_BASE_URL` | Default `https://api.liteapi.travel/v3.0` |
+| `LITEAPI_GUEST_NATIONALITY` | ISO country for rate search (default `US`) |
+| `LITEAPI_CURRENCY` | Rate currency (default `USD`) |
+| `HOTEL_PROVIDER` | `mock` \| `liteapi` when mocks are off |
+| `USE_MOCK_PROVIDERS` | `true` → mock hotels; `false` → LiteAPI when keyed |
+| `EXTERNAL_REQUEST_TIMEOUT_SECONDS` | HTTP timeout (default `30` for hotel searches) |
 
 ## Related docs
 
