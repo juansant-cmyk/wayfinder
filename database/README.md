@@ -39,9 +39,15 @@ Apply migrations (run after first `docker compose up`):
 ```bash
 # Windows (PowerShell) — requires psql in PATH or use Docker exec:
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/001_users.sql
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/002_travel_plans.sql
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/003_places_hotels_bookmarks.sql
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/004_user_profile.sql
 
 # macOS / Linux
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/001_users.sql
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/002_travel_plans.sql
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/003_places_hotels_bookmarks.sql
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/004_user_profile.sql
 ```
 
 Default connection (matches `backend/.env.example`):
@@ -59,6 +65,19 @@ Stop the database:
 ```bash
 docker compose down
 ```
+
+## Dev test user
+
+After migrations, seed a shared login from the backend folder:
+
+```bash
+cd ../backend
+python scripts/seed_test_user.py
+```
+
+| Email | Username | Password |
+|-------|----------|----------|
+| `test@wayfinder.dev` | `testuser` | `wayfinder1` |
 
 ## Related docs
 
