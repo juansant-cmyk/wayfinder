@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
 
 import DimPressable from "./DimPressable";
+import { colors, fonts } from "../../theme/tokens";
 
 export const BOTTOM_NAV_CONTENT_PADDING = 122;
 
@@ -52,7 +53,7 @@ export default function BottomNav({ activeLabel = null, onNavigate }) {
             <Ionicons
               name={item.icon}
               size={24}
-              color={isActive ? "#1F78FF" : "#334155"}
+              color={isActive ? colors.gold : colors.muted}
             />
             <Text style={[styles.bottomNavLabel, isActive && styles.bottomNavLabelActive]}>
               {item.label}
@@ -75,14 +76,9 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 20,
     paddingHorizontal: 12,
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    shadowColor: "#8FA3BF",
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: -5 },
-    elevation: 12,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
   },
 
   bottomNavItem: {
@@ -93,12 +89,14 @@ const styles = StyleSheet.create({
 
   bottomNavLabel: {
     marginTop: 5,
+    fontFamily: fonts.sans,
     fontSize: 11,
-    fontWeight: "600",
-    color: "#334155",
+    fontWeight: "500",
+    color: colors.muted,
   },
 
   bottomNavLabelActive: {
-    color: "#1F78FF",
+    color: colors.gold,
+    fontWeight: "600",
   },
 });
