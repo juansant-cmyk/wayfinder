@@ -37,11 +37,18 @@ export function AuthScreenContainer({ children }) {
   );
 }
 
-export function WayfinderBrand() {
+export function WayfinderBrand({ containerStyle, textStyle }) {
   return (
-    <View style={styles.brandRow}>
-      <Ionicons name="compass-outline" size={24} color={colors.gold} />
-      <Text style={styles.brandText}>Wayfinder</Text>
+    <View style={[styles.brandRow, containerStyle]}>
+      <View style={styles.logoMark}>
+        <View style={styles.logoPinTop} />
+        <View style={styles.logoPinTail} />
+        <View style={styles.logoCore}>
+          <Ionicons name="navigate" size={15} color="#FF7344" style={styles.logoNeedle} />
+        </View>
+        <Ionicons name="sparkles" size={12} color="#FF8D58" style={styles.logoSpark} />
+      </View>
+      <Text style={[styles.brandText, textStyle]}>Wayfinder</Text>
     </View>
   );
 }
@@ -146,10 +153,58 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+  },
+
+  logoMark: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+
+  logoPinTop: {
+    position: "absolute",
+    top: 2,
+    width: 35,
+    height: 35,
+    borderRadius: 18,
+    backgroundColor: "#65B5FF",
+  },
+
+  logoPinTail: {
+    position: "absolute",
+    bottom: 3,
+    width: 15,
+    height: 15,
+    backgroundColor: "#65B5FF",
+    transform: [{ rotate: "45deg" }],
+  },
+
+  logoCore: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+  },
+
+  logoNeedle: {
+    marginLeft: 1,
+    transform: [{ rotate: "18deg" }],
+  },
+
+  logoSpark: {
+    position: "absolute",
+    top: -1,
+    right: -2,
+    zIndex: 3,
   },
 
   brandText: {
+    marginLeft: 10,
     fontFamily: fonts.serif,
     fontSize: 22,
     color: colors.ink,
