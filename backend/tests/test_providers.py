@@ -42,7 +42,7 @@ async def test_mock_hotel_provider_sorts_by_price():
 
     assert len(hotels) == 2
     assert hotels[0].nightly_rate <= hotels[1].nightly_rate
-    assert "Wi-Fi" in hotels[0].amenities
+    assert "Wi-Fi included" in hotels[0].amenities
 
 
 @pytest.mark.asyncio

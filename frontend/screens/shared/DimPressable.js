@@ -4,8 +4,8 @@ import { Pressable, StyleSheet } from "react-native";
 const HOVER_BACKGROUND = "#EBEBEB";
 
 /**
- * Pressable for white-background buttons only.
- * On hover (web), applies a light black shade. No press/click opacity change.
+ * Pressable for white-background buttons.
+ * Hover (web) and press/hold: light black shade over white.
  */
 export default function DimPressable({ style, children, disabled = false, ...rest }) {
   return (
@@ -13,11 +13,8 @@ export default function DimPressable({ style, children, disabled = false, ...res
       disabled={disabled}
       style={(state) => {
         const resolved = typeof style === "function" ? style(state) : style;
-        return [
-          styles.base,
-          resolved,
-          !disabled && state.hovered && styles.hoverShade,
-        ];
+        const shaded = !disabled && (state.hovered || state.pressed);
+        return [styles.base, resolved, shaded && styles.blackShade];
       }}
       {...rest}
     >
@@ -33,7 +30,7 @@ const styles = StyleSheet.create({
     transitionTimingFunction: "ease-out",
   },
 
-  hoverShade: {
+  blackShade: {
     backgroundColor: HOVER_BACKGROUND,
   },
 });

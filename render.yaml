@@ -15,6 +15,16 @@ services:
       - key: JWT_EXPIRE_HOURS
         value: "24"
       - key: USE_MOCK_PROVIDERS
-        value: "true"
+        value: "false"
+      - key: HOTEL_PROVIDER
+        value: "liteapi"
+      - key: LITEAPI_API_KEY
+        sync: false
+      - key: LITEAPI_BASE_URL
+        value: "https://api.liteapi.travel/v3.0"
+      - key: LITEAPI_GUEST_NATIONALITY
+        value: "US"
+      - key: LITEAPI_CURRENCY
+        value: "USD"
       - key: CORS_ORIGINS
         sync: false
