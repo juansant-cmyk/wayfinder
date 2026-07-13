@@ -10,6 +10,7 @@ import DashboardFeatureScreen from "./screens/DashboardFeatureScreen";
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
 import HomeScreen from "./screens/HomeScreen";
 import HotelsScreen from "./screens/HotelsScreen";
+import ItineraryScreen from "./screens/ItineraryScreen";
 import LoginScreen from "./screens/LoginScreen";
 import SignupScreen from "./screens/SignupScreen";
 
@@ -482,6 +483,13 @@ export default function App() {
         onNavigateHome={navigateHome}
         onNavigate={handleNavigate}
         params={screenParams}
+      />
+    );
+  } else if (currentScreen === "itinerary") {
+    screenContent = (
+      <ItineraryScreen
+        onNavigate={handleNavigate}
+        onBack={navigateBack}
       />
     );
   } else if (FEATURE_SCREENS.has(currentScreen)) {
