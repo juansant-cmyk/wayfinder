@@ -491,6 +491,7 @@ export default function App() {
       <ItineraryScreen
         onNavigate={handleNavigate}
         onBack={navigateBack}
+        params={screenParams}
       />
     );
   } else if (FEATURE_SCREENS.has(currentScreen)) {

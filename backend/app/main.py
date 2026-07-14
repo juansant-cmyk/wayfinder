@@ -43,6 +43,12 @@ async def lifespan(app: FastAPI):
         async with AsyncSessionLocal() as session:
             await session.execute(text("SELECT 1"))
         logger.info("Database connection verified")
+        if settings.is_local_database():
+            from app.services.dev_seed import ensure_dev_test_user
+
+            async with AsyncSessionLocal() as session:
+                message = await ensure_dev_test_user(session)
+            logger.info("%s (password: wayfinder1)", message)
     except Exception:
         # Do not block deploy when DATABASE_URL is wrong — /health/db reports status instead.
         logger.exception(

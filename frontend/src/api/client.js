@@ -63,6 +63,13 @@ export function setUnauthorizedHandler(handler) {
   unauthorizedHandler = handler;
 }
 
+/** Notify app shell that the session is invalid (used by geo + apiRequest). */
+export async function notifySessionExpired() {
+  if (unauthorizedHandler) {
+    await unauthorizedHandler();
+  }
+}
+
 async function parseError(response) {
   const raw = await response.text();
   let body = {};

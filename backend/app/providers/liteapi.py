@@ -330,6 +330,10 @@ def map_liteapi_hotel_details(payload: dict[str, Any]) -> ProviderHotel:
             if item
         ]
 
+    check_times = data.get("checkinCheckoutTimes") or {}
+    check_in_time = check_times.get("checkin") or check_times.get("checkinStart")
+    check_out_time = check_times.get("checkout")
+
     return ProviderHotel(
         provider="liteapi",
         provider_hotel_id=hotel_id,
@@ -348,6 +352,8 @@ def map_liteapi_hotel_details(payload: dict[str, Any]) -> ProviderHotel:
             "description": _strip_html(data.get("hotelDescription")),
             "stars": data.get("starRating") or data.get("stars"),
             "rates_included": False,
+            "check_in_time": check_in_time,
+            "check_out_time": check_out_time,
         },
     )
 

@@ -12,16 +12,16 @@ from app.db.session import get_db
 from app.main import app
 from app.models import Base
 
-# Local Docker Postgres (database/docker-compose.yml maps 55432 -> 5432).
-# Use TEST_DATABASE_URL to override (e.g. GitHub Actions). We intentionally do
-# not read DATABASE_URL here — it often points at Supabase or the wrong port.
+# Dedicated test DB so pytest TRUNCATE never wipes the local Expo login user.
+# App .env typically uses `wayfinder` on the same host/port.
 DEFAULT_TEST_DATABASE_URL = (
-    "postgresql+asyncpg://wayfinder:wayfinder@localhost:55432/wayfinder"
+    "postgresql+asyncpg://wayfinder:wayfinder@localhost:55432/wayfinder_test"
 )
 
 test_settings = Settings(
     _env_file=None,
     database_url=os.environ.get("TEST_DATABASE_URL", DEFAULT_TEST_DATABASE_URL),
+    jwt_secret=os.environ.get("JWT_SECRET", "ci-test-secret"),
 )
 
 test_engine = create_async_engine(
@@ -30,6 +30,30 @@ test_engine = create_async_engine(
     connect_args=test_settings.database_connect_args(),
 )
 TestSessionLocal = async_sessionmaker(test_engine, expire_on_commit=False)
+
+
+async def _ensure_test_database_exists() -> None:
+    """Create wayfinder_test on the local Docker Postgres if missing."""
+    admin_url = (
+        os.environ.get("TEST_ADMIN_DATABASE_URL")
+        or "postgresql+asyncpg://wayfinder:wayfinder@localhost:55432/wayfinder"
+    )
+    target = test_settings.async_database_url().rsplit("/", 1)[-1]
+    if not target or target == "wayfinder":
+        return
+
+    admin_engine = create_async_engine(admin_url, poolclass=NullPool)
+    try:
+        async with admin_engine.connect() as conn:
+            conn = await conn.execution_options(isolation_level="AUTOCOMMIT")
+            exists = await conn.scalar(
+                text("SELECT 1 FROM pg_database WHERE datname = :name"),
+                {"name": target},
+            )
+            if not exists:
+                await conn.execute(text(f'CREATE DATABASE "{target}"'))
+    finally:
+        await admin_engine.dispose()
 
 
 async def override_get_db():
@@ -48,6 +72,7 @@ async def client(clean_tables):
 
 @pytest.fixture
 async def create_schema():
+    await _ensure_test_database_exists()
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
@@ -57,6 +82,10 @@ async def create_schema():
 @pytest.fixture
 async def clean_tables(create_schema):
     async with TestSessionLocal() as session:
-        await session.execute(text("TRUNCATE TABLE users, travel_plans, places, hotels, favorites CASCADE"))
+        await session.execute(
+            text(
+                "TRUNCATE TABLE users, travel_plans, plan_days, plan_activities, places, hotels, favorites CASCADE"
+            )
+        )
         await session.commit()
     yield

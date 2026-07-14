@@ -1,4 +1,4 @@
-from app.models.travel import Favorite, Hotel, Place, TravelPlan
+from app.models.travel import Favorite, Hotel, Place, PlanActivity, PlanDay, TravelPlan
 from app.models.user import Base, User
 
 __all__ = [
@@ -6,6 +6,8 @@ __all__ = [
     "Favorite",
     "Hotel",
     "Place",
+    "PlanActivity",
+    "PlanDay",
     "TravelPlan",
     "User",
 ]

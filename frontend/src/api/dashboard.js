@@ -93,6 +93,37 @@ export function fetchPlans(token) {
   return apiRequest("/plans", { token });
 }
 
+export function fetchPlan(token, planId) {
+  return apiRequest(`/plans/${planId}`, { token });
+}
+
+export function createPlan(token, body) {
+  return apiRequest("/plans", { method: "POST", token, body });
+}
+
+export function updatePlan(token, planId, body) {
+  return apiRequest(`/plans/${planId}`, { method: "PATCH", token, body });
+}
+
+export function deletePlan(token, planId) {
+  return apiRequest(`/plans/${planId}`, { method: "DELETE", token });
+}
+
+export function createPlanActivity(token, planId, dayId, body) {
+  return apiRequest(`/plans/${planId}/days/${dayId}/activities`, {
+    method: "POST",
+    token,
+    body,
+  });
+}
+
+export function deletePlanActivity(token, planId, activityId) {
+  return apiRequest(`/plans/${planId}/activities/${activityId}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
 export async function searchHotels(
   token,
   destination = DEFAULT_DESTINATION,

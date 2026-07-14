@@ -1,9 +1,20 @@
 # Env-backed settings — DATABASE_URL and JWT config consumed by DB session and auth routes.
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+FORBIDDEN_JWT_SECRETS = frozenset({"", "change-me-in-production"})
+
+JWT_SECRET_HELP = (
+    'JWT_SECRET is unset or insecure (refuses empty and "change-me-in-production"). '
+    'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(48))" '
+    "or: python scripts/generate_jwt_secret.py — then set JWT_SECRET in backend/.env "
+    "(Render already auto-generates JWT_SECRET)."
+)
 
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://wayfinder:wayfinder@localhost:55432/wayfinder"
+    # Default is intentionally insecure so misconfigured deploys fail the validator.
     jwt_secret: str = "change-me-in-production"
     jwt_expire_hours: int = 24
     cors_origins: str = (
@@ -23,6 +34,14 @@ class Settings(BaseSettings):
     external_request_timeout_seconds: int = 30
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @field_validator("jwt_secret")
+    @classmethod
+    def jwt_secret_must_be_secure(cls, value: str) -> str:
+        secret = (value or "").strip()
+        if secret in FORBIDDEN_JWT_SECRETS:
+            raise ValueError(JWT_SECRET_HELP)
+        return secret
 
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
@@ -48,6 +67,21 @@ class Settings(BaseSettings):
             # PgBouncer (transaction pooler) rejects prepared statement caching.
             return {"statement_cache_size": 0}
         return {}
+
+    def is_local_database(self) -> bool:
+        """True for Docker/local Postgres — never for Supabase/production hosts."""
+        url = self.database_url.lower()
+        if "supabase.co" in url or "pooler.supabase.com" in url or "render.com" in url:
+            return False
+        return any(
+            host in url
+            for host in (
+                "localhost",
+                "127.0.0.1",
+                "@db:",
+                "@wayfinder-db",
+            )
+        )
 
 
 settings = Settings()

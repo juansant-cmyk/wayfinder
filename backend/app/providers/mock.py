@@ -71,6 +71,8 @@ class MockHotelProvider:
                     "image_url": None,
                     "description": f"A garden-side stay in {location}.",
                     "cancellation": "Free cancellation",
+                    "check_in_time": "3:00 PM",
+                    "check_out_time": "11:00 AM",
                 },
             ),
             ProviderHotel(

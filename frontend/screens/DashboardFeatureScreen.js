@@ -13,16 +13,22 @@ function EmptyState({ message }) {
   return <Text style={cardStyles.emptyText}>{message}</Text>;
 }
 
-function renderItinerary(plans) {
+function renderItinerary(plans, onNavigate) {
   if (!plans.length) {
     return <EmptyState message="No travel plans yet. Create one from your next trip." />;
   }
 
   return plans.map((plan) => (
-    <View key={plan.id} style={cardStyles.card}>
+    <DimPressable
+      key={plan.id}
+      accessibilityRole="button"
+      accessibilityLabel={`Open itinerary for ${plan.title}`}
+      onPress={() => onNavigate?.("itinerary", { planId: plan.id })}
+      style={cardStyles.card}
+    >
       <Text style={cardStyles.cardTitle}>{plan.title}</Text>
       <Text style={cardStyles.cardSubtitle}>{plan.destination_name}</Text>
-    </View>
+    </DimPressable>
   ));
 }
 
@@ -223,9 +229,9 @@ function renderRecommended(destinations, onNavigate) {
 function renderContent(screen, data, onNavigate, onLogout) {
   switch (screen) {
     case "itinerary":
-      return renderItinerary(data);
+      return renderItinerary(data, onNavigate);
     case "trips":
-      return renderItinerary(data);
+      return renderItinerary(data, onNavigate);
     case "hotels":
       return renderHotels(data);
     case "flights":
