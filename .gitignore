@@ -1,8 +1,20 @@
-# Node / Expo
+﻿# Node / Expo
 node_modules/
 frontend/node_modules/
 .expo/
 frontend/.expo/
+
+# Env / secrets
+.env
+frontend/.env
+backend/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
 
 # Mac
 .DS_Store

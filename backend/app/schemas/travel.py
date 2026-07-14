@@ -65,6 +65,7 @@ class PlaceResponse(BaseModel):
     rating: float | None
     popularity_score: float
     metadata_json: dict
+    distance_km: float | None = None
 
 
 class HotelResponse(BaseModel):
@@ -83,3 +84,4 @@ class HotelResponse(BaseModel):
     amenities: list[str]
     rating: float | None
     metadata_json: dict
+    distance_miles: float | None = None

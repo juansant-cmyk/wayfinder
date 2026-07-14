@@ -60,7 +60,13 @@ After changing `.env`, restart Expo (`npx expo start`).
 
 ---
 
-## Auth API contract (backend → Expo)
+## Hybrid auth (Sprint 1)
+
+Registration and login call the real backend. The app opens the login screen until a valid session exists (`SecureStore` token + `GET /auth/me`).
+
+Sign up with email, full name, username, and password. Sign in with **email or username** plus password. Invalid credentials are rejected by the API.
+
+---
 
 Base URL: `{EXPO_PUBLIC_API_URL}` (no trailing slash).
 

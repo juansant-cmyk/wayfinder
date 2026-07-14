@@ -1,0 +1,2 @@
+# Production dependencies (Render). Dev/test deps stay in requirements.txt.
+-r requirements.txt

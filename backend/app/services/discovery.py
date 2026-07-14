@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.travel import Place
 from app.providers.base import PlacesProvider, ProviderPlace
+from app.schemas.travel import PlaceResponse
+from app.services.geo import haversine_km
 
 
 async def _upsert_place(db: AsyncSession, item: ProviderPlace) -> Place:
@@ -40,6 +42,24 @@ async def _upsert_place(db: AsyncSession, item: ProviderPlace) -> Place:
     return place
 
 
+def place_to_response(place: Place, origin_lat: float, origin_lng: float) -> PlaceResponse:
+    distance_km = round(haversine_km(origin_lat, origin_lng, place.lat, place.lng), 2)
+    return PlaceResponse(
+        id=place.id,
+        provider=place.provider,
+        provider_place_id=place.provider_place_id,
+        name=place.name,
+        category=place.category,
+        address=place.address,
+        lat=place.lat,
+        lng=place.lng,
+        rating=place.rating,
+        popularity_score=place.popularity_score,
+        metadata_json=place.metadata_json,
+        distance_km=distance_km,
+    )
+
+
 async def popular_places(
     db: AsyncSession,
     provider: PlacesProvider,
@@ -48,13 +68,18 @@ async def popular_places(
     radius_km: float,
     category: str | None,
     limit: int,
-) -> list[Place]:
+) -> list[PlaceResponse]:
     provider_places = await provider.popular_places(lat, lng, radius_km, category, limit)
     places = [await _upsert_place(db, item) for item in provider_places]
     await db.commit()
     for place in places:
         await db.refresh(place)
-    return places
+
+    sorted_places = sorted(
+        places,
+        key=lambda place: haversine_km(lat, lng, place.lat, place.lng),
+    )
+    return [place_to_response(place, lat, lng) for place in sorted_places[:limit]]
 
 
 async def get_place(db: AsyncSession, place_id: UUID) -> Place:

@@ -37,9 +37,9 @@ export function AuthScreenContainer({ children }) {
   );
 }
 
-export function WayfinderBrand() {
+export function WayfinderBrand({ containerStyle, textStyle }) {
   return (
-    <View style={styles.brandRow}>
+    <View style={[styles.brandRow, containerStyle]}>
       <View style={styles.logoMark}>
         <View style={styles.logoPinTop} />
         <View style={styles.logoPinTail} />
@@ -49,7 +49,7 @@ export function WayfinderBrand() {
         <Ionicons name="sparkles" size={12} color="#FF8D58" style={styles.logoSpark} />
       </View>
 
-      <Text style={styles.brandText}>Wayfinder</Text>
+      <Text style={[styles.brandText, textStyle]}>Wayfinder</Text>
     </View>
   );
 }
@@ -118,9 +118,14 @@ export function PasswordVisibilityToggle({ visible, onPress }) {
   );
 }
 
-export function PrimaryButton({ label, onPress }) {
+export function PrimaryButton({ label, onPress, disabled = false }) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={styles.primaryButton}>
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={styles.primaryButton}
+    >
       <Text style={styles.primaryButtonText}>{label}</Text>
     </Pressable>
   );

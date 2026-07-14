@@ -21,23 +21,31 @@ export default function SignupScreen({ onSignup, onNavigateLogin }) {
   const [errors, setErrors] = useState({});
   const [statusMessage, setStatusMessage] = useState("");
 
-  const handleSignup = () => {
-    const result = onSignup?.({
-      contact,
-      fullName,
-      username,
-      password,
-      confirmPassword,
-    });
+  const [submitting, setSubmitting] = useState(false);
 
-    if (result?.ok) {
-      setErrors({});
-      setStatusMessage("");
-      return;
+  const handleSignup = async () => {
+    setSubmitting(true);
+
+    try {
+      const result = await onSignup?.({
+        contact,
+        fullName,
+        username,
+        password,
+        confirmPassword,
+      });
+
+      if (result?.ok) {
+        setErrors({});
+        setStatusMessage("");
+        return;
+      }
+
+      setErrors(result?.fieldErrors || {});
+      setStatusMessage(result?.message || "");
+    } finally {
+      setSubmitting(false);
     }
-
-    setErrors(result?.fieldErrors || {});
-    setStatusMessage(result?.message || "");
   };
 
   return (
@@ -56,7 +64,7 @@ export default function SignupScreen({ onSignup, onNavigateLogin }) {
 
       <View style={styles.formBlock}>
         <UnderlineField
-          label="Email or Phone Number"
+          label="Email address"
           value={contact}
           onChangeText={(value) => {
             setContact(value);
@@ -117,7 +125,7 @@ export default function SignupScreen({ onSignup, onNavigateLogin }) {
           textContentType="newPassword"
           secureTextEntry={!showPassword}
           underlineColor={errors.password ? styles.errorText.color : authColors.accentMuted}
-          helperText={errors.password || "Must contain a number and be at least 6 characters"}
+          helperText={errors.password || "Must be at least 8 characters"}
           helperColor={errors.password ? styles.errorText.color : authColors.accent}
           rightAccessory={
             <PasswordVisibilityToggle
@@ -141,7 +149,7 @@ export default function SignupScreen({ onSignup, onNavigateLogin }) {
           textContentType="newPassword"
           secureTextEntry={!showConfirmPassword}
           underlineColor={errors.confirmPassword ? styles.errorText.color : authColors.accentMuted}
-          helperText={errors.confirmPassword || "Must contain a number and be at least 6 characters"}
+          helperText={errors.confirmPassword || "Must be at least 8 characters"}
           helperColor={errors.confirmPassword ? styles.errorText.color : authColors.accent}
           rightAccessory={
             <PasswordVisibilityToggle
@@ -151,7 +159,7 @@ export default function SignupScreen({ onSignup, onNavigateLogin }) {
           }
         />
 
-        <PrimaryButton label="Sign Up" onPress={handleSignup} />
+        <PrimaryButton label={submitting ? "Creating account..." : "Sign Up"} onPress={handleSignup} />
 
         {statusMessage ? <Text style={styles.statusMessage}>{statusMessage}</Text> : null}
       </View>

@@ -1,141 +1,145 @@
 import { useEffect, useRef, useState } from "react";
-import { Platform } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 
+import { fetchMe, isBackendConfigured, login, register, setUnauthorizedHandler } from "./src/api/client";
+import { clearToken, getToken, saveToken } from "./src/auth/tokenStorage";
+import { UserLocationProvider } from "./src/location/UserLocationContext";
+import { getHashForScreen, getScreenFromHash } from "./src/navigation/screens";
+import ChatScreen from "./screens/ChatScreen";
+import DashboardFeatureScreen from "./screens/DashboardFeatureScreen";
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
 import HomeScreen from "./screens/HomeScreen";
+import HotelsScreen from "./screens/HotelsScreen";
+import ItineraryScreen from "./screens/ItineraryScreen";
 import LoginScreen from "./screens/LoginScreen";
 import SignupScreen from "./screens/SignupScreen";
 
-const AUTH_STORAGE_KEY = "wayfinder.mockAuth";
-
-let nativeAuthCache = {
-  accounts: [],
-  currentUser: null,
-};
+const AUTH_ONLY_SCREENS = new Set(["login", "signup", "forgotPassword"]);
 
 function normalizeText(value) {
   return value.trim().toLowerCase();
 }
 
-function normalizePhone(value) {
-  return value.replace(/\D/g, "");
+function isEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeText(value));
 }
 
-function getDisplayName(account) {
-  if (!account) {
+function getDisplayName(user) {
+  if (!user) {
     return "Traveler";
   }
 
-  const fullName = account.fullName?.trim();
+  const fullName = user.fullName?.trim();
 
   if (fullName) {
     return fullName.split(" ")[0];
   }
 
-  return account.username || "Traveler";
+  if (user.email) {
+    return user.email.split("@")[0];
+  }
+
+  return user.username || "Traveler";
 }
 
 function isWebPreview() {
   return Platform.OS === "web" && typeof window !== "undefined";
 }
 
-function getScreenFromHash(hash) {
-  switch (hash) {
-    case "#signup":
-      return "signup";
-    case "#forgot-password":
-      return "forgotPassword";
-    case "#home":
-      return "home";
-    case "#login":
-    default:
-      return "login";
-  }
-}
-
-function getHashForScreen(screen) {
-  switch (screen) {
-    case "signup":
-      return "#signup";
-    case "forgotPassword":
-      return "#forgot-password";
-    case "home":
-      return "#home";
-    case "login":
-    default:
-      return "#login";
-  }
-}
-
-function isPlainObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function getStoredAuthState() {
-  const fallbackState = {
-    accounts: nativeAuthCache.accounts,
-    currentUser: nativeAuthCache.currentUser,
+function mapApiUser(apiUser) {
+  return {
+    id: apiUser.id,
+    email: apiUser.email,
+    createdAt: apiUser.created_at,
+    fullName: apiUser.full_name || "",
+    username: apiUser.username || "",
   };
-
-  if (!isWebPreview()) {
-    return fallbackState;
-  }
-
-  try {
-    const rawValue = window.localStorage.getItem(AUTH_STORAGE_KEY);
-
-    if (!rawValue) {
-      return fallbackState;
-    }
-
-    const parsedValue = JSON.parse(rawValue);
-    const accounts = Array.isArray(parsedValue?.accounts) ? parsedValue.accounts : [];
-    const currentUser = isPlainObject(parsedValue?.currentUser) ? parsedValue.currentUser : null;
-    const currentUserExists = currentUser
-      ? accounts.some((account) => account?.id === currentUser.id)
-      : false;
-
-    return {
-      accounts,
-      currentUser: currentUserExists ? currentUser : null,
-    };
-  } catch (error) {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
-    return fallbackState;
-  }
 }
 
-function setStoredAuthState(accounts, currentUser) {
-  nativeAuthCache = {
-    accounts,
-    currentUser,
-  };
+const FEATURE_SCREENS = new Set([
+  "itinerary",
+  "trips",
+  "flights",
+  "favorites",
+  "safety",
+  "weather",
+  "maps",
+  "travelCheck",
+  "profile",
+  "notifications",
+  "destination",
+  "recommended",
+]);
 
-  if (!isWebPreview()) {
-    return;
-  }
-
-  window.localStorage.setItem(
-    AUTH_STORAGE_KEY,
-    JSON.stringify({
-      accounts,
-      currentUser,
-    })
-  );
-}
+const BOTTOM_NAV_TAB_SCREENS = new Set(["itinerary", "trips", "favorites", "profile"]);
 
 export default function App() {
-  const initialAuthState = useRef(getStoredAuthState()).current;
+  const [bootstrapping, setBootstrapping] = useState(true);
   const [currentScreen, setCurrentScreen] = useState(() => {
-    if (!isWebPreview()) {
-      return "login";
+    if (isWebPreview()) {
+      const fromHash = getScreenFromHash(window.location.hash);
+      return AUTH_ONLY_SCREENS.has(fromHash) ? fromHash : "login";
     }
 
-    return getScreenFromHash(window.location.hash);
+    return "login";
   });
-  const [currentUser, setCurrentUser] = useState(initialAuthState.currentUser);
-  const [accounts, setAccounts] = useState(initialAuthState.accounts);
+  const [screenParams, setScreenParams] = useState({});
+  const [currentUser, setCurrentUser] = useState(null);
   const lastWebHashRef = useRef("");
+  const historyActionRef = useRef("push");
+
+  useEffect(() => {
+    setUnauthorizedHandler(async () => {
+      await clearToken();
+      setCurrentUser(null);
+      setScreenParams({});
+      setCurrentScreen("login");
+    });
+
+    return () => {
+      setUnauthorizedHandler(null);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restoreSession() {
+      if (!isBackendConfigured()) {
+        if (!cancelled) {
+          setBootstrapping(false);
+        }
+        return;
+      }
+
+      try {
+        const token = await getToken();
+
+        if (!token) {
+          return;
+        }
+
+        const user = await fetchMe(token);
+
+        if (!cancelled) {
+          setCurrentUser(mapApiUser(user));
+          setCurrentScreen("home");
+        }
+      } catch (error) {
+        await clearToken();
+      } finally {
+        if (!cancelled) {
+          setBootstrapping(false);
+        }
+      }
+    }
+
+    restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isWebPreview()) {
@@ -143,15 +147,17 @@ export default function App() {
     }
 
     const syncFromBrowserHistory = () => {
-      const nextScreen = getScreenFromHash(window.location.hash);
+      const state = window.history.state || {};
+      const nextScreen = state.screen || getScreenFromHash(window.location.hash);
       lastWebHashRef.current = getHashForScreen(nextScreen);
+      setScreenParams(state.params || {});
       setCurrentScreen(nextScreen);
     };
 
     const initialHash = getHashForScreen(currentScreen);
 
     window.history.replaceState(
-      { screen: currentScreen },
+      { screen: currentScreen, params: screenParams },
       "",
       `${window.location.pathname}${window.location.search}${initialHash}`
     );
@@ -175,16 +181,54 @@ export default function App() {
       return;
     }
 
-    window.history.pushState(
-      { screen: currentScreen },
+    window.history[historyActionRef.current === "replace" ? "replaceState" : "pushState"](
+      { screen: currentScreen, params: screenParams },
       "",
       `${window.location.pathname}${window.location.search}${nextHash}`
     );
     lastWebHashRef.current = nextHash;
-  }, [currentScreen]);
+    historyActionRef.current = "push";
+  }, [currentScreen, screenParams]);
+
+  const navigate = (screen, params = {}, { history = "push" } = {}) => {
+    historyActionRef.current = history;
+    setScreenParams(params);
+    setCurrentScreen(screen);
+  };
+
+  const navigateFromTab = (screen) => {
+    if (screen === "home") {
+      navigate("home", {}, { history: "replace" });
+      return;
+    }
+
+    const switchingTabs =
+      BOTTOM_NAV_TAB_SCREENS.has(currentScreen) && BOTTOM_NAV_TAB_SCREENS.has(screen);
+
+    navigate(screen, {}, { history: switchingTabs ? "replace" : "push" });
+  };
+
+  const handleNavigate = (screen, params = {}) => {
+    const hasParams = Object.keys(params).length > 0;
+
+    if (!hasParams && (screen === "home" || BOTTOM_NAV_TAB_SCREENS.has(screen))) {
+      navigateFromTab(screen);
+      return;
+    }
+
+    navigate(screen, params);
+  };
 
   const navigateHome = () => {
-    setCurrentScreen("home");
+    navigate("home", {}, { history: "replace" });
+  };
+
+  const navigateBack = () => {
+    navigateHome();
+  };
+
+  const navigateHotels = () => {
+    navigate("hotels");
   };
 
   const navigateLogin = () => {
@@ -199,69 +243,85 @@ export default function App() {
     setCurrentScreen("forgotPassword");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await clearToken();
     setCurrentUser(null);
-    setStoredAuthState(accounts, null);
+    setScreenParams({});
     setCurrentScreen("login");
   };
 
-  const handleLogin = ({ identity, password, rememberMe }) => {
-    const normalizedIdentity = normalizeText(identity);
-    const normalizedPassword = password.trim();
+  const handleLogin = async ({ identity, password }) => {
+    const trimmedIdentity = identity.trim();
+    const trimmedPassword = password.trim();
+    const normalizedIdentity = trimmedIdentity.includes("@")
+      ? normalizeText(trimmedIdentity)
+      : trimmedIdentity.toLowerCase();
 
-    if (!normalizedIdentity || !normalizedPassword) {
+    if (!normalizedIdentity || !trimmedPassword) {
       return {
         ok: false,
         fieldErrors: {
-          identity: !normalizedIdentity ? "Enter your username, email, or phone number." : "",
-          password: !normalizedPassword ? "Enter your password." : "",
+          identity: !normalizedIdentity ? "Enter your email or username." : "",
+          password: !trimmedPassword ? "Enter your password." : "",
         },
       };
     }
 
-    const identityPhone = normalizePhone(identity);
-
-    const matchingAccount = accounts.find((account) => {
-      const matchesUsername =
-        normalizeText(account.username || "") === normalizedIdentity;
-      const matchesEmail =
-        normalizeText(account.email || "") === normalizedIdentity;
-      const matchesPhone =
-        Boolean(identityPhone) &&
-        normalizePhone(account.phone || "") === identityPhone;
-
-      return matchesUsername || matchesEmail || matchesPhone;
-    });
-
-    if (!matchingAccount) {
+    if (normalizedIdentity.includes("@") && !isEmail(normalizedIdentity)) {
       return {
         ok: false,
         fieldErrors: {
-          identity: "We couldn't find an account with that username, email, or phone number.",
+          identity: "Enter a valid email address.",
         },
       };
     }
 
-    if (matchingAccount.password !== password) {
+    if (!normalizedIdentity.includes("@") && normalizedIdentity.length < 3) {
       return {
         ok: false,
         fieldErrors: {
-          password: "That password doesn't match this account.",
+          identity: "Usernames must be at least 3 characters.",
         },
       };
     }
 
-    setCurrentUser(matchingAccount);
-    setStoredAuthState(accounts, rememberMe ? matchingAccount : null);
-    navigateHome();
+    if (!isBackendConfigured()) {
+      return {
+        ok: false,
+        message: "Backend URL is missing. Set EXPO_PUBLIC_API_URL in frontend/.env",
+      };
+    }
 
-    return {
-      ok: true,
-      user: matchingAccount,
-    };
+    try {
+      const data = await login(normalizedIdentity, trimmedPassword);
+      await saveToken(data.access_token);
+      setCurrentUser(mapApiUser(data.user));
+      navigateHome();
+
+      return {
+        ok: true,
+        user: data.user,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to sign in.";
+
+      if (message === "Invalid email or password") {
+        return {
+          ok: false,
+          fieldErrors: {
+            password: message,
+          },
+        };
+      }
+
+      return {
+        ok: false,
+        message,
+      };
+    }
   };
 
-  const handleSignup = ({
+  const handleSignup = async ({
     contact,
     fullName,
     username,
@@ -274,16 +334,12 @@ export default function App() {
     const trimmedPassword = password.trim();
     const trimmedConfirmPassword = confirmPassword.trim();
     const normalizedContact = normalizeText(trimmedContact);
-    const normalizedUsername = normalizeText(trimmedUsername);
-    const phoneDigits = normalizePhone(trimmedContact);
-    const isEmail = normalizedContact.includes("@");
+    const normalizedUsername = trimmedUsername.toLowerCase();
     const fieldErrors = {};
 
     if (!trimmedContact) {
-      fieldErrors.contact = "Enter your email or phone number.";
-    } else if (!isEmail && phoneDigits.length < 10) {
-      fieldErrors.contact = "Use a valid email address or a 10-digit phone number.";
-    } else if (isEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedContact)) {
+      fieldErrors.contact = "Enter your email address.";
+    } else if (!isEmail(normalizedContact)) {
       fieldErrors.contact = "Enter a valid email address.";
     }
 
@@ -293,47 +349,22 @@ export default function App() {
 
     if (!trimmedUsername) {
       fieldErrors.username = "Create a username.";
-    } else if (trimmedUsername.length < 3) {
+    } else if (normalizedUsername.length < 3) {
       fieldErrors.username = "Use at least 3 characters for your username.";
+    } else if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) {
+      fieldErrors.username = "Use letters, numbers, and underscores only.";
     }
 
     if (!trimmedPassword) {
       fieldErrors.password = "Create a password.";
-    } else if (!/\d/.test(trimmedPassword) || trimmedPassword.length < 6) {
-      fieldErrors.password = "Use at least 6 characters and include a number.";
+    } else if (trimmedPassword.length < 8) {
+      fieldErrors.password = "Use at least 8 characters.";
     }
 
     if (!trimmedConfirmPassword) {
       fieldErrors.confirmPassword = "Confirm your password.";
     } else if (trimmedPassword !== trimmedConfirmPassword) {
       fieldErrors.confirmPassword = "Your passwords do not match.";
-    }
-
-    const usernameTaken = accounts.some(
-      (account) => normalizeText(account.username || "") === normalizedUsername
-    );
-    const emailTaken =
-      isEmail &&
-      accounts.some(
-        (account) => normalizeText(account.email || "") === normalizedContact
-      );
-    const phoneTaken =
-      !isEmail &&
-      phoneDigits.length > 0 &&
-      accounts.some(
-        (account) => normalizePhone(account.phone || "") === phoneDigits
-      );
-
-    if (!fieldErrors.username && usernameTaken) {
-      fieldErrors.username = "That username is already taken.";
-    }
-
-    if (!fieldErrors.contact && emailTaken) {
-      fieldErrors.contact = "An account already exists for that email.";
-    }
-
-    if (!fieldErrors.contact && phoneTaken) {
-      fieldErrors.contact = "An account already exists for that phone number.";
     }
 
     if (Object.keys(fieldErrors).length > 0) {
@@ -343,26 +374,54 @@ export default function App() {
       };
     }
 
-    const newAccount = {
-      id: `${Date.now()}`,
-      fullName: trimmedFullName,
-      username: trimmedUsername,
-      password: trimmedPassword,
-      email: isEmail ? trimmedContact : "",
-      phone: isEmail ? "" : trimmedContact,
-    };
+    if (!isBackendConfigured()) {
+      return {
+        ok: false,
+        message: "Backend URL is missing. Set EXPO_PUBLIC_API_URL in frontend/.env",
+      };
+    }
 
-    const updatedAccounts = [...accounts, newAccount];
+    try {
+      const data = await register({
+        email: normalizedContact,
+        password: trimmedPassword,
+        fullName: trimmedFullName,
+        username: normalizedUsername,
+      });
+      await saveToken(data.access_token);
+      setCurrentUser(mapApiUser(data.user));
+      navigateHome();
 
-    setAccounts(updatedAccounts);
-    setCurrentUser(newAccount);
-    setStoredAuthState(updatedAccounts, newAccount);
-    navigateHome();
+      return {
+        ok: true,
+        user: data.user,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to create account.";
 
-    return {
-      ok: true,
-      user: newAccount,
-    };
+      if (message === "Email already registered") {
+        return {
+          ok: false,
+          fieldErrors: {
+            contact: "An account already exists for that email.",
+          },
+        };
+      }
+
+      if (message === "Username already taken") {
+        return {
+          ok: false,
+          fieldErrors: {
+            username: "That username is already taken.",
+          },
+        };
+      }
+
+      return {
+        ok: false,
+        message,
+      };
+    }
   };
 
   const handleForgotPassword = ({ identity }) => {
@@ -377,39 +436,34 @@ export default function App() {
       };
     }
 
-    const identityPhone = normalizePhone(identity);
-
-    const matchingAccount = accounts.find((account) => {
-      const matchesUsername =
-        normalizeText(account.username || "") === normalizedIdentity;
-      const matchesEmail =
-        normalizeText(account.email || "") === normalizedIdentity;
-      const matchesPhone =
-        Boolean(identityPhone) &&
-        normalizePhone(account.phone || "") === identityPhone;
-
-      return matchesUsername || matchesEmail || matchesPhone;
-    });
-
-    if (!matchingAccount) {
-      return {
-        ok: false,
-        fieldErrors: {
-          identity: "We couldn't find an account with those details yet.",
-        },
-      };
-    }
-
-    const recoveryTarget =
-      matchingAccount.email || matchingAccount.phone || matchingAccount.username;
-
     return {
       ok: true,
-      message: `Password reset instructions would be sent to ${recoveryTarget}.`,
+      message: "If an account exists for those details, password reset instructions would be sent.",
     };
   };
 
-  if (currentScreen === "login") {
+  if (bootstrapping) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" color="#FF7344" />
+      </View>
+    );
+  }
+
+  if (!currentUser) {
+    if (currentScreen === "signup") {
+      return <SignupScreen onSignup={handleSignup} onNavigateLogin={navigateLogin} />;
+    }
+
+    if (currentScreen === "forgotPassword") {
+      return (
+        <ForgotPasswordScreen
+          onForgotPassword={handleForgotPassword}
+          onNavigateSignup={navigateSignup}
+        />
+      );
+    }
+
     return (
       <LoginScreen
         onLogin={handleLogin}
@@ -419,26 +473,46 @@ export default function App() {
     );
   }
 
-  if (currentScreen === "signup") {
-    return <SignupScreen onSignup={handleSignup} onNavigateLogin={navigateLogin} />;
-  }
+  let screenContent;
 
-  if (currentScreen === "forgotPassword") {
-    return (
-      <ForgotPasswordScreen
-        onForgotPassword={handleForgotPassword}
-        onNavigateSignup={navigateSignup}
+  if (currentScreen === "chat") {
+    screenContent = <ChatScreen onBack={navigateBack} onNavigate={handleNavigate} />;
+  } else if (currentScreen === "hotels") {
+    screenContent = (
+      <HotelsScreen
+        onGoBack={navigateBack}
+        onNavigateHome={navigateHome}
+        onNavigate={handleNavigate}
+        params={screenParams}
+      />
+    );
+  } else if (currentScreen === "itinerary") {
+    screenContent = (
+      <ItineraryScreen
+        onNavigate={handleNavigate}
+        onBack={navigateBack}
+      />
+    );
+  } else if (FEATURE_SCREENS.has(currentScreen)) {
+    screenContent = (
+      <DashboardFeatureScreen
+        screen={currentScreen}
+        params={screenParams}
+        onBack={navigateBack}
+        onNavigate={handleNavigate}
+        onLogout={handleLogout}
+      />
+    );
+  } else {
+    screenContent = (
+      <HomeScreen
+        displayName={getDisplayName(currentUser)}
+        onNavigate={handleNavigate}
+        onNavigateHotels={navigateHotels}
+        onLogout={handleLogout}
       />
     );
   }
 
-  return (
-    <HomeScreen
-      currentUser={currentUser}
-      displayName={getDisplayName(currentUser)}
-      onLogout={handleLogout}
-      onNavigateLogin={!currentUser ? navigateLogin : undefined}
-      onNavigateSignup={!currentUser ? navigateSignup : undefined}
-    />
-  );
+  return <UserLocationProvider>{screenContent}</UserLocationProvider>;
 }
