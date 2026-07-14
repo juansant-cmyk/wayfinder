@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Protocol
+from uuid import UUID
 
 
 @dataclass(frozen=True)
@@ -29,6 +31,28 @@ class ProviderHotel:
     currency: str
     amenities: list[str]
     rating: float | None
+    metadata_json: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ProviderSafetyAlert:
+    source: str
+    destination: str
+    alert_type: str
+    severity: str
+    title: str
+    description: str
+    lat: float | None = None
+    lng: float | None = None
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+
+
+@dataclass(frozen=True)
+class ProviderFareEvent:
+    price: float
+    currency: str
+    provider: str
     metadata_json: dict = field(default_factory=dict)
 
 
@@ -74,4 +98,33 @@ class HotelProvider(Protocol):
         that need priced offers should use ``search_hotels`` (or a future
         rates method) with check-in/out.
         """
+        ...
+
+
+class WeatherProvider(Protocol):
+    async def alerts(
+        self, lat: float | None, lng: float | None, destination: str
+    ) -> list[ProviderSafetyAlert]:
+        ...
+
+
+class TravelAdvisoryProvider(Protocol):
+    async def alerts(self, destination: str) -> list[ProviderSafetyAlert]:
+        ...
+
+
+class FareProvider(Protocol):
+    async def latest_price(
+        self,
+        watch_type: str,
+        origin: str | None,
+        destination: str,
+        hotel_id: UUID | None,
+        currency: str,
+    ) -> ProviderFareEvent:
+        ...
+
+
+class LLMProvider(Protocol):
+    async def answer(self, message: str, favorites: list[dict], plans: list[dict]) -> str:
         ...

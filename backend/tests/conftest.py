@@ -57,6 +57,12 @@ async def create_schema():
 @pytest.fixture
 async def clean_tables(create_schema):
     async with TestSessionLocal() as session:
-        await session.execute(text("TRUNCATE TABLE users, travel_plans, places, hotels, favorites CASCADE"))
+        await session.execute(
+            text(
+                "TRUNCATE TABLE users, travel_plans, places, hotels, favorites, "
+                "chat_sessions, chat_messages, safety_alerts, alert_dismissals, "
+                "fare_watches, fare_events CASCADE"
+            )
+        )
         await session.commit()
     yield

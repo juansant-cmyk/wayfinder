@@ -1,6 +1,7 @@
 from dataclasses import replace
+from uuid import UUID
 
-from app.providers.base import ProviderHotel, ProviderPlace
+from app.providers.base import ProviderFareEvent, ProviderHotel, ProviderPlace, ProviderSafetyAlert
 from app.services.hotel_sort import sort_provider_hotels
 
 DEFAULT_CENTER_LAT = -8.3405
@@ -137,3 +138,68 @@ class MockHotelProvider:
                 if hotel.provider_hotel_id == hotel_id:
                     return hotel
         raise LookupError(f"Mock hotel not found: {hotel_id}")
+
+
+class MockWeatherProvider:
+    async def alerts(
+        self, lat: float | None, lng: float | None, destination: str
+    ) -> list[ProviderSafetyAlert]:
+        return [
+            ProviderSafetyAlert(
+                source="mock-weather",
+                destination=destination,
+                alert_type="weather",
+                severity="moderate",
+                title=f"Rain likely near {destination}",
+                description="Carry rain gear and allow extra travel time.",
+                lat=lat,
+                lng=lng,
+            )
+        ]
+
+
+class MockTravelAdvisoryProvider:
+    async def alerts(self, destination: str) -> list[ProviderSafetyAlert]:
+        return [
+            ProviderSafetyAlert(
+                source="mock-advisory",
+                destination=destination,
+                alert_type="advisory",
+                severity="low",
+                title=f"Standard travel precautions for {destination}",
+                description="Keep valuables secure and monitor local guidance.",
+            )
+        ]
+
+
+class MockFareProvider:
+    async def latest_price(
+        self,
+        watch_type: str,
+        origin: str | None,
+        destination: str,
+        hotel_id: UUID | None,
+        currency: str,
+    ) -> ProviderFareEvent:
+        base_price = 180.0 if watch_type == "route" else 129.0
+        return ProviderFareEvent(
+            price=base_price,
+            currency=currency,
+            provider="mock",
+            metadata_json={
+                "origin": origin,
+                "destination": destination,
+                "hotel_id": str(hotel_id) if hotel_id else None,
+            },
+        )
+
+
+class MockLLMProvider:
+    async def answer(self, message: str, favorites: list[dict], plans: list[dict]) -> str:
+        context_bits = []
+        if favorites:
+            context_bits.append(f"{len(favorites)} saved favorites")
+        if plans:
+            context_bits.append(f"{len(plans)} active travel plans")
+        context = " using " + " and ".join(context_bits) if context_bits else ""
+        return f"mock reply from Wayfinder{context}: {message.strip()}"

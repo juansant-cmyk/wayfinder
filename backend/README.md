@@ -145,11 +145,13 @@ Protected routes require `Authorization: Bearer <token>`.
 | Flights | `GET /flights/search` |
 | Favorites | `GET /favorites`, `POST /favorites`, `DELETE /favorites` |
 | Safety | `GET /safety/summary` |
+| Safety feed | `GET /safety`, `POST /alerts/{alert_id}/dismiss` |
 | Weather | `GET /weather/current` |
-| Chat | `POST /chat/messages` |
+| Chat | `POST /chat/messages`, `POST/GET /chat/sessions`, `GET/POST /chat/sessions/{session_id}/messages` |
 | Destinations | `GET /destinations/recommended`, `GET /destinations/{slug}` |
 | Notifications | `GET /notifications` |
 | Travel check | `GET /travel-check` |
+| Fare watches | `GET/POST /fare-watches`, `DELETE /fare-watches/{watch_id}`, `GET /fare-watches/{watch_id}/events` |
 
 Places, hotels, flights, and dashboard feeds use deterministic mock data by default.
 
@@ -165,6 +167,9 @@ See [.env.example](.env.example):
 | `CORS_ORIGINS` | Comma-separated Expo dev origins |
 | `GOOGLE_MAPS_API_KEY` | Google Places key (maps / POI features) |
 | `HOTEL_API_KEY` | Legacy unused key |
+| `WEATHER_API_KEY` | Weather provider key for future live safety/weather adapters |
+| `TRAVEL_ADVISORY_API_KEY` | Travel advisory provider key for future live adapters |
+| `OPENAI_API_KEY` | LLM provider key for future live chat adapter |
 | `LITEAPI_API_KEY` | LiteAPI / Nuitee Connect API key |
 | `LITEAPI_BASE_URL` | Default `https://api.liteapi.travel/v3.0` |
 | `LITEAPI_GUEST_NATIONALITY` | ISO country for rate search (default `US`) |

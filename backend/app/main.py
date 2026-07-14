@@ -17,6 +17,7 @@ from app.routers import (
     chat,
     destinations,
     discovery,
+    fares,
     favorites,
     flights,
     geo,
@@ -72,6 +73,7 @@ app.include_router(destinations.router)
 app.include_router(flights.router)
 app.include_router(favorites.router)
 app.include_router(safety.router)
+app.include_router(fares.router)
 app.include_router(weather.router)
 app.include_router(chat.router)
 app.include_router(notifications.router)

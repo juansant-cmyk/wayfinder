@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -85,3 +86,102 @@ class HotelResponse(BaseModel):
     rating: float | None
     metadata_json: dict
     distance_miles: float | None = None
+
+
+class ChatSessionCreate(BaseModel):
+    title: str = Field(default="Travel chat", min_length=1, max_length=120)
+
+
+class ChatSessionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    user_id: UUID
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ChatMessageCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class ChatMessageResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    session_id: UUID
+    role: str
+    content: str
+    created_at: datetime
+
+
+class ChatTurnResponse(BaseModel):
+    user_message: ChatMessageResponse
+    assistant_message: ChatMessageResponse
+
+
+class SafetyFeedAlertResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    source: str
+    destination: str
+    alert_type: str
+    severity: str
+    title: str
+    description: str
+    lat: float | None
+    lng: float | None
+    starts_at: datetime | None
+    ends_at: datetime | None
+    created_at: datetime
+
+
+class DismissAlertResponse(BaseModel):
+    alert_id: UUID
+    status: str = "dismissed"
+
+
+class FareWatchCreate(BaseModel):
+    watch_type: Literal["hotel", "route"]
+    origin: str | None = Field(default=None, max_length=120)
+    destination: str = Field(min_length=1, max_length=120)
+    hotel_id: UUID | None = None
+    target_price: float | None = Field(default=None, ge=0)
+    currency: str = Field(default="USD", min_length=3, max_length=3)
+
+    @model_validator(mode="after")
+    def validate_watch(self):
+        if self.watch_type == "route" and not self.origin:
+            raise ValueError("origin is required for route fare watches")
+        if self.watch_type == "hotel" and self.hotel_id is None:
+            raise ValueError("hotel_id is required for hotel fare watches")
+        return self
+
+
+class FareWatchResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    user_id: UUID
+    watch_type: str
+    origin: str | None
+    destination: str
+    hotel_id: UUID | None
+    target_price: float | None
+    currency: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class FareEventResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    watch_id: UUID
+    price: float
+    currency: str
+    provider: str
+    observed_at: datetime
+    metadata_json: dict
