@@ -2,13 +2,34 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
-import { fetchMe, isBackendConfigured, login, register, setUnauthorizedHandler } from "./src/api/client";
-import { clearToken, getToken, saveToken } from "./src/auth/tokenStorage";
+import {
+  fetchMe,
+  isApiConfigError,
+  isApiRequestFailedError,
+  isApiUnavailableError,
+  isBackendConfigured,
+  login,
+  register,
+  setUnauthorizedHandler,
+} from "./src/api/client";
+import {
+  API_CONFIG_ERROR_MESSAGE,
+  API_UNAVAILABLE_MESSAGE,
+} from "./src/api/config";
+import {
+  clearSessionUser,
+  clearToken,
+  getSessionUser,
+  getToken,
+  saveSessionUser,
+  saveToken,
+} from "./src/auth/tokenStorage";
 import { UserLocationProvider } from "./src/location/UserLocationContext";
 import { getHashForScreen, getScreenFromHash } from "./src/navigation/screens";
 import AIChatScreen from "./screens/AIChatScreen";
 import DashboardFeatureScreen from "./screens/DashboardFeatureScreen";
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
+import FavoritesScreen from "./screens/FavoritesScreen";
 import FlightsScreen from "./screens/FlightsScreen";
 import HomeScreen from "./screens/HomeScreen";
 import HotelsScreen from "./screens/HotelsScreen";
@@ -19,6 +40,15 @@ import SignupScreen from "./screens/SignupScreen";
 import WeatherScreen from "./screens/WeatherScreen";
 
 const AUTH_ONLY_SCREENS = new Set(["login", "signup", "forgotPassword"]);
+const DEV_PUBLIC_PREVIEW_SCREENS = new Set([
+  "weather",
+  "maps",
+  "hotels",
+  "flights",
+  "favorites",
+  "chat",
+]);
+const SIGN_IN_GENERIC_MESSAGE = "Something went wrong while signing in. Please try again.";
 
 function normalizeText(value) {
   return value.trim().toLowerCase();
@@ -50,6 +80,18 @@ function isWebPreview() {
   return Platform.OS === "web" && typeof window !== "undefined";
 }
 
+function getRequestedWebScreen() {
+  if (!isWebPreview()) {
+    return null;
+  }
+
+  return getScreenFromHash(window.location.hash);
+}
+
+function canUseDevPublicPreview(screen) {
+  return __DEV__ && isWebPreview() && DEV_PUBLIC_PREVIEW_SCREENS.has(screen);
+}
+
 function mapApiUser(apiUser) {
   return {
     id: apiUser.id,
@@ -74,15 +116,21 @@ const FEATURE_SCREENS = new Set([
   "recommended",
 ]);
 
-const BOTTOM_NAV_TAB_SCREENS = new Set(["itinerary", "flights", "maps", "profile"]);
+const BOTTOM_NAV_TAB_SCREENS = new Set([
+  "itinerary",
+  "flights",
+  "favorites",
+  "maps",
+  "profile",
+]);
 
 export default function App() {
   const [bootstrapping, setBootstrapping] = useState(true);
   const [currentScreen, setCurrentScreen] = useState(() => {
     if (isWebPreview()) {
-      const fromHash = getScreenFromHash(window.location.hash);
-      if (fromHash === "weather") {
-        return "weather";
+      const fromHash = getRequestedWebScreen();
+      if (canUseDevPublicPreview(fromHash)) {
+        return fromHash;
       }
 
       return AUTH_ONLY_SCREENS.has(fromHash) ? fromHash : "login";
@@ -94,10 +142,12 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const lastWebHashRef = useRef("");
   const historyActionRef = useRef("push");
+  const initialScreenRef = useRef(currentScreen);
+  const initialScreenParamsRef = useRef(screenParams);
 
   useEffect(() => {
     setUnauthorizedHandler(async () => {
-      await clearToken();
+      await Promise.all([clearToken(), clearSessionUser()]);
       setCurrentUser(null);
       setScreenParams({});
       setCurrentScreen("login");
@@ -112,6 +162,14 @@ export default function App() {
     let cancelled = false;
 
     async function restoreSession() {
+      const requestedScreen = getRequestedWebScreen();
+      if (canUseDevPublicPreview(requestedScreen)) {
+        if (!cancelled) {
+          setBootstrapping(false);
+        }
+        return;
+      }
+
       if (!isBackendConfigured()) {
         if (!cancelled) {
           setBootstrapping(false);
@@ -120,24 +178,37 @@ export default function App() {
       }
 
       try {
-        const token = await getToken();
+        const [token, cachedUser] = await Promise.all([getToken(), getSessionUser()]);
 
         if (!token) {
           return;
         }
 
+        if (cachedUser && !cancelled) {
+          setCurrentUser(cachedUser);
+          if (canUseDevPublicPreview(requestedScreen)) {
+            setCurrentScreen(requestedScreen);
+          } else {
+            setCurrentScreen("home");
+          }
+        }
+
         const user = await fetchMe(token);
+        const mappedUser = mapApiUser(user);
 
         if (!cancelled) {
-          setCurrentUser(mapApiUser(user));
-          if (isWebPreview() && getScreenFromHash(window.location.hash) === "weather") {
-            setCurrentScreen("weather");
+          setCurrentUser(mappedUser);
+          await saveSessionUser(mappedUser);
+          if (canUseDevPublicPreview(requestedScreen)) {
+            setCurrentScreen(requestedScreen);
           } else {
             setCurrentScreen("home");
           }
         }
       } catch (error) {
-        await clearToken();
+        if (!isApiUnavailableError(error)) {
+          await Promise.all([clearToken(), clearSessionUser()]);
+        }
       } finally {
         if (!cancelled) {
           setBootstrapping(false);
@@ -165,10 +236,10 @@ export default function App() {
       setCurrentScreen(nextScreen);
     };
 
-    const initialHash = getHashForScreen(currentScreen);
+    const initialHash = getHashForScreen(initialScreenRef.current);
 
     window.history.replaceState(
-      { screen: currentScreen, params: screenParams },
+      { screen: initialScreenRef.current, params: initialScreenParamsRef.current },
       "",
       `${window.location.pathname}${window.location.search}${initialHash}`
     );
@@ -255,7 +326,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    await clearToken();
+    await Promise.all([clearToken(), clearSessionUser()]);
     setCurrentUser(null);
     setScreenParams({});
     setCurrentScreen("login");
@@ -299,14 +370,15 @@ export default function App() {
     if (!isBackendConfigured()) {
       return {
         ok: false,
-        message: "Backend URL is missing. Set EXPO_PUBLIC_API_URL in frontend/.env",
+        message: API_CONFIG_ERROR_MESSAGE,
       };
     }
 
     try {
       const data = await login(normalizedIdentity, trimmedPassword);
-      await saveToken(data.access_token);
-      setCurrentUser(mapApiUser(data.user));
+      const mappedUser = mapApiUser(data.user);
+      await Promise.all([saveToken(data.access_token), saveSessionUser(mappedUser)]);
+      setCurrentUser(mappedUser);
       navigateHome();
 
       return {
@@ -316,12 +388,47 @@ export default function App() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to sign in.";
 
-      if (message === "Invalid email or password") {
+      if (isApiUnavailableError(error)) {
+        return {
+          ok: false,
+          message: API_UNAVAILABLE_MESSAGE,
+        };
+      }
+
+      if (isApiConfigError(error)) {
+        return {
+          ok: false,
+          message: API_CONFIG_ERROR_MESSAGE,
+        };
+      }
+
+      if (error?.status === 401 && message === "Invalid email or password") {
         return {
           ok: false,
           fieldErrors: {
             password: message,
           },
+        };
+      }
+
+      if (error?.status === 422) {
+        const identityError = error?.fieldErrors?.identity || "";
+        const passwordError = error?.fieldErrors?.password || "";
+
+        return {
+          ok: false,
+          fieldErrors: {
+            identity: identityError,
+            password: passwordError,
+          },
+          message: identityError || passwordError ? "" : SIGN_IN_GENERIC_MESSAGE,
+        };
+      }
+
+      if (error?.status >= 500 || isApiRequestFailedError(error)) {
+        return {
+          ok: false,
+          message: SIGN_IN_GENERIC_MESSAGE,
         };
       }
 
@@ -388,7 +495,7 @@ export default function App() {
     if (!isBackendConfigured()) {
       return {
         ok: false,
-        message: "Backend URL is missing. Set EXPO_PUBLIC_API_URL in frontend/.env",
+        message: API_CONFIG_ERROR_MESSAGE,
       };
     }
 
@@ -399,8 +506,9 @@ export default function App() {
         fullName: trimmedFullName,
         username: normalizedUsername,
       });
-      await saveToken(data.access_token);
-      setCurrentUser(mapApiUser(data.user));
+      const mappedUser = mapApiUser(data.user);
+      await Promise.all([saveToken(data.access_token), saveSessionUser(mappedUser)]);
+      setCurrentUser(mappedUser);
       navigateHome();
 
       return {
@@ -409,6 +517,20 @@ export default function App() {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to create account.";
+
+      if (isApiUnavailableError(error)) {
+        return {
+          ok: false,
+          message: API_UNAVAILABLE_MESSAGE,
+        };
+      }
+
+      if (isApiConfigError(error)) {
+        return {
+          ok: false,
+          message: API_CONFIG_ERROR_MESSAGE,
+        };
+      }
 
       if (message === "Email already registered") {
         return {
@@ -462,8 +584,9 @@ export default function App() {
   }
 
   let screenContent;
+  const isDevPreviewScreen = !currentUser && canUseDevPublicPreview(currentScreen);
 
-  if (!currentUser) {
+  if (!currentUser && !isDevPreviewScreen) {
     if (currentScreen === "signup") {
       screenContent = <SignupScreen onSignup={handleSignup} onNavigateLogin={navigateLogin} />;
     } else if (currentScreen === "forgotPassword") {
@@ -493,6 +616,14 @@ export default function App() {
         params={screenParams}
       />
     );
+  } else if (currentScreen === "favorites") {
+    screenContent = (
+      <FavoritesScreen
+        onGoBack={navigateBack}
+        onNavigateHome={navigateHome}
+        onNavigate={handleNavigate}
+      />
+    );
   } else if (currentScreen === "hotels") {
     screenContent = (
       <HotelsScreen
@@ -500,6 +631,7 @@ export default function App() {
         onNavigateHome={navigateHome}
         onNavigate={handleNavigate}
         params={screenParams}
+        previewMode={isDevPreviewScreen}
       />
     );
   } else if (currentScreen === "itinerary") {
