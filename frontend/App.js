@@ -14,6 +14,7 @@ import HomeScreen from "./screens/HomeScreen";
 import HotelsScreen from "./screens/HotelsScreen";
 import ItineraryScreen from "./screens/ItineraryScreen";
 import LoginScreen from "./screens/LoginScreen";
+import MapsScreen from "./screens/MapsScreen";
 import SignupScreen from "./screens/SignupScreen";
 import WeatherScreen from "./screens/WeatherScreen";
 
@@ -73,7 +74,7 @@ const FEATURE_SCREENS = new Set([
   "recommended",
 ]);
 
-const BOTTOM_NAV_TAB_SCREENS = new Set(["itinerary", "favorites", "profile"]);
+const BOTTOM_NAV_TAB_SCREENS = new Set(["itinerary", "flights", "maps", "profile"]);
 
 export default function App() {
   const [bootstrapping, setBootstrapping] = useState(true);
@@ -508,6 +509,8 @@ export default function App() {
         onBack={navigateBack}
       />
     );
+  } else if (currentScreen === "maps") {
+    screenContent = <MapsScreen onNavigate={handleNavigate} onBack={navigateBack} />;
   } else if (currentScreen === "weather") {
     screenContent = <WeatherScreen onNavigate={handleNavigate} />;
   } else if (FEATURE_SCREENS.has(currentScreen)) {
