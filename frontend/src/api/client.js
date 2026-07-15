@@ -1,4 +1,4 @@
-const CONFIGURED_API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || "";
+﻿const CONFIGURED_API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || "";
 const WEB_API_URL = process.env.EXPO_PUBLIC_API_URL_WEB?.replace(/\/$/, "") || "";
 
 function isPrivateLanHost(url) {
@@ -35,7 +35,7 @@ function resolveApiUrl() {
   if (typeof window !== "undefined" && typeof document !== "undefined") {
     const pageHost = window.location.hostname;
 
-    // Expo web on this PC (localhost:8081) — API is on the same machine.
+    // Expo web on this PC (localhost:8081) â€” API is on the same machine.
     if (isLocalWebDevHost(pageHost)) {
       if (WEB_API_URL) {
         return WEB_API_URL;
@@ -57,6 +57,21 @@ export function getApiUrl() {
 
 export function isBackendConfigured() {
   return Boolean(getApiUrl());
+}
+
+export function isApiConfigError(error) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("EXPO_PUBLIC_API_URL is not configured");
+}
+
+export function isApiUnavailableError(error) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.startsWith("Cannot reach the API");
+}
+
+export function isApiRequestFailedError(error) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.startsWith("Request failed");
 }
 
 export function setUnauthorizedHandler(handler) {
