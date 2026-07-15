@@ -8,7 +8,7 @@ export const APP_SCREENS = {
   itinerary: { hash: "#itinerary", title: "Itinerary" },
   hotels: { hash: "#hotels", title: "Hotels" },
   flights: { hash: "#flights", title: "Flights" },
-  favorites: { hash: "#favorites", title: "Saved" },
+  favorites: { hash: "#favorites", title: "Favorites" },
   safety: { hash: "#safety", title: "Safety" },
   weather: { hash: "#weather", title: "Weather" },
   chat: { hash: "#chat", title: "AI Chat" },

@@ -36,6 +36,7 @@ import HotelsScreen from "./screens/HotelsScreen";
 import ItineraryScreen from "./screens/ItineraryScreen";
 import LoginScreen from "./screens/LoginScreen";
 import MapsScreen from "./screens/MapsScreen";
+import SafetyScreen from "./screens/SafetyScreen";
 import SignupScreen from "./screens/SignupScreen";
 import WeatherScreen from "./screens/WeatherScreen";
 
@@ -46,6 +47,7 @@ const DEV_PUBLIC_PREVIEW_SCREENS = new Set([
   "hotels",
   "flights",
   "favorites",
+  "safety",
   "chat",
 ]);
 const SIGN_IN_GENERIC_MESSAGE = "Something went wrong while signing in. Please try again.";
@@ -106,7 +108,6 @@ const FEATURE_SCREENS = new Set([
   "itinerary",
   "flights",
   "favorites",
-  "safety",
   "weather",
   "maps",
   "travelCheck",
@@ -120,6 +121,7 @@ const BOTTOM_NAV_TAB_SCREENS = new Set([
   "itinerary",
   "flights",
   "favorites",
+  "safety",
   "maps",
   "profile",
 ]);
@@ -643,6 +645,14 @@ export default function App() {
     );
   } else if (currentScreen === "maps") {
     screenContent = <MapsScreen onNavigate={handleNavigate} onBack={navigateBack} />;
+  } else if (currentScreen === "safety") {
+    screenContent = (
+      <SafetyScreen
+        onGoBack={navigateBack}
+        onNavigateHome={navigateHome}
+        onNavigate={handleNavigate}
+      />
+    );
   } else if (currentScreen === "weather") {
     screenContent = <WeatherScreen onNavigate={handleNavigate} />;
   } else if (FEATURE_SCREENS.has(currentScreen)) {
