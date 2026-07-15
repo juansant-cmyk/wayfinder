@@ -9,6 +9,7 @@ import {
   WayfinderBrand,
   authColors,
 } from "./AuthShared";
+import { colors, fonts } from "../theme/tokens";
 
 export default function SignupScreen({ onSignup, onNavigateLogin }) {
   const [contact, setContact] = useState("");
@@ -178,43 +179,45 @@ export default function SignupScreen({ onSignup, onNavigateLogin }) {
 
 const styles = StyleSheet.create({
   heroBlock: {
-    marginTop: 54,
+    marginTop: 44,
   },
 
   title: {
     maxWidth: 338,
-    fontSize: 31,
-    fontWeight: "800",
-    lineHeight: 40,
-    letterSpacing: -1.2,
+    fontFamily: fonts.serif,
+    fontSize: 30,
+    lineHeight: 39,
+    letterSpacing: -0.3,
     color: authColors.heading,
   },
 
   subtitle: {
-    marginTop: 22,
-    fontSize: 17,
+    marginTop: 16,
+    fontFamily: fonts.sans,
+    fontSize: 16,
     lineHeight: 24,
-    color: authColors.accent,
+    color: colors.muted,
   },
 
   formBlock: {
-    marginTop: 82,
+    marginTop: 40,
   },
 
   statusMessage: {
     marginTop: 14,
+    fontFamily: fonts.sans,
     fontSize: 14,
     lineHeight: 20,
-    color: authColors.body,
+    color: colors.danger,
   },
 
   errorText: {
-    color: "#C53A36",
+    color: colors.danger,
   },
 
   footerSpacer: {
     flexGrow: 1,
-    minHeight: 72,
+    minHeight: 48,
   },
 
   footerRow: {
@@ -226,15 +229,16 @@ const styles = StyleSheet.create({
   },
 
   footerPrompt: {
-    fontSize: 17,
-    color: authColors.accent,
+    fontFamily: fonts.sans,
+    fontSize: 15,
+    color: colors.muted,
   },
 
   footerAction: {
-    marginLeft: 12,
-    fontSize: 20,
-    fontWeight: "800",
-    color: authColors.button,
-    letterSpacing: -0.4,
+    marginLeft: 8,
+    fontFamily: fonts.sans,
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.ink,
   },
 });

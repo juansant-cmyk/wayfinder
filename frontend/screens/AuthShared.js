@@ -10,14 +10,16 @@ import {
   View,
 } from "react-native";
 
+import { colors, fonts, radius } from "../theme/tokens";
+
 export const authColors = {
-  background: "#EAF2FC",
-  accent: "#FF7048",
-  accentMuted: "#B8C1CF",
-  button: "#37374A",
-  buttonText: "#F8F5EE",
-  heading: "#20283D",
-  body: "#2D3A53",
+  background: colors.paper,
+  accent: colors.gold,
+  accentMuted: colors.faint,
+  button: colors.navy,
+  buttonText: colors.onDark,
+  heading: colors.ink,
+  body: colors.ink,
 };
 
 export function AuthScreenContainer({ children }) {
@@ -29,8 +31,6 @@ export function AuthScreenContainer({ children }) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.glowTop} />
-        <View style={styles.glowBottom} />
         <View style={styles.pageInner}>{children}</View>
       </ScrollView>
     </SafeAreaView>
@@ -48,7 +48,6 @@ export function WayfinderBrand({ containerStyle, textStyle }) {
         </View>
         <Ionicons name="sparkles" size={12} color="#FF8D58" style={styles.logoSpark} />
       </View>
-
       <Text style={[styles.brandText, textStyle]}>Wayfinder</Text>
     </View>
   );
@@ -59,8 +58,8 @@ export function UnderlineField({
   value,
   onChangeText,
   helperText,
-  helperColor = authColors.accent,
-  underlineColor = authColors.accent,
+  helperColor = authColors.accentMuted,
+  underlineColor = colors.line,
   rightAccessory = null,
   autoCapitalize = "none",
   autoCorrect = false,
@@ -72,9 +71,8 @@ export function UnderlineField({
 }) {
   return (
     <View style={styles.fieldGroup}>
+      <Text style={styles.fieldLabel}>{label}</Text>
       <View style={[styles.fieldWrap, { borderBottomColor: underlineColor }]}>
-        <Text style={styles.fieldLabel}>{label}</Text>
-
         <View style={styles.inputRow}>
           <TextInput
             value={value}
@@ -87,8 +85,8 @@ export function UnderlineField({
             textContentType={textContentType}
             autoComplete={autoComplete}
             inputMode={inputMode}
-            selectionColor={authColors.accent}
-            placeholderTextColor="#9CA8BB"
+            selectionColor={colors.gold}
+            placeholderTextColor={colors.faint}
           />
 
           {rightAccessory}
@@ -111,21 +109,16 @@ export function PasswordVisibilityToggle({ visible, onPress }) {
     >
       <Ionicons
         name={visible ? "eye-off-outline" : "eye-outline"}
-        size={22}
-        color="#B2BAC7"
+        size={20}
+        color={colors.faint}
       />
     </Pressable>
   );
 }
 
-export function PrimaryButton({ label, onPress, disabled = false }) {
+export function PrimaryButton({ label, onPress }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      disabled={disabled}
-      onPress={onPress}
-      style={styles.primaryButton}
-    >
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.primaryButton}>
       <Text style={styles.primaryButtonText}>{label}</Text>
     </Pressable>
   );
@@ -144,9 +137,9 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 30,
+    paddingHorizontal: 28,
+    paddingTop: 24,
+    paddingBottom: 32,
     alignItems: "center",
   },
 
@@ -156,31 +149,10 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 
-  glowTop: {
-    position: "absolute",
-    top: 72,
-    left: -42,
-    width: 176,
-    height: 176,
-    borderRadius: 88,
-    backgroundColor: "rgba(255, 224, 152, 0.28)",
-  },
-
-  glowBottom: {
-    position: "absolute",
-    right: -54,
-    bottom: 24,
-    width: 184,
-    height: 184,
-    borderRadius: 92,
-    backgroundColor: "rgba(255, 224, 152, 0.24)",
-  },
-
   brandRow: {
     alignSelf: "flex-end",
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 4,
   },
 
   logoMark: {
@@ -233,29 +205,32 @@ const styles = StyleSheet.create({
 
   brandText: {
     marginLeft: 10,
-    fontSize: 25,
-    fontWeight: "700",
-    color: "#14253E",
-    letterSpacing: -0.8,
+    fontFamily: fonts.serif,
+    fontSize: 22,
+    color: colors.ink,
+    letterSpacing: 0.2,
   },
 
   fieldGroup: {
-    marginBottom: 26,
-  },
-
-  fieldWrap: {
-    borderBottomWidth: 2,
-    paddingBottom: 8,
+    marginBottom: 24,
   },
 
   fieldLabel: {
-    fontSize: 16,
-    color: authColors.accent,
-    lineHeight: 21,
+    fontFamily: fonts.sans,
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    color: colors.gold,
+    marginBottom: 6,
+  },
+
+  fieldWrap: {
+    borderBottomWidth: 1,
+    paddingBottom: 8,
   },
 
   inputRow: {
-    marginTop: 6,
     minHeight: 28,
     flexDirection: "row",
     alignItems: "center",
@@ -266,15 +241,17 @@ const styles = StyleSheet.create({
     minHeight: 28,
     paddingVertical: 0,
     paddingHorizontal: 0,
-    fontSize: 18,
-    color: authColors.body,
+    fontFamily: fonts.sans,
+    fontSize: 17,
+    color: colors.ink,
   },
 
   helperText: {
     marginTop: 8,
+    fontFamily: fonts.sans,
     fontSize: 12,
     lineHeight: 17,
-    color: authColors.accent,
+    color: colors.faint,
   },
 
   visibilityButton: {
@@ -284,25 +261,25 @@ const styles = StyleSheet.create({
   },
 
   primaryButton: {
-    minHeight: 66,
-    borderRadius: 4,
+    minHeight: 56,
+    borderRadius: radius.sm,
     backgroundColor: authColors.button,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 20,
     ...Platform.select({
       ios: {
-        shadowColor: "#1F2937",
-        shadowOpacity: 0.12,
+        shadowColor: "#23324A",
+        shadowOpacity: 0.18,
         shadowRadius: 12,
         shadowOffset: { width: 0, height: 6 },
       },
       android: {
-        elevation: 5,
+        elevation: 4,
       },
       default: {
-        shadowColor: "#1F2937",
-        shadowOpacity: 0.12,
+        shadowColor: "#23324A",
+        shadowOpacity: 0.18,
         shadowRadius: 12,
         shadowOffset: { width: 0, height: 6 },
       },
@@ -310,9 +287,10 @@ const styles = StyleSheet.create({
   },
 
   primaryButtonText: {
-    fontSize: 22,
-    fontWeight: "800",
+    fontFamily: fonts.sans,
+    fontSize: 16,
+    fontWeight: "700",
     color: authColors.buttonText,
-    letterSpacing: -0.5,
+    letterSpacing: 0.3,
   },
 });

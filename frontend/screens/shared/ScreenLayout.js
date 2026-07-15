@@ -10,6 +10,7 @@ import {
 } from "react-native";
 
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./BottomNav";
+import { colors, fonts } from "../../theme/tokens";
 
 export default function ScreenLayout({
   title,
@@ -28,7 +29,7 @@ export default function ScreenLayout({
 
       <View style={styles.header}>
         <Pressable onPress={onBack} style={styles.backButton} hitSlop={8}>
-          <Ionicons name="chevron-back" size={28} color="#14253E" />
+          <Ionicons name="chevron-back" size={26} color={colors.ink} />
         </Pressable>
         <Text style={styles.title}>{title}</Text>
         <View style={styles.headerSpacer} />
@@ -36,7 +37,7 @@ export default function ScreenLayout({
 
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#1F78FF" />
+          <ActivityIndicator size="large" color={colors.gold} />
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
       ) : error ? (
@@ -68,7 +69,7 @@ export default function ScreenLayout({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#EAF2FC",
+    backgroundColor: colors.paper,
   },
 
   header: {
@@ -89,10 +90,10 @@ const styles = StyleSheet.create({
   title: {
     flex: 1,
     textAlign: "center",
+    fontFamily: fonts.serif,
     fontSize: 20,
-    fontWeight: "700",
-    color: "#14253E",
-    letterSpacing: -0.5,
+    color: colors.ink,
+    letterSpacing: 0.2,
   },
 
   headerSpacer: {
@@ -108,16 +109,18 @@ const styles = StyleSheet.create({
 
   loadingText: {
     marginTop: 12,
+    fontFamily: fonts.sans,
     fontSize: 15,
     fontWeight: "600",
-    color: "#1F78FF",
+    color: colors.muted,
   },
 
   errorText: {
+    fontFamily: fonts.sans,
     fontSize: 15,
     lineHeight: 22,
     textAlign: "center",
-    color: "#B42318",
+    color: colors.danger,
   },
 
   content: {

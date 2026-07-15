@@ -8,6 +8,7 @@ import {
   WayfinderBrand,
   authColors,
 } from "./AuthShared";
+import { colors, fonts } from "../theme/tokens";
 
 export default function ForgotPasswordScreen({ onForgotPassword, onNavigateSignup }) {
   const [identity, setIdentity] = useState("");
@@ -87,47 +88,49 @@ export default function ForgotPasswordScreen({ onForgotPassword, onNavigateSignu
 
 const styles = StyleSheet.create({
   heroBlock: {
-    marginTop: 104,
+    marginTop: 72,
   },
 
   title: {
     maxWidth: 260,
+    fontFamily: fonts.serif,
     fontSize: 34,
-    fontWeight: "800",
     lineHeight: 42,
-    letterSpacing: -1.3,
+    letterSpacing: -0.3,
     color: authColors.heading,
   },
 
   subtitle: {
-    marginTop: 20,
+    marginTop: 16,
     maxWidth: 334,
-    fontSize: 17,
-    lineHeight: 26,
-    color: authColors.accent,
+    fontFamily: fonts.sans,
+    fontSize: 16,
+    lineHeight: 25,
+    color: colors.muted,
   },
 
   formBlock: {
-    marginTop: 120,
+    marginTop: 48,
   },
 
   statusMessage: {
     marginTop: 14,
+    fontFamily: fonts.sans,
     fontSize: 14,
     lineHeight: 20,
   },
 
   successText: {
-    color: "#16803C",
+    color: "#3E6B4A",
   },
 
   errorText: {
-    color: "#C53A36",
+    color: colors.danger,
   },
 
   footerSpacer: {
     flexGrow: 1,
-    minHeight: 112,
+    minHeight: 72,
   },
 
   footerRow: {
@@ -139,15 +142,16 @@ const styles = StyleSheet.create({
   },
 
   footerPrompt: {
-    fontSize: 17,
-    color: authColors.accent,
+    fontFamily: fonts.sans,
+    fontSize: 15,
+    color: colors.muted,
   },
 
   footerAction: {
-    marginLeft: 12,
-    fontSize: 20,
-    fontWeight: "800",
-    color: authColors.button,
-    letterSpacing: -0.4,
+    marginLeft: 8,
+    fontFamily: fonts.sans,
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.ink,
   },
 });

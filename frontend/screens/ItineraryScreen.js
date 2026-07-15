@@ -23,6 +23,7 @@ import { useUserLocation } from "../src/location/UserLocationContext";
 import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
+import { fonts } from "../theme/tokens";
 
 const heroArtworkImage = require("../assets/images/itinerary-hero-reference.png");
 const tripPreviewImage = require("../assets/images/itinerary-trip-reference.png");
@@ -2134,6 +2135,7 @@ const styles = StyleSheet.create({
   },
 
   heroTitle: {
+    fontFamily: fonts.serif,
     fontSize: 46,
     fontWeight: "800",
     color: "#12254A",
@@ -2224,6 +2226,7 @@ const styles = StyleSheet.create({
   },
 
   tripTitle: {
+    fontFamily: fonts.serif,
     fontSize: 23,
     fontWeight: "800",
     color: "#12254A",

@@ -1,4 +1,4 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import {
@@ -15,19 +15,18 @@ import { mapSafetyLevel } from "../src/api/mappers";
 import { getToken } from "../src/auth/tokenStorage";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
+import { accents, colors, fonts, radius, softShadow, spacing, tint } from "../theme/tokens";
 
 const quickTools = [
-  { label: "Itinerary", icon: "calendar-month", color: "#1F78FF", iconSize: 44 },
-  { label: "Hotels", icon: "bed", color: "#FF5A1F", iconSize: 45 },
-  { label: "Flights", icon: "airplane", color: "#1F78FF", iconSize: 46 },
-  { label: "Favorites", icon: "heart", color: "#FF4D2D", iconSize: 40 },
-  { label: "Safety", icon: "shield-check", color: "#10B24C", iconSize: 46 },
-  { label: "Weather", variant: "weather" },
-  { label: "AI Chat", variant: "chat" },
-  { label: "Maps", icon: "map-marker", color: "#10B24C", iconSize: 44 },
+  { label: "Itinerary", icon: "calendar-outline", accent: accents.blue },
+  { label: "Hotels", icon: "bed-outline", accent: accents.terracotta },
+  { label: "Flights", icon: "airplane-outline", accent: accents.teal },
+  { label: "Favorites", icon: "heart-outline", accent: accents.rose },
+  { label: "Safety", icon: "shield-checkmark-outline", accent: accents.green },
+  { label: "Weather", icon: "partly-sunny-outline", accent: accents.amber },
+  { label: "AI Chat", icon: "chatbubble-ellipses-outline", accent: accents.plum },
+  { label: "Maps", icon: "map-outline", accent: accents.indigo },
 ];
-
-const heroWidgetImage = require("../assets/images/ask-wayfinder-widget-final.png");
 
 const QUICK_TOOL_SCREENS = {
   Itinerary: "itinerary",
@@ -73,35 +72,6 @@ const fallbackDestinations = [
     slug: "portugal",
   },
 ];
-
-function QuickToolIcon({ tool }) {
-  if (tool.variant === "weather") {
-    return (
-      <View style={styles.weatherIconWrap}>
-        <Ionicons name="sunny" size={21} color="#FDB515" style={styles.weatherSunIcon} />
-        <Ionicons name="cloud" size={42} color="#3C9BFF" />
-      </View>
-    );
-  }
-
-  if (tool.variant === "chat") {
-    return (
-      <View style={styles.chatIconWrap}>
-        <Ionicons name="chatbubble" size={42} color="#5B50FF" />
-        <Ionicons name="ellipsis" size={19} color="#FFFFFF" style={styles.chatDots} />
-        <Ionicons name="chatbubble" size={20} color="#B7D8FF" style={styles.chatAccentBubble} />
-      </View>
-    );
-  }
-
-  return (
-    <MaterialCommunityIcons
-      name={tool.icon}
-      size={tool.iconSize ?? 42}
-      color={tool.color}
-    />
-  );
-}
 
 export default function HomeScreen({ displayName = "Traveler", onNavigate, onNavigateHotels }) {
   const [recommendedDestinations, setRecommendedDestinations] = useState(fallbackDestinations);
@@ -198,6 +168,7 @@ export default function HomeScreen({ displayName = "Traveler", onNavigate, onNav
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
+        {/* Header — Ally's compass logo */}
         <View style={styles.headerRow}>
           <View style={styles.brandRow}>
             <View style={styles.logoMark}>
@@ -212,32 +183,46 @@ export default function HomeScreen({ displayName = "Traveler", onNavigate, onNav
           </View>
 
           <View style={styles.headerActions}>
-            <Pressable onPress={() => onNavigate?.("notifications")} style={styles.headerButton}>
-              <Ionicons name="notifications-outline" size={28} color="#111827" />
+            <Pressable onPress={() => onNavigate?.("notifications")} style={styles.headerButton} hitSlop={8}>
+              <Ionicons name="notifications-outline" size={22} color={colors.ink} />
             </Pressable>
-            <Pressable onPress={() => onNavigate?.("profile")} style={styles.headerButton}>
-              <Ionicons name="person-circle-outline" size={31} color="#111827" />
+            <Pressable onPress={() => onNavigate?.("profile")} style={styles.headerButton} hitSlop={8}>
+              <Ionicons name="person-circle-outline" size={26} color={colors.ink} />
             </Pressable>
           </View>
         </View>
 
-        <Text style={styles.greeting}>Good morning, {displayName} 👋</Text>
+        {/* Greeting */}
+        <Text style={styles.eyebrow}>GOOD MORNING, {displayName.toUpperCase()}</Text>
         <Text style={styles.heading}>Where should we go next?</Text>
 
-        <View style={styles.heroCard}>
-          <Pressable
-            onPress={() => onNavigate?.("chat")}
-            style={styles.heroCardPressable}
-          >
-            <Image
-              source={heroWidgetImage}
-              style={styles.heroCardImage}
-              resizeMode="stretch"
-            />
-          </Pressable>
-        </View>
+        {/* Ask Wayfinder */}
+        <Pressable style={styles.heroCard} onPress={() => onNavigate?.("chat")}>
+          <View style={styles.heroLabelRow}>
+            <Ionicons name="sparkles-outline" size={15} color="#FFD9A0" />
+            <Text style={styles.heroLabel}>ASK WAYFINDER</Text>
+          </View>
+          <Text style={styles.heroSubtitle}>
+            Plan a trip, compare hotels, and get safety tips — just ask.
+          </Text>
 
-        <Text style={styles.sectionTitle}>Quick Tools</Text>
+          <View style={styles.heroPrompt}>
+            <Text style={styles.heroPromptText} numberOfLines={1}>
+              Plan a 3-day trip to Japan under $1,500
+            </Text>
+            <View style={styles.heroPromptArrow}>
+              <Ionicons name="arrow-forward" size={15} color={colors.navy} />
+            </View>
+          </View>
+
+          <View style={styles.heroButton}>
+            <Text style={styles.heroButtonText}>Generate trip</Text>
+            <Ionicons name="sparkles" size={14} color="#FFFFFF" />
+          </View>
+        </Pressable>
+
+        {/* Quick Tools */}
+        <Text style={styles.sectionTitle}>Quick tools</Text>
         <View style={styles.toolsGrid}>
           {quickTools.map((tool) => (
             <DimPressable
@@ -245,29 +230,27 @@ export default function HomeScreen({ displayName = "Traveler", onNavigate, onNav
               style={styles.toolCard}
               onPress={() => handleQuickToolPress(tool)}
             >
-              <QuickToolIcon tool={tool} />
+              <View style={[styles.toolIcon, { backgroundColor: tint(tool.accent) }]}>
+                <Ionicons name={tool.icon} size={21} color={tool.accent} />
+              </View>
               <Text style={styles.toolLabel}>{tool.label}</Text>
             </DimPressable>
           ))}
         </View>
 
-        <DimPressable
-          style={styles.travelCard}
-          onPress={() => onNavigate?.("travelCheck")}
-        >
+        {/* Travel Check */}
+        <DimPressable style={styles.travelCard} onPress={() => onNavigate?.("travelCheck")}>
           <View style={styles.travelCardHeader}>
             <Text style={styles.travelCardEyebrow}>TRAVEL CHECK</Text>
-            <Ionicons name="chevron-forward" size={18} color="#7D8AA5" />
+            <Ionicons name="chevron-forward" size={18} color={colors.faint} />
           </View>
 
           <View style={styles.travelStatsRow}>
             <View style={styles.travelStat}>
-              <Ionicons name="partly-sunny-outline" size={22} color="#1F78FF" />
+              <Ionicons name="partly-sunny-outline" size={20} color={colors.gold} />
               <View style={styles.travelStatCopy}>
                 <Text style={styles.travelStatValue}>
-                  {travelCheckLoading
-                    ? "—"
-                    : `${Math.round(travelWeather?.temp_f || 70)}°F`}
+                  {travelCheckLoading ? "—" : `${Math.round(travelWeather?.temp_f || 70)}°F`}
                 </Text>
                 <Text style={styles.travelStatMeta}>
                   {travelCheckLoading ? "Loading..." : travelWeather?.condition || "Partly cloudy"}
@@ -278,11 +261,9 @@ export default function HomeScreen({ displayName = "Traveler", onNavigate, onNav
             <View style={styles.travelDivider} />
 
             <View style={styles.travelStat}>
-              <Ionicons name="shield-checkmark-outline" size={22} color="#10B24C" />
+              <Ionicons name="shield-checkmark-outline" size={20} color={colors.gold} />
               <View style={styles.travelStatCopy}>
-                <Text style={styles.travelStatValue}>
-                  {travelCheckLoading ? "—" : safetyLabel}
-                </Text>
+                <Text style={styles.travelStatValue}>{travelCheckLoading ? "—" : safetyLabel}</Text>
                 <Text style={styles.travelStatMeta}>
                   {travelCheckLoading ? "Loading..." : safetyMeta}
                 </Text>
@@ -295,8 +276,9 @@ export default function HomeScreen({ displayName = "Traveler", onNavigate, onNav
           ) : null}
         </DimPressable>
 
+        {/* Recommended */}
         <View style={styles.recommendationHeader}>
-          <Text style={styles.recommendationTitle}>Recommended by Wayfinder</Text>
+          <Text style={styles.recommendationTitle}>Recommended</Text>
           <Pressable onPress={() => onNavigate?.("recommended")}>
             <Text style={styles.viewAllText}>View all</Text>
           </Pressable>
@@ -308,17 +290,19 @@ export default function HomeScreen({ displayName = "Traveler", onNavigate, onNav
               key={destination.slug || destination.name}
               style={styles.destinationCard}
               onPress={() =>
-                onNavigate?.("destination", { slug: destination.slug || destination.name.toLowerCase() })
+                onNavigate?.("destination", {
+                  slug: destination.slug || destination.name.toLowerCase(),
+                })
               }
             >
               <Image source={destinationImageUri(destination)} style={styles.destinationImage} />
               <View style={styles.destinationOverlay} />
-              <Ionicons name="heart-outline" size={18} color="#FFFFFF" style={styles.destinationHeart} />
+              <Ionicons name="heart-outline" size={16} color="#FFFFFF" style={styles.destinationHeart} />
               <View style={styles.destinationContent}>
                 <Text style={styles.destinationName}>{destination.name}</Text>
                 <Text style={styles.destinationSubtitle}>{destination.subtitle}</Text>
                 <View style={styles.ratingRow}>
-                  <Ionicons name="star" size={12} color="#FFD54A" />
+                  <Ionicons name="star" size={11} color={colors.star} />
                   <Text style={styles.destinationRating}>{destination.rating}</Text>
                 </View>
               </View>
@@ -335,17 +319,17 @@ export default function HomeScreen({ displayName = "Traveler", onNavigate, onNav
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#EAF2FC",
+    backgroundColor: colors.paper,
   },
 
   container: {
     flex: 1,
-    backgroundColor: "#EAF2FC",
+    backgroundColor: colors.paper,
   },
 
   contentContainer: {
-    paddingTop: 52,
-    paddingHorizontal: 20,
+    paddingTop: 56,
+    paddingHorizontal: spacing.xl,
     paddingBottom: BOTTOM_NAV_CONTENT_PADDING,
   },
 
@@ -410,74 +394,126 @@ const styles = StyleSheet.create({
 
   brandText: {
     marginLeft: 10,
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#14253E",
-    letterSpacing: -0.8,
+    fontFamily: fonts.serif,
+    fontSize: 22,
+    color: colors.ink,
+    letterSpacing: 0.2,
   },
 
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
+    gap: spacing.lg,
   },
 
   headerButton: {
-    marginLeft: 12,
+    padding: 2,
   },
 
-  greeting: {
-    marginTop: 30,
-    fontSize: 20,
+  eyebrow: {
+    marginTop: spacing.xxl,
+    fontFamily: fonts.sans,
+    fontSize: 12,
     fontWeight: "600",
-    color: "#2F80FF",
-    letterSpacing: -0.4,
+    letterSpacing: 2,
+    color: colors.gold,
   },
 
   heading: {
-    marginTop: 12,
-    marginBottom: 20,
-    paddingLeft: 30,
-    fontSize: 31,
-    fontWeight: "800",
-    color: "#0A0F16",
+    marginTop: spacing.sm,
+    fontFamily: fonts.serif,
+    fontSize: 32,
     lineHeight: 38,
-    letterSpacing: -1.2,
+    color: colors.ink,
+    letterSpacing: -0.3,
   },
 
   heroCard: {
-    width: "100%",
-    borderRadius: 24,
-    backgroundColor: "#0D73F3",
-    overflow: "hidden",
-    shadowColor: "#2563EB",
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
+    marginTop: spacing.xl,
+    padding: spacing.xl,
+    borderRadius: radius.xl,
+    backgroundColor: colors.navy,
+    ...softShadow,
   },
 
-  heroCardPressable: {
-    width: "100%",
-    aspectRatio: 1484 / 762,
-    borderRadius: 24,
-    overflow: "hidden",
-    backgroundColor: "#0D73F3",
+  heroLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
 
-  heroCardImage: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: "#0D73F3",
+  heroLabel: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 2,
+    color: "#FFD9A0",
+  },
+
+  heroSubtitle: {
+    marginTop: spacing.md,
+    fontFamily: fonts.serif,
+    fontSize: 19,
+    lineHeight: 27,
+    color: colors.onDark,
+  },
+
+  heroPrompt: {
+    marginTop: spacing.xl,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.xs,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.onDarkLine,
+    backgroundColor: "rgba(255,255,255,0.10)",
+  },
+
+  heroPromptText: {
+    flex: 1,
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    color: colors.onDarkMuted,
+  },
+
+  heroPromptArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.onDark,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  heroButton: {
+    marginTop: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    paddingVertical: 14,
+    borderRadius: radius.sm,
+    backgroundColor: colors.cta,
+  },
+
+  heroButtonText: {
+    fontFamily: fonts.sans,
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    color: "#FFFFFF",
   },
 
   sectionTitle: {
-    marginTop: 34,
-    marginBottom: 18,
-    paddingLeft: 12,
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#090E16",
-    letterSpacing: -0.8,
+    marginTop: spacing.xxl,
+    marginBottom: spacing.lg,
+    fontFamily: fonts.serif,
+    fontSize: 22,
+    color: colors.ink,
+    letterSpacing: -0.2,
   },
 
   toolsGrid: {
@@ -487,84 +523,56 @@ const styles = StyleSheet.create({
   },
 
   toolCard: {
-    width: "23.2%",
+    width: "23%",
     aspectRatio: 1,
-    marginBottom: 14,
-    borderRadius: 19,
-    backgroundColor: "#FFFFFF",
+    marginBottom: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#8FA3BF",
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+    gap: spacing.sm,
+  },
+
+  toolIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   toolLabel: {
-    marginTop: 9,
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#22324A",
-  },
-
-  weatherIconWrap: {
-    width: 54,
-    height: 48,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  weatherSunIcon: {
-    position: "absolute",
-    top: 2,
-    right: 5,
-    zIndex: 1,
-  },
-
-  chatIconWrap: {
-    width: 54,
-    height: 48,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  chatDots: {
-    position: "absolute",
-    top: 13,
-  },
-
-  chatAccentBubble: {
-    position: "absolute",
-    right: 3,
-    bottom: 1,
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    fontWeight: "500",
+    color: colors.muted,
   },
 
   travelCard: {
-    marginTop: 18,
+    marginTop: spacing.sm,
     width: "100%",
-    borderRadius: 19,
-    padding: 18,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#8FA3BF",
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
   },
 
   travelCardHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 14,
+    marginBottom: spacing.lg,
   },
 
   travelCardEyebrow: {
+    fontFamily: fonts.sans,
     fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-    color: "#1F78FF",
+    fontWeight: "600",
+    letterSpacing: 2,
+    color: colors.gold,
   },
 
   travelStatsRow: {
@@ -576,7 +584,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: spacing.md,
   },
 
   travelStatCopy: {
@@ -584,34 +592,37 @@ const styles = StyleSheet.create({
   },
 
   travelStatValue: {
+    fontFamily: fonts.sans,
     fontSize: 16,
-    fontWeight: "700",
-    color: "#14253E",
+    fontWeight: "600",
+    color: colors.ink,
   },
 
   travelStatMeta: {
     marginTop: 2,
+    fontFamily: fonts.sans,
     fontSize: 12,
-    color: "#64748B",
+    color: colors.muted,
   },
 
   travelDivider: {
     width: 1,
     alignSelf: "stretch",
-    marginHorizontal: 12,
-    backgroundColor: "#D7E3F4",
+    marginHorizontal: spacing.lg,
+    backgroundColor: colors.line,
   },
 
   travelSummary: {
-    marginTop: 12,
+    marginTop: spacing.md,
+    fontFamily: fonts.sans,
     fontSize: 13,
     lineHeight: 18,
-    color: "#475569",
+    color: colors.muted,
   },
 
   recommendationHeader: {
-    marginTop: 32,
-    marginBottom: 14,
+    marginTop: spacing.xxl,
+    marginBottom: spacing.lg,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -619,17 +630,18 @@ const styles = StyleSheet.create({
 
   recommendationTitle: {
     flex: 1,
-    paddingLeft: 10,
-    fontSize: 21,
-    fontWeight: "700",
-    color: "#090E16",
-    letterSpacing: -0.7,
+    fontFamily: fonts.serif,
+    fontSize: 22,
+    color: colors.ink,
+    letterSpacing: -0.2,
   },
 
   viewAllText: {
-    fontSize: 16,
+    fontFamily: fonts.sans,
+    fontSize: 13,
     fontWeight: "600",
-    color: "#2E81FF",
+    letterSpacing: 0.3,
+    color: colors.gold,
   },
 
   destinationRow: {
@@ -639,10 +651,10 @@ const styles = StyleSheet.create({
 
   destinationCard: {
     width: "23.25%",
-    aspectRatio: 0.78,
-    borderRadius: 16,
+    aspectRatio: 0.72,
+    borderRadius: radius.md,
     overflow: "hidden",
-    backgroundColor: "#C5D2E4",
+    backgroundColor: colors.surfaceSunken,
   },
 
   destinationImage: {
@@ -652,7 +664,7 @@ const styles = StyleSheet.create({
 
   destinationOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(14, 23, 42, 0.20)",
+    backgroundColor: "rgba(20,18,14,0.28)",
   },
 
   destinationHeart: {
@@ -663,33 +675,36 @@ const styles = StyleSheet.create({
 
   destinationContent: {
     position: "absolute",
-    left: 9,
-    right: 9,
-    bottom: 9,
+    left: 8,
+    right: 8,
+    bottom: 8,
   },
 
   destinationName: {
+    fontFamily: fonts.sans,
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "700",
     color: "#FFFFFF",
   },
 
   destinationSubtitle: {
     marginTop: 1,
+    fontFamily: fonts.sans,
     fontSize: 10,
-    color: "#F8FAFC",
+    color: "rgba(255,255,255,0.85)",
   },
 
   ratingRow: {
     marginTop: 5,
     flexDirection: "row",
     alignItems: "center",
+    gap: 3,
   },
 
   destinationRating: {
-    marginLeft: 4,
+    fontFamily: fonts.sans,
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#FFFFFF",
   },
 });

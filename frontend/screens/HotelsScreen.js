@@ -14,6 +14,7 @@ import {
 } from "react-native";
 
 import * as dashboardApi from "../src/api/dashboard";
+import { fonts } from "../theme/tokens";
 import {
   favoriteKeyFromItem,
   hotelFavoriteKey,
@@ -989,6 +990,7 @@ const styles = StyleSheet.create({
   },
 
   heading: {
+    fontFamily: fonts.serif,
     fontSize: 48,
     lineHeight: 52,
     fontWeight: "800",
@@ -1401,6 +1403,7 @@ const styles = StyleSheet.create({
   },
 
   hotelName: {
+    fontFamily: fonts.serif,
     fontSize: 22,
     fontWeight: "800",
     color: "#10213B",

@@ -11,6 +11,9 @@ import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
 import HomeScreen from "./screens/HomeScreen";
 import HotelsScreen from "./screens/HotelsScreen";
 import ItineraryScreen from "./screens/ItineraryScreen";
+import FlightsScreen from "./screens/FlightsScreen";
+import MapsScreen from "./screens/MapsScreen";
+import WeatherScreen from "./screens/WeatherScreen";
 import LoginScreen from "./screens/LoginScreen";
 import SignupScreen from "./screens/SignupScreen";
 
@@ -494,6 +497,12 @@ export default function App() {
         params={screenParams}
       />
     );
+  } else if (currentScreen === "flights") {
+    screenContent = <FlightsScreen onBack={navigateBack} onNavigate={handleNavigate} />;
+  } else if (currentScreen === "maps") {
+    screenContent = <MapsScreen onBack={navigateBack} onNavigate={handleNavigate} />;
+  } else if (currentScreen === "weather") {
+    screenContent = <WeatherScreen onBack={navigateBack} onNavigate={handleNavigate} />;
   } else if (FEATURE_SCREENS.has(currentScreen)) {
     screenContent = (
       <DashboardFeatureScreen
