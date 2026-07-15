@@ -5,40 +5,102 @@ import DimPressable from "./DimPressable";
 
 export const BOTTOM_NAV_CONTENT_PADDING = 122;
 
-const NAV_ITEMS = [
-  { label: "Home", icon: "home", route: "home" },
-  { label: "Itinerary", icon: "calendar-clear", route: "itinerary" },
-  { label: "Saved", icon: "bookmark-outline", route: "favorites" },
-  { label: "Trips", icon: "briefcase-outline", route: "trips" },
-  { label: "Profile", icon: "person-outline", route: "profile" },
+const DEFAULT_NAV_ITEMS = [
+  { label: "Home", icon: "home-outline", activeIcon: "home", route: "home" },
+  {
+    label: "Itinerary",
+    icon: "calendar-clear-outline",
+    activeIcon: "calendar-clear",
+    route: "itinerary",
+  },
+  { label: "Favorites", icon: "heart-outline", activeIcon: "heart", route: "favorites" },
+  { label: "Trips", icon: "briefcase-outline", activeIcon: "briefcase", route: "itinerary" },
+  { label: "Profile", icon: "person-outline", activeIcon: "person", route: "profile" },
 ];
+
+const FLIGHTS_NAV_ITEMS = [
+  DEFAULT_NAV_ITEMS[0],
+  DEFAULT_NAV_ITEMS[1],
+  { label: "Flights", icon: "airplane-outline", activeIcon: "airplane", route: "flights" },
+  DEFAULT_NAV_ITEMS[2],
+  DEFAULT_NAV_ITEMS[4],
+];
+
+const MAPS_NAV_ITEMS = [
+  DEFAULT_NAV_ITEMS[0],
+  DEFAULT_NAV_ITEMS[1],
+  DEFAULT_NAV_ITEMS[2],
+  { label: "Maps", icon: "location-outline", activeIcon: "location", route: "maps" },
+  DEFAULT_NAV_ITEMS[4],
+];
+
+const CHAT_NAV_ITEMS = [
+  DEFAULT_NAV_ITEMS[0],
+  DEFAULT_NAV_ITEMS[1],
+  DEFAULT_NAV_ITEMS[2],
+  {
+    label: "AI Chat",
+    icon: "chatbubble-ellipses-outline",
+    activeIcon: "chatbubble-ellipses",
+    route: "chat",
+  },
+  DEFAULT_NAV_ITEMS[4],
+];
+
+function getDefaultItemsForActiveLabel(activeLabel) {
+  if (activeLabel === "Flights") {
+    return FLIGHTS_NAV_ITEMS;
+  }
+
+  if (activeLabel === "Maps") {
+    return MAPS_NAV_ITEMS;
+  }
+
+  if (activeLabel === "AI Chat") {
+    return CHAT_NAV_ITEMS;
+  }
+
+  return DEFAULT_NAV_ITEMS;
+}
 
 export function getBottomNavActiveLabel(screen) {
   const activeByScreen = {
     home: "Home",
     itinerary: "Itinerary",
-    trips: "Trips",
-    favorites: "Saved",
+    flights: "Flights",
+    favorites: "Favorites",
+    maps: "Maps",
     profile: "Profile",
+    chat: "AI Chat",
   };
 
   // Hotels and other feature screens are not bottom-nav tabs — no tab stays lit.
   return activeByScreen[screen] || null;
 }
 
-export function getBottomNavRoute(label) {
-  return NAV_ITEMS.find((item) => item.label === label)?.route || null;
-}
+export default function BottomNav({
+  activeLabel = null,
+  onNavigate,
+  items = null,
+}) {
+  const resolvedItems = items || getDefaultItemsForActiveLabel(activeLabel);
 
-export default function BottomNav({ activeLabel = null, onNavigate }) {
   function handlePress(item) {
-    // Always navigate so Home works from Hotels and Trips ≠ Itinerary.
+    if (item.route === "home") {
+      if (activeLabel === "Home") {
+        return;
+      }
+
+      onNavigate?.("home");
+      return;
+    }
+
     onNavigate?.(item.route);
   }
 
   return (
     <View style={styles.bottomNav}>
-      {NAV_ITEMS.map((item) => {
+      {resolvedItems.map((item) => {
         const isActive = item.label === activeLabel;
 
         return (
@@ -50,7 +112,7 @@ export default function BottomNav({ activeLabel = null, onNavigate }) {
             onPress={() => handlePress(item)}
           >
             <Ionicons
-              name={item.icon}
+              name={isActive ? item.activeIcon || item.icon : item.icon}
               size={24}
               color={isActive ? "#1F78FF" : "#334155"}
             />

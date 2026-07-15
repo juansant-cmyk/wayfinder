@@ -88,7 +88,7 @@ function QuickToolIcon({ tool }) {
     return (
       <View style={styles.chatIconWrap}>
         <Ionicons name="chatbubble" size={42} color="#5B50FF" />
-        <Ionicons name="ellipsis" size={19} color="#FFFFFF" style={styles.chatDots} />
+        <Ionicons name="ellipsis-horizontal" size={19} color="#FFFFFF" style={styles.chatDots} />
         <Ionicons name="chatbubble" size={20} color="#B7D8FF" style={styles.chatAccentBubble} />
       </View>
     );
