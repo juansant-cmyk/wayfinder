@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { fetchMe, isBackendConfigured, login, register, setUnauthorizedHandler } from "./src/api/client";
 import { clearToken, getToken, saveToken } from "./src/auth/tokenStorage";
@@ -515,5 +516,9 @@ export default function App() {
     );
   }
 
-  return <UserLocationProvider>{screenContent}</UserLocationProvider>;
+  return (
+    <SafeAreaProvider>
+      <UserLocationProvider>{screenContent}</UserLocationProvider>
+    </SafeAreaProvider>
+  );
 }
