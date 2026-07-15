@@ -24,13 +24,45 @@ class FlightResponse(BaseModel):
     stops: int = 0
 
 
+class FavoriteSnapshot(BaseModel):
+    """Hybrid card fields stored on heart (P3: card + lat/lng)."""
+
+    name: str
+    price: float | None = None
+    currency: str | None = None
+    rating: float | None = None
+    address: str | None = None
+    image_url: str | None = None
+    subtitle: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+
+
+class FavoriteCreateRequest(BaseModel):
+    item_type: str = Field(min_length=1, max_length=50)
+    provider: str = Field(min_length=1, max_length=50)
+    provider_item_id: str = Field(min_length=1, max_length=255)
+    entity_id: UUID | None = None
+    snapshot: FavoriteSnapshot
+
+
 class FavoriteItemResponse(BaseModel):
     id: UUID
     item_type: str
+    provider: str
+    provider_item_id: str
+    entity_id: UUID | None = None
     title: str
     subtitle: str | None = None
     image_url: str | None = None
+    price: float | None = None
+    currency: str | None = None
+    rating: float | None = None
+    address: str | None = None
+    lat: float | None = None
+    lng: float | None = None
     saved_at: datetime
+    snapshot: dict = Field(default_factory=dict)
 
 
 class SafetyAlertResponse(BaseModel):

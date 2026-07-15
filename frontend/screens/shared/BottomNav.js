@@ -66,7 +66,6 @@ function getDefaultItemsForActiveLabel(activeLabel) {
 export function getBottomNavActiveLabel(screen) {
   const activeByScreen = {
     home: "Home",
-    hotels: "Home",
     itinerary: "Itinerary",
     flights: "Flights",
     favorites: "Favorites",
@@ -75,6 +74,7 @@ export function getBottomNavActiveLabel(screen) {
     chat: "AI Chat",
   };
 
+  // Hotels and other feature screens are not bottom-nav tabs — no tab stays lit.
   return activeByScreen[screen] || null;
 }
 
@@ -107,6 +107,7 @@ export default function BottomNav({
           <DimPressable
             key={item.label}
             accessibilityRole="button"
+            accessibilityLabel={item.label}
             style={styles.bottomNavItem}
             onPress={() => handlePress(item)}
           >

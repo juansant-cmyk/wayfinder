@@ -13,16 +13,22 @@ function EmptyState({ message }) {
   return <Text style={cardStyles.emptyText}>{message}</Text>;
 }
 
-function renderItinerary(plans) {
+function renderItinerary(plans, onNavigate) {
   if (!plans.length) {
     return <EmptyState message="No travel plans yet. Create one from your next trip." />;
   }
 
   return plans.map((plan) => (
-    <View key={plan.id} style={cardStyles.card}>
+    <DimPressable
+      key={plan.id}
+      accessibilityRole="button"
+      accessibilityLabel={`Open itinerary for ${plan.title}`}
+      onPress={() => onNavigate?.("itinerary", { planId: plan.id })}
+      style={cardStyles.card}
+    >
       <Text style={cardStyles.cardTitle}>{plan.title}</Text>
       <Text style={cardStyles.cardSubtitle}>{plan.destination_name}</Text>
-    </View>
+    </DimPressable>
   ));
 }
 
@@ -54,13 +60,21 @@ function renderFlights(flights) {
 
 function renderFavorites(favorites) {
   if (!favorites.length) {
-    return <EmptyState message="No saved favorites yet." />;
+    return <EmptyState message="No saved favorites yet. Heart a hotel to save it here." />;
   }
 
   return favorites.map((item) => (
     <View key={item.id} style={cardStyles.card}>
       <Text style={cardStyles.cardTitle}>{item.title}</Text>
       {item.subtitle ? <Text style={cardStyles.cardSubtitle}>{item.subtitle}</Text> : null}
+      {item.price != null ? (
+        <Text style={cardStyles.metaText}>
+          {item.currency || "USD"} {Math.round(item.price)}
+          {item.rating != null ? ` · ★ ${Number(item.rating).toFixed(1)}` : ""}
+        </Text>
+      ) : item.rating != null ? (
+        <Text style={cardStyles.metaText}>★ {Number(item.rating).toFixed(1)}</Text>
+      ) : null}
     </View>
   ));
 }
@@ -215,7 +229,9 @@ function renderRecommended(destinations, onNavigate) {
 function renderContent(screen, data, onNavigate, onLogout) {
   switch (screen) {
     case "itinerary":
-      return renderItinerary(data);
+      return renderItinerary(data, onNavigate);
+    case "trips":
+      return renderItinerary(data, onNavigate);
     case "hotels":
       return renderHotels(data);
     case "flights":

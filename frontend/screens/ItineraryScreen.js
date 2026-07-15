@@ -2,6 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   Linking,
   Modal,
@@ -16,6 +17,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import * as dashboardApi from "../src/api/dashboard";
+import { getToken } from "../src/auth/tokenStorage";
+import { formatDateRange, formatNights, mapPlanDetail } from "../src/itinerary/mapPlan";
+import { useUserLocation } from "../src/location/UserLocationContext";
 import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
@@ -24,11 +29,18 @@ const heroArtworkImage = require("../assets/images/itinerary-hero-reference.png"
 const tripPreviewImage = require("../assets/images/itinerary-trip-reference.png");
 const tipBotImage = require("../assets/images/itinerary-tip-bot-reference.png");
 
-const initialTrip = {
+/** Local-only demo trip — never persisted to the API. */
+const DEMO_TRIP = {
   title: "Los Angeles Trip",
   destination: "Los Angeles, California",
   dates: "Jul 12 - Jul 15, 2025",
   nights: "3 Nights",
+  startDate: "2025-07-12",
+  endDate: "2025-07-15",
+  hotelName: "",
+  hotelProviderId: "",
+  nightsCount: 3,
+  dayCount: 4,
 };
 
 const activityCategories = {
@@ -467,6 +479,7 @@ function ActivityRow({
   isLast,
   onOpenDetails,
   onOpenMap,
+  onDelete,
 }) {
   const category = categoryFor(activity);
 
@@ -660,6 +673,76 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
     [days, selectedDayId]
   );
 
+  const startDemoItinerary = () => {
+    skipApiLoadRef.current = true;
+    setPlanId(null);
+    setTrip({ ...DEMO_TRIP });
+    setDays(DEMO_DAYS.map((day) => ({ ...day, activities: [...day.activities] })));
+    setSelectedDayId(DEMO_DAYS[0].id);
+    setViewMode("demo");
+    setLoadError("");
+    setNotice("Demo itinerary loaded locally — not saved.");
+  };
+
+  const openCreateTrip = () => {
+    setCreateDraft(createEmptyTripDraft());
+    setCreateDraftError("");
+    setIsCreateTripVisible(true);
+  };
+
+  const saveCreateTrip = async () => {
+    const title = createDraft.title.trim();
+    const destination = createDraft.destination.trim();
+    const startDate = createDraft.startDate.trim();
+    const endDate = createDraft.endDate.trim();
+    const hotelName = createDraft.hotelName.trim();
+    const hotelProviderId = createDraft.hotelProviderId.trim();
+
+    if (!title || !destination || !startDate || !endDate) {
+      setCreateDraftError("Title, destination, start date, and end date are required.");
+      return;
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      setCreateDraftError("Use YYYY-MM-DD for start and end dates.");
+      return;
+    }
+
+    setIsSavingTrip(true);
+    setCreateDraftError("");
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        setCreateDraftError("Sign in to create a trip.");
+        return;
+      }
+
+      const body = {
+        title,
+        destination_name: destination,
+        start_date: startDate,
+        end_date: endDate,
+      };
+      if (hotelName) {
+        body.hotel_name = hotelName;
+      }
+      if (hotelProviderId) {
+        body.hotel_provider_id = hotelProviderId;
+      }
+
+      const plan = await dashboardApi.createPlan(token, body);
+      setIsCreateTripVisible(false);
+      applyMappedPlan(plan, location);
+      setNotice("Trip created.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to create trip.";
+      setCreateDraftError(message);
+    } finally {
+      setIsSavingTrip(false);
+    }
+  };
+
   const openTripEditor = () => {
     setTripDraft(trip);
     setFormError("");
@@ -719,6 +802,12 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
   const openDetails = (activity) => {
     setSelectedActivity(activity);
   };
+
+  const editNightsPreview = formatNights(nightsFromDates(tripDraft.startDate, tripDraft.endDate));
+  const createNightsPreview = formatNights(
+    nightsFromDates(createDraft.startDate, createDraft.endDate)
+  );
+  const showTripContent = viewMode === "plan" || viewMode === "demo";
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -888,7 +977,6 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
                       {selectedDay.weather.temperature}
                     </Text>
                   </View>
-                </View>
 
                 <PillButton
                   label="Add Activity"
@@ -910,9 +998,7 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
                     onOpenDetails={() => openDetails(activity)}
                     onOpenMap={() => openUrl(activityMapUrl(activity, trip.destination))}
                   />
-                ))}
-              </View>
-            </View>
+                </View>
 
             <TipCard onPress={() => setTipsVisible(true)} compact={isPhone} />
           </View>
@@ -1120,7 +1206,6 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,

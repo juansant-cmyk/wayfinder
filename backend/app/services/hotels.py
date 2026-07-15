@@ -87,9 +87,19 @@ async def search_hotels(
     check_out: str | None,
     guests: int,
     sort: str,
+    guest_nationality: str | None = None,
+    currency: str | None = None,
 ) -> list[Hotel]:
     provider_hotels = await provider.search_hotels(
-        destination, lat, lng, check_in, check_out, guests, sort
+        destination,
+        lat,
+        lng,
+        check_in,
+        check_out,
+        guests,
+        sort,
+        guest_nationality=guest_nationality,
+        currency=currency,
     )
     hotels = [await _upsert_hotel(db, item) for item in provider_hotels]
     await db.commit()

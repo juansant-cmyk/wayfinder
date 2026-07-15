@@ -1,26 +1,33 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import {
+  Alert,
   Image,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 
 import * as dashboardApi from "../src/api/dashboard";
-import { mapHotelForAlly, sortKeyToApi } from "../src/api/mappers";
+import {
+  favoriteKeyFromItem,
+  hotelFavoriteKey,
+  mapHotelForAlly,
+  sortKeyToApi,
+} from "../src/api/mappers";
 import { getToken } from "../src/auth/tokenStorage";
+import { geocodeQuery, reverseGeocodeLabel } from "../src/location/geo";
 import { useUserLocation } from "../src/location/UserLocationContext";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 import { WayfinderBrand } from "./AuthShared";
 
-const hotelHeroImage = require("../assets/images/hotels/hotel-hero-reference.png");
+const hotelHeroImage = require("../assets/images/hotels/hotel-hero-complete.png");
 
 const sortOptions = [
   { key: "bestMatch", label: "Best Match", icon: "star-outline", library: "ionicons" },
@@ -34,47 +41,71 @@ const sortOptions = [
   { key: "closest", label: "Closest", icon: "location-outline", library: "ionicons" },
 ];
 
-function renderSortIcon(option, isSelected) {
+function renderSortIcon(option, isSelected, compact = false) {
   const iconColor = isSelected ? "#FFFFFF" : "#1F78FF";
+  const size = compact ? 14 : option.library === "material" ? 22 : 21;
 
   if (option.library === "material") {
-    return <MaterialCommunityIcons name={option.icon} size={22} color={iconColor} />;
+    return <MaterialCommunityIcons name={option.icon} size={size} color={iconColor} />;
   }
 
-  return <Ionicons name={option.icon} size={21} color={iconColor} />;
+  return <Ionicons name={option.icon} size={size} color={iconColor} />;
 }
 
-function renderAmenityIcon(amenity) {
-  if (amenity === "Pool") {
-    return <MaterialCommunityIcons name="pool" size={20} color="#14253E" />;
+function renderAmenityIcon(amenity, iconSize = 20) {
+  const key = String(amenity || "").trim().toLowerCase();
+
+  if (key.includes("pool")) {
+    return <MaterialCommunityIcons name="pool" size={iconSize} color="#14253E" />;
   }
 
-  if (amenity === "Parking") {
-    return <Ionicons name="car-outline" size={20} color="#14253E" />;
+  if (key.includes("parking") || key.includes("garage")) {
+    return <Ionicons name="car-outline" size={iconSize} color="#14253E" />;
   }
 
-  if (amenity === "Breakfast") {
-    return <Ionicons name="cafe-outline" size={20} color="#14253E" />;
+  if (key.includes("breakfast") || key.includes("board")) {
+    return <Ionicons name="cafe-outline" size={iconSize} color="#14253E" />;
   }
 
-  if (amenity === "Gym") {
-    return <Ionicons name="barbell-outline" size={20} color="#14253E" />;
+  if (key.includes("gym") || key.includes("fitness")) {
+    return <Ionicons name="barbell-outline" size={iconSize} color="#14253E" />;
   }
 
-  return <Ionicons name="wifi-outline" size={20} color="#14253E" />;
+  if (key.includes("free cancellation") || key === "refundable") {
+    return <Ionicons name="shield-checkmark-outline" size={iconSize} color="#14253E" />;
+  }
+
+  if (key.includes("non-refundable") || key.includes("non refundable")) {
+    return <Ionicons name="close-circle-outline" size={iconSize} color="#14253E" />;
+  }
+
+  if (key.includes("wifi") || key.includes("wi-fi")) {
+    return <Ionicons name="wifi-outline" size={iconSize} color="#14253E" />;
+  }
+
+  return <Ionicons name="checkmark-circle-outline" size={iconSize} color="#14253E" />;
 }
 
-function SortPill({ option, isSelected, onPress }) {
+function SortPill({ option, isSelected, onPress, compact = false }) {
   const Button = isSelected ? Pressable : DimPressable;
 
   return (
     <Button
       accessibilityRole="button"
       onPress={onPress}
-      style={[styles.sortPill, isSelected && styles.sortPillSelected]}
+      style={[styles.sortPill, compact && styles.sortPillCompact, isSelected && styles.sortPillSelected]}
     >
-      {renderSortIcon(option, isSelected)}
-      <Text style={[styles.sortPillLabel, isSelected && styles.sortPillLabelSelected]}>
+      {renderSortIcon(option, isSelected, compact)}
+      <Text
+        style={[
+          styles.sortPillLabel,
+          compact && styles.sortPillLabelCompact,
+          isSelected && styles.sortPillLabelSelected,
+        ]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+      >
         {option.label}
       </Text>
     </Button>
@@ -82,26 +113,138 @@ function SortPill({ option, isSelected, onPress }) {
 }
 
 export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, params = {} }) {
+  const { width: windowWidth } = useWindowDimensions();
+  const compact = windowWidth < 700;
   const { location, status, isUsingDeviceLocation, refreshLocation } = useUserLocation();
-  const [destination, setDestination] = useState(params.destination || dashboardApi.DEFAULT_DESTINATION);
-  const [appliedDestination, setAppliedDestination] = useState(params.destination || dashboardApi.DEFAULT_DESTINATION);
+  const seededDestination = params.destination?.trim() || "";
+  const [destination, setDestination] = useState(seededDestination);
+  const [appliedDestination, setAppliedDestination] = useState(seededDestination);
+  const [searchOrigin, setSearchOrigin] = useState(null);
+  const [destinationReady, setDestinationReady] = useState(Boolean(seededDestination));
   const [selectedSort, setSelectedSort] = useState("bestMatch");
   const [savedHotels, setSavedHotels] = useState([]);
+  const [pendingFavoriteKeys, setPendingFavoriteKeys] = useState([]);
   const [expandedHotelId, setExpandedHotelId] = useState(null);
   const [hotels, setHotels] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [invalidLocationQuery, setInvalidLocationQuery] = useState(null);
+  const pendingFavoriteKeysRef = useRef(new Set());
+
+  const loadSavedFavorites = useCallback(async () => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        setSavedHotels([]);
+        return;
+      }
+      const favorites = await dashboardApi.fetchFavorites(token);
+      const keys = (favorites || [])
+        .filter((item) => item.item_type === "hotel")
+        .map((item) => favoriteKeyFromItem(item))
+        .filter(Boolean);
+      setSavedHotels(keys);
+    } catch {
+      // Keep local heart state if refresh fails; search still works.
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSavedFavorites();
+  }, [loadSavedFavorites]);
+
+  // Seed destination from GPS → nearest city (unless navigated here with a destination).
+  useEffect(() => {
+    if (seededDestination) {
+      let cancelled = false;
+      (async () => {
+        const resolved = await geocodeQuery(seededDestination);
+        if (cancelled) {
+          return;
+        }
+        if (resolved) {
+          setSearchOrigin(resolved);
+          setDestination(resolved.label);
+          setAppliedDestination(resolved.label);
+        } else {
+          setInvalidLocationQuery(seededDestination);
+          setError(
+            `No results found for ${seededDestination}. Please enter a valid location.`
+          );
+        }
+        setDestinationReady(true);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (status === "loading") {
+      return undefined;
+    }
+
+    // Keep keyword-driven search centers; don't overwrite with GPS refresh.
+    if (searchOrigin?.source === "search") {
+      setDestinationReady(true);
+      return undefined;
+    }
+
+    let cancelled = false;
+    (async () => {
+      if (location?.lat != null && location?.lng != null) {
+        const city = await reverseGeocodeLabel(location.lat, location.lng);
+        if (cancelled) {
+          return;
+        }
+        const label =
+          city || `${Number(location.lat).toFixed(2)}, ${Number(location.lng).toFixed(2)}`;
+        // Leave the search bar empty on load; still search hotels for this area.
+        setAppliedDestination(label);
+        setSearchOrigin({
+          lat: location.lat,
+          lng: location.lng,
+          source: location.source || "gps",
+          label,
+        });
+        setInvalidLocationQuery(null);
+        setDestinationReady(true);
+        return;
+      }
+
+      setDestination("");
+      setAppliedDestination("");
+      setSearchOrigin(null);
+      setDestinationReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [seededDestination, status, location?.lat, location?.lng, location?.source, searchOrigin?.source]);
 
   const runSearch = useCallback(async () => {
-    if (status === "loading") {
+    if (!destinationReady || status === "loading") {
       return;
     }
 
-    const query = (appliedDestination || dashboardApi.DEFAULT_DESTINATION).trim();
-    const apiSort = sortKeyToApi(selectedSort);
+    if (invalidLocationQuery) {
+      setHotels([]);
+      setLoading(false);
+      return;
+    }
 
-    if (apiSort === "distance" && !isUsingDeviceLocation) {
-      setError("Enable location access to sort by closest.");
+    const query = appliedDestination.trim();
+    if (!query) {
+      setHotels([]);
+      setLoading(false);
+      return;
+    }
+
+    const apiSort = sortKeyToApi(selectedSort);
+    const origin = searchOrigin;
+
+    if (apiSort === "distance" && (origin?.lat == null || origin?.lng == null)) {
+      setError("Enable location access or search a valid city to sort by closest.");
       setHotels([]);
       setLoading(false);
       return;
@@ -118,13 +261,8 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
         return;
       }
 
-      const results = await dashboardApi.searchHotels(
-        token,
-        query,
-        apiSort,
-        location
-      );
-      setHotels(results.map((hotel, index) => mapHotelForAlly(hotel, index, location)));
+      const results = await dashboardApi.searchHotels(token, query, apiSort, origin);
+      setHotels(results.map((hotel, index) => mapHotelForAlly(hotel, index, origin)));
     } catch (searchError) {
       const message = searchError instanceof Error ? searchError.message : "Search failed.";
       setError(message);
@@ -132,14 +270,25 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
     } finally {
       setLoading(false);
     }
-  }, [appliedDestination, selectedSort, location, status, isUsingDeviceLocation]);
+  }, [
+    appliedDestination,
+    selectedSort,
+    searchOrigin,
+    status,
+    destinationReady,
+    invalidLocationQuery,
+  ]);
 
   const locationLabel =
-    status === "loading"
+    status === "loading" && !searchOrigin
       ? "Locating you..."
-      : isUsingDeviceLocation
-        ? `Using your GPS (${location.lat.toFixed(2)}, ${location.lng.toFixed(2)})`
-        : "Location access needed — allow GPS for real distances";
+      : searchOrigin?.label
+        ? searchOrigin.source === "search"
+          ? `Searching near ${searchOrigin.label}`
+          : `Near you · ${searchOrigin.label}`
+        : isUsingDeviceLocation
+          ? `Using your GPS (${location.lat.toFixed(2)}, ${location.lng.toFixed(2)})`
+          : "Enter a city to search hotels nearby";
 
   useEffect(() => {
     runSearch();
@@ -149,46 +298,147 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
   const resultsLabel = loading
     ? "Searching..."
     : `${visibleHotels.length} result${visibleHotels.length === 1 ? "" : "s"}`;
+  const usingMockData =
+    !loading && !error && hotels.length > 0 && hotels.every((hotel) => hotel.provider === "mock");
 
-  const handleFindHotels = () => {
-    setAppliedDestination(destination.trim() || dashboardApi.DEFAULT_DESTINATION);
+  const handleFindHotels = async () => {
+    const query = destination.trim();
+    if (!query) {
+      setInvalidLocationQuery("");
+      setError("Please enter a valid location.");
+      setHotels([]);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setInvalidLocationQuery(null);
+
+    const resolved = await geocodeQuery(query);
+    if (!resolved) {
+      setInvalidLocationQuery(query);
+      setAppliedDestination(query);
+      setSearchOrigin(null);
+      setHotels([]);
+      setError(`No results found for ${query}. Please enter a valid location.`);
+      setLoading(false);
+      return;
+    }
+
+    setSearchOrigin(resolved);
+    setDestination(resolved.label);
+    setAppliedDestination(resolved.label);
     setExpandedHotelId(null);
+    setInvalidLocationQuery(null);
+    // runSearch triggers via appliedDestination / searchOrigin
   };
 
-  const handleToggleSaved = (hotelId) => {
-    setSavedHotels((currentSavedHotels) =>
-      currentSavedHotels.includes(hotelId)
-        ? currentSavedHotels.filter((savedHotelId) => savedHotelId !== hotelId)
-        : [...currentSavedHotels, hotelId]
+  const handleToggleSaved = async (hotel) => {
+    const key = hotelFavoriteKey(hotel.provider, hotel.providerHotelId);
+    if (!key || pendingFavoriteKeysRef.current.has(key)) {
+      return;
+    }
+
+    const token = await getToken();
+    if (!token) {
+      Alert.alert("Sign in required", "Sign in to save hotels to your favorites.", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sign in",
+          onPress: () => onNavigate?.("login"),
+        },
+      ]);
+      return;
+    }
+
+    const wasSaved = savedHotels.includes(key);
+    pendingFavoriteKeysRef.current.add(key);
+    setPendingFavoriteKeys(Array.from(pendingFavoriteKeysRef.current));
+    setSavedHotels((current) =>
+      wasSaved ? current.filter((savedKey) => savedKey !== key) : [...current, key]
     );
+
+    try {
+      if (wasSaved) {
+        await dashboardApi.removeFavorite(token, {
+          itemType: "hotel",
+          provider: hotel.provider,
+          providerItemId: hotel.providerHotelId,
+        });
+      } else {
+        await dashboardApi.addFavorite(token, {
+          item_type: "hotel",
+          provider: hotel.provider,
+          provider_item_id: hotel.providerHotelId,
+          entity_id: hotel.id,
+          snapshot: {
+            name: hotel.name,
+            price: hotel.price,
+            currency: hotel.currency || "USD",
+            rating: hotel.rating,
+            address: hotel.location,
+            image_url: hotel.imageUrl || null,
+            subtitle: (hotel.amenities || []).slice(0, 3).join(" • ") || null,
+            lat: hotel.lat ?? null,
+            lng: hotel.lng ?? null,
+          },
+        });
+      }
+    } catch (err) {
+      setSavedHotels((current) =>
+        wasSaved
+          ? current.includes(key)
+            ? current
+            : [...current, key]
+          : current.filter((savedKey) => savedKey !== key)
+      );
+      Alert.alert("Couldn't update favorites", err?.message || "Please try again.");
+    } finally {
+      pendingFavoriteKeysRef.current.delete(key);
+      setPendingFavoriteKeys(Array.from(pendingFavoriteKeysRef.current));
+    }
+  };
+
+  const handleUseMyLocation = async () => {
+    setInvalidLocationQuery(null);
+    setError(null);
+    const next = await refreshLocation();
+    if (!next) {
+      setError("Location access needed — allow GPS to use your area.");
+      return;
+    }
+    const city = await reverseGeocodeLabel(next.lat, next.lng);
+    const label = city || `${next.lat.toFixed(2)}, ${next.lng.toFixed(2)}`;
+    setDestination(label);
+    setAppliedDestination(label);
+    setSearchOrigin({ ...next, label, source: "gps" });
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.screen}>
       <StatusBar style="dark" />
 
-      <View style={styles.screen}>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.contentInner}>
-            <View style={styles.headerRow}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.scrollContent, compact && styles.scrollContentCompact]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.contentInner}>
+          <View style={[styles.headerRow, compact && styles.headerRowCompact]}>
               <DimPressable
                 accessibilityRole="button"
                 accessibilityLabel="Go back"
                 onPress={onGoBack || onNavigateHome}
-                style={styles.roundHeaderButton}
+                style={[styles.roundHeaderButton, compact && styles.roundHeaderButtonCompact]}
               >
-                <Ionicons name="arrow-back" size={28} color="#14253E" />
+                <Ionicons name="arrow-back" size={compact ? 22 : 28} color="#14253E" />
               </DimPressable>
 
               <View style={styles.brandSlot}>
                 <WayfinderBrand
                   containerStyle={styles.headerBrandRow}
-                  textStyle={styles.headerBrandText}
+                  textStyle={[styles.headerBrandText, compact && styles.headerBrandTextCompact]}
                 />
               </View>
 
@@ -197,151 +447,222 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
                   accessibilityRole="button"
                   accessibilityLabel="Notifications"
                   onPress={() => onNavigate?.("notifications")}
-                  style={styles.headerActionButton}
+                  style={[styles.headerActionButton, compact && styles.headerActionButtonCompact]}
                 >
-                  <Ionicons name="notifications-outline" size={28} color="#111827" />
-                  <View style={styles.notificationDot} />
+                  <Ionicons name="notifications-outline" size={compact ? 22 : 28} color="#111827" />
+                  <View style={[styles.notificationDot, compact && styles.notificationDotCompact]} />
                 </Pressable>
 
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Profile"
                   onPress={() => onNavigate?.("profile")}
-                  style={styles.headerActionButton}
+                  style={[styles.headerActionButton, compact && styles.headerActionButtonCompact]}
                 >
-                  <Ionicons name="person-circle-outline" size={33} color="#111827" />
+                  <Ionicons name="person-circle-outline" size={compact ? 26 : 33} color="#111827" />
                 </Pressable>
               </View>
             </View>
 
-            <View style={styles.heroSection}>
-              <View style={styles.heroTextColumn}>
-                <Text style={styles.heading}>Hotels</Text>
-                <Text style={styles.subtitle}>
-                  Wayfinder finds great places{"\n"}
-                  so you can focus on <Text style={styles.subtitleAccent}>your trip.</Text>
+            <View style={[styles.heroSection, compact && styles.heroSectionCompact]}>
+              <View style={[styles.heroTextColumn, compact && styles.heroTextColumnCompact]}>
+                <Text style={[styles.heading, compact && styles.headingCompact]}>Hotels</Text>
+                <Text
+                  style={[styles.subtitle, compact && styles.subtitleCompact]}
+                  numberOfLines={compact ? 2 : undefined}
+                >
+                  {compact ? (
+                    <>
+                      Wayfinder finds great places so you can{"\n"}
+                      focus on <Text style={styles.subtitleAccent}>your trip.</Text>
+                    </>
+                  ) : (
+                    <>
+                      Wayfinder finds great places{"\n"}
+                      so you can focus on <Text style={styles.subtitleAccent}>your trip.</Text>
+                    </>
+                  )}
                 </Text>
               </View>
 
-              <View style={styles.heroArtworkWrap}>
-                <View style={styles.heroArtworkGlow} />
+              <View style={[styles.heroArtworkWrap, compact && styles.heroArtworkWrapCompact]}>
                 <Image
                   source={hotelHeroImage}
                   style={styles.heroArtworkImage}
                   resizeMode="contain"
                 />
-                <View style={styles.heroArtworkFade} />
               </View>
             </View>
 
-            <View style={styles.searchCard}>
+            <View style={[styles.searchCard, compact && styles.searchCardCompact]}>
               <View style={styles.searchDecorCircle} />
               <View style={styles.searchDecorRoute} />
-              <Ionicons
-                name="location"
-                size={34}
-                color="rgba(255, 255, 255, 0.85)"
-                style={styles.searchDecorLocation}
+              <MaterialCommunityIcons
+                name="office-building"
+                size={compact ? 42 : 54}
+                color="rgba(255, 255, 255, 0.2)"
+                style={styles.searchDecorBuilding}
               />
               <MaterialCommunityIcons
-                name="city-variant-outline"
-                size={46}
-                color="rgba(255, 255, 255, 0.12)"
+                name="city-variant"
+                size={compact ? 34 : 44}
+                color="rgba(255, 255, 255, 0.14)"
                 style={styles.searchDecorCity}
+              />
+              <MaterialCommunityIcons
+                name="palm-tree"
+                size={compact ? 38 : 48}
+                color="rgba(255, 255, 255, 0.24)"
+                style={styles.searchDecorPalm}
+              />
+              <Ionicons
+                name="location"
+                size={compact ? 26 : 34}
+                color="rgba(255, 255, 255, 0.9)"
+                style={styles.searchDecorLocation}
               />
 
               <View style={styles.searchHeaderRow}>
-                <View style={styles.searchIconBadge}>
-                  <MaterialCommunityIcons name="bed" size={28} color="#1F5EE9" />
+                <View style={[styles.searchIconBadge, compact && styles.searchIconBadgeCompact]}>
+                  <MaterialCommunityIcons name="bed" size={compact ? 20 : 28} color="#1F5EE9" />
                 </View>
 
-                <View style={styles.searchCopy}>
+                <View style={[styles.searchCopy, compact && styles.searchCopyCompact]}>
                   <View style={styles.searchTitleRow}>
-                    <Text style={styles.searchTitle}>Find your stay</Text>
-                    <Ionicons name="sparkles" size={22} color="#FFD54A" style={styles.searchSparkles} />
+                    <Text style={[styles.searchTitle, compact && styles.searchTitleCompact]}>
+                      Find your stay
+                    </Text>
+                    <Ionicons
+                      name="sparkles"
+                      size={compact ? 16 : 22}
+                      color="#FFD54A"
+                      style={styles.searchSparkles}
+                    />
                   </View>
-                  <Text style={styles.searchSubtitle}>
-                    Search hotels by destination and compare options.
-                  </Text>
+                  {compact ? (
+                    <Text style={[styles.searchSubtitle, styles.searchSubtitleCompact]} numberOfLines={1}>
+                      Search hotels by destination and compare options.
+                    </Text>
+                  ) : (
+                    <Text style={styles.searchSubtitle}>
+                      Search hotels by destination and compare options.
+                    </Text>
+                  )}
                 </View>
               </View>
 
-              <View style={styles.destinationInputWrap}>
-                <Ionicons name="search-outline" size={30} color="#7D8AA5" />
+              <View style={[styles.destinationInputWrap, compact && styles.destinationInputWrapCompact]}>
+                <Ionicons name="search-outline" size={compact ? 24 : 30} color="#7D8AA5" />
                 <TextInput
                   value={destination}
                   onChangeText={setDestination}
                   placeholder="Where are you going?"
                   placeholderTextColor="#8F9AAF"
                   selectionColor="#1F78FF"
-                  style={styles.destinationInput}
+                  style={[styles.destinationInput, compact && styles.destinationInputCompact]}
                   returnKeyType="search"
                   onSubmitEditing={handleFindHotels}
                 />
               </View>
 
-              <Pressable accessibilityRole="button" onPress={handleFindHotels} style={styles.findHotelsButton}>
-                <Text style={styles.findHotelsButtonText}>Find Hotels</Text>
-                <Ionicons name="sparkles" size={20} color="#FFFFFF" style={styles.findHotelsButtonSparkles} />
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleFindHotels}
+                style={[styles.findHotelsButton, compact && styles.findHotelsButtonCompact]}
+              >
+                <Text style={[styles.findHotelsButtonText, compact && styles.findHotelsButtonTextCompact]}>
+                  Find Hotels
+                </Text>
+                <Ionicons
+                  name="sparkles"
+                  size={compact ? 16 : 20}
+                  color="#FFFFFF"
+                  style={styles.findHotelsButtonSparkles}
+                />
               </Pressable>
             </View>
 
-            <Text style={styles.sortHeading}>Sort by</Text>
-            <View style={styles.locationStatusRow}>
+            <Text style={[styles.sortHeading, compact && styles.sortHeadingCompact]}>Sort by</Text>
+            <View style={[styles.locationStatusRow, compact && styles.locationStatusRowCompact]}>
               <Ionicons
-                name={isUsingDeviceLocation ? "navigate" : "location-outline"}
-                size={16}
+                name={searchOrigin?.source === "search" ? "search" : isUsingDeviceLocation ? "navigate" : "location-outline"}
+                size={compact ? 14 : 16}
                 color="#1F78FF"
               />
-              <Text style={styles.locationStatusText}>{locationLabel}</Text>
+              <Text style={[styles.locationStatusText, compact && styles.locationStatusTextCompact]}>
+                {locationLabel}
+              </Text>
               {status !== "loading" ? (
-                <Pressable onPress={refreshLocation} hitSlop={8}>
-                  <Text style={styles.locationRefreshText}>Refresh</Text>
+                <Pressable onPress={handleUseMyLocation} hitSlop={8}>
+                  <Text style={[styles.locationRefreshText, compact && styles.locationRefreshTextCompact]}>
+                    Use my location
+                  </Text>
                 </Pressable>
               ) : null}
             </View>
 
-            <View style={styles.sortRow}>
+            <View style={[styles.sortRow, compact && styles.sortRowCompact]}>
               {sortOptions.map((option) => (
                 <SortPill
                   key={option.key}
                   option={option}
                   isSelected={selectedSort === option.key}
                   onPress={() => setSelectedSort(option.key)}
+                  compact={compact}
                 />
               ))}
             </View>
 
-            <View style={styles.picksSectionHeader}>
+            <View style={[styles.picksSectionHeader, compact && styles.picksSectionHeaderCompact]}>
               <View style={styles.picksTitleWrap}>
-                <View style={styles.picksIconBadge}>
-                  <Ionicons name="checkmark-done" size={24} color="#1F5EE9" />
+                <View style={[styles.picksIconBadge, compact && styles.picksIconBadgeCompact]}>
+                  <Ionicons name="checkmark" size={compact ? 14 : 22} color="#FFFFFF" />
                 </View>
 
                 <View style={styles.picksCopy}>
-                  <Text style={styles.picksTitle}>Wayfinder Picks</Text>
-                  <Text style={styles.picksSubtitle}>Handpicked recommendations just for you.</Text>
+                  <Text style={[styles.picksTitle, compact && styles.picksTitleCompact]}>Wayfinder Picks</Text>
+                  <Text style={[styles.picksSubtitle, compact && styles.picksSubtitleCompact]}>
+                    Handpicked recommendations just for you.
+                  </Text>
                 </View>
               </View>
 
-              <Text style={styles.resultsCount}>{resultsLabel}</Text>
+              <Text style={[styles.resultsCount, compact && styles.resultsCountCompact]}>{resultsLabel}</Text>
             </View>
 
-            {appliedDestination ? (
-              <View style={styles.activeSearchPill}>
-                <Ionicons name="search-outline" size={16} color="#1F78FF" />
-                <Text style={styles.activeSearchText}>{appliedDestination.trim()}</Text>
+            {usingMockData ? (
+              <View style={styles.mockBanner}>
+                <Ionicons name="information-circle-outline" size={18} color="#B45309" />
+                <Text style={styles.mockBannerText}>
+                  Showing demo hotels — the API is using mock data, not LiteAPI live rates.
+                </Text>
               </View>
             ) : null}
 
             {error ? (
               <View style={styles.emptyStateCard}>
-                <MaterialCommunityIcons name="bed-outline" size={32} color="#1F78FF" />
-                <Text style={styles.emptyStateTitle}>Could not load hotels</Text>
+                <MaterialCommunityIcons
+                  name={invalidLocationQuery != null ? "map-marker-off" : "bed-outline"}
+                  size={32}
+                  color="#1F78FF"
+                />
+                <Text style={styles.emptyStateTitle}>
+                  {invalidLocationQuery != null ? "No results found" : "Could not load hotels"}
+                </Text>
                 <Text style={styles.emptyStateCopy}>{error}</Text>
-                <Pressable accessibilityRole="button" onPress={runSearch} style={styles.clearSearchButton}>
-                  <Text style={styles.clearSearchButtonText}>Try again</Text>
-                </Pressable>
+                {invalidLocationQuery != null ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={handleUseMyLocation}
+                    style={styles.clearSearchButton}
+                  >
+                    <Text style={styles.clearSearchButtonText}>Use my location</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable accessibilityRole="button" onPress={runSearch} style={styles.clearSearchButton}>
+                    <Text style={styles.clearSearchButtonText}>Try again</Text>
+                  </Pressable>
+                )}
               </View>
             ) : null}
 
@@ -353,86 +674,133 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
 
             {!error && !loading && visibleHotels.length > 0 ? (
               visibleHotels.map((hotel) => {
-                const isSaved = savedHotels.includes(hotel.id);
+                const favoriteKey = hotelFavoriteKey(hotel.provider, hotel.providerHotelId);
+                const isSaved = savedHotels.includes(favoriteKey);
+                const isFavoritePending = pendingFavoriteKeys.includes(favoriteKey);
                 const isExpanded = expandedHotelId === hotel.id;
+                const visibleAmenities = compact
+                  ? (hotel.amenities || []).slice(0, 4)
+                  : hotel.amenities || [];
+                const amenityIconSize = compact ? 15 : 20;
 
                 return (
-                  <View key={hotel.id} style={styles.hotelCard}>
+                  <View key={hotel.id} style={[styles.hotelCard, compact && styles.hotelCardCompact]}>
                     <DimPressable
                       accessibilityRole="button"
                       accessibilityLabel={isSaved ? "Remove hotel from saved" : "Save hotel"}
-                      onPress={() => handleToggleSaved(hotel.id)}
-                      style={styles.favoriteButton}
+                      accessibilityState={{ disabled: isFavoritePending }}
+                      disabled={isFavoritePending}
+                      onPress={() => handleToggleSaved(hotel)}
+                      style={[styles.favoriteButton, compact && styles.favoriteButtonCompact]}
                     >
                       <Ionicons
                         name={isSaved ? "heart" : "heart-outline"}
-                        size={28}
+                        size={compact ? 22 : 28}
                         color={isSaved ? "#FF5A4E" : "#14253E"}
                       />
                     </DimPressable>
 
-                    <View style={styles.hotelCardRow}>
-                      <Image source={hotel.image} style={styles.hotelImage} resizeMode="cover" />
+                    <View style={[styles.hotelCardRow, compact && styles.hotelCardRowCompact]}>
+                      <Image
+                        source={hotel.image}
+                        style={[styles.hotelImage, compact && styles.hotelImageCompact]}
+                        resizeMode="cover"
+                      />
 
-                      <View style={styles.hotelContent}>
-                        <View style={styles.hotelHeadingRow}>
-                          <View style={styles.hotelHeadingCopy}>
-                            <Text style={styles.hotelName}>{hotel.name}</Text>
+                      <View style={[styles.hotelContent, compact && styles.hotelContentCompact]}>
+                        <View style={[styles.hotelHeadingRow, compact && styles.hotelHeadingRowCompact]}>
+                          <View style={[styles.hotelHeadingCopy, compact && styles.hotelHeadingCopyCompact]}>
+                            <Text
+                              style={[styles.hotelName, compact && styles.hotelNameCompact]}
+                              numberOfLines={compact ? 2 : undefined}
+                            >
+                              {hotel.name}
+                            </Text>
 
-                            <View style={styles.locationRow}>
-                              <Ionicons name="location" size={16} color="#1F78FF" />
-                              <Text style={styles.locationText}>{hotel.location}</Text>
+                            <View style={[styles.locationRow, compact && styles.locationRowCompact]}>
+                              <Ionicons name="location" size={compact ? 13 : 16} color="#1F78FF" />
+                              <Text
+                                style={[styles.locationText, compact && styles.locationTextCompact]}
+                                numberOfLines={compact ? 1 : undefined}
+                              >
+                                {hotel.neighborhood || hotel.location}
+                              </Text>
                               {hotel.distanceMiles != null ? (
                                 <>
-                                  <Text style={styles.inlineSeparator}>|</Text>
-                                  <Text style={styles.locationText}>
-                                    {hotel.distanceMiles.toFixed(1)} mi from you
+                                  <Text style={[styles.inlineSeparator, compact && styles.inlineSeparatorCompact]}>
+                                    |
+                                  </Text>
+                                  <Text style={[styles.locationText, compact && styles.locationTextCompact]}>
+                                    {hotel.distanceMiles.toFixed(1)} mi
+                                    {searchOrigin?.source === "search" ? " from search" : " from you"}
                                   </Text>
                                 </>
                               ) : null}
                             </View>
                           </View>
 
-                          <View style={styles.priceBlock}>
-                            <Text style={styles.priceValue}>${hotel.price}</Text>
-                            <Text style={styles.priceUnit}>/ night</Text>
+                          <View style={[styles.priceBlock, compact && styles.priceBlockCompact]}>
+                            <Text style={[styles.priceValue, compact && styles.priceValueCompact]}>
+                              ${hotel.price}
+                            </Text>
+                            <Text style={[styles.priceUnit, compact && styles.priceUnitCompact]}>/ night</Text>
                           </View>
                         </View>
 
-                        <View style={styles.ratingRow}>
-                          <View style={styles.ratingBadge}>
-                            <Ionicons name="star" size={16} color="#F5B402" />
-                            <Text style={styles.ratingValue}>{Number(hotel.rating).toFixed(1)}</Text>
+                        <View style={[styles.ratingRow, compact && styles.ratingRowCompact]}>
+                          <View style={[styles.ratingBadge, compact && styles.ratingBadgeCompact]}>
+                            <Ionicons name="star" size={compact ? 13 : 16} color="#F5B402" />
+                            <Text style={[styles.ratingValue, compact && styles.ratingValueCompact]}>
+                              {Number(hotel.rating).toFixed(1)}
+                            </Text>
                           </View>
 
-                          <Text style={styles.inlineSeparator}>|</Text>
-                          <Text style={styles.reviewText}>
-                            {hotel.reviewCount > 0
-                              ? `(${hotel.reviewCount} reviews)`
-                              : "(via Wayfinder)"}
-                          </Text>
+                          {hotel.reviewCount > 0 ? (
+                            <>
+                              <Text style={[styles.inlineSeparator, compact && styles.inlineSeparatorCompact]}>
+                                |
+                              </Text>
+                              <Text style={[styles.reviewText, compact && styles.reviewTextCompact]}>
+                                ({hotel.reviewCount} reviews)
+                              </Text>
+                            </>
+                          ) : null}
                         </View>
 
-                        <View style={styles.amenitiesRow}>
-                          {hotel.amenities.map((amenity) => (
-                            <View key={amenity} style={styles.amenityItem}>
-                              {renderAmenityIcon(amenity)}
-                              <Text style={styles.amenityText}>{amenity}</Text>
+                        <View style={[styles.amenitiesRow, compact && styles.amenitiesRowCompact]}>
+                          {visibleAmenities.map((amenity) => (
+                            <View
+                              key={amenity}
+                              style={[styles.amenityItem, compact && styles.amenityItemCompact]}
+                            >
+                              {renderAmenityIcon(amenity, amenityIconSize)}
+                              <Text style={[styles.amenityText, compact && styles.amenityTextCompact]}>
+                                {amenity}
+                              </Text>
                             </View>
                           ))}
                         </View>
 
-                        <View style={styles.noteRow}>
-                          <View style={[styles.noteCard, { backgroundColor: hotel.noteBackground }]}>
-                            <View style={styles.noteIconShell}>
+                        <View style={[styles.noteRow, compact && styles.noteRowCompact]}>
+                          <View
+                            style={[
+                              styles.noteCard,
+                              compact && styles.noteCardCompact,
+                              { backgroundColor: hotel.noteBackground },
+                            ]}
+                          >
+                            <View style={[styles.noteIconShell, compact && styles.noteIconShellCompact]}>
                               <MaterialCommunityIcons
                                 name="robot-happy-outline"
-                                size={24}
+                                size={compact ? 18 : 24}
                                 color={hotel.noteIconColor}
                               />
                             </View>
 
-                            <Text style={styles.noteText}>
+                            <Text
+                              style={[styles.noteText, compact && styles.noteTextCompact]}
+                              numberOfLines={compact ? 2 : undefined}
+                            >
                               <Text style={styles.noteTextStrong}>Wayfinder note: </Text>
                               {hotel.recommendation}
                             </Text>
@@ -445,14 +813,14 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
                                 currentHotelId === hotel.id ? null : hotel.id
                               )
                             }
-                            style={styles.detailsButton}
+                            style={[styles.detailsButton, compact && styles.detailsButtonCompact]}
                           >
-                            <Text style={styles.detailsButtonText}>
+                            <Text style={[styles.detailsButtonText, compact && styles.detailsButtonTextCompact]}>
                               {isExpanded ? "Hide Details" : "View Details"}
                             </Text>
                             <Ionicons
                               name={isExpanded ? "chevron-up" : "chevron-forward"}
-                              size={18}
+                              size={compact ? 16 : 18}
                               color="#1F5EE9"
                               style={styles.detailsButtonIcon}
                             />
@@ -460,14 +828,22 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
                         </View>
 
                         {isExpanded ? (
-                          <View style={styles.expandedDetailsCard}>
-                            <Text style={styles.expandedTitle}>Why it stands out</Text>
-                            <Text style={styles.expandedCopy}>{hotel.details}</Text>
+                          <View style={[styles.expandedDetailsCard, compact && styles.expandedDetailsCardCompact]}>
+                            <Text style={[styles.expandedTitle, compact && styles.expandedTitleCompact]}>
+                              Why it stands out
+                            </Text>
+                            <Text style={[styles.expandedCopy, compact && styles.expandedCopyCompact]}>
+                              {hotel.details}
+                            </Text>
 
                             <View style={styles.expandedChipRow}>
                               {hotel.detailChips.map((chip) => (
-                                <View key={chip} style={styles.expandedChip}>
-                                  <Text style={styles.expandedChipText}>{chip}</Text>
+                                <View key={chip} style={[styles.expandedChip, compact && styles.expandedChipCompact]}>
+                                  <Text
+                                    style={[styles.expandedChipText, compact && styles.expandedChipTextCompact]}
+                                  >
+                                    {chip}
+                                  </Text>
                                 </View>
                               ))}
                             </View>
@@ -483,38 +859,33 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
             {!error && !loading && visibleHotels.length === 0 ? (
               <View style={styles.emptyStateCard}>
                 <MaterialCommunityIcons name="bed-outline" size={32} color="#1F78FF" />
-                <Text style={styles.emptyStateTitle}>No stays match that destination yet.</Text>
+                <Text style={styles.emptyStateTitle}>
+                  {appliedDestination
+                    ? `No stays near ${appliedDestination.trim()} yet.`
+                    : "Search a city to find stays."}
+                </Text>
                 <Text style={styles.emptyStateCopy}>
-                  Try another destination such as Bali or Japan.
+                  Try another city name, or use your current location.
                 </Text>
 
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => {
-                    setDestination(dashboardApi.DEFAULT_DESTINATION);
-                    setAppliedDestination(dashboardApi.DEFAULT_DESTINATION);
-                  }}
+                  onPress={handleUseMyLocation}
                   style={styles.clearSearchButton}
                 >
-                  <Text style={styles.clearSearchButtonText}>Search {dashboardApi.DEFAULT_DESTINATION}</Text>
+                  <Text style={styles.clearSearchButtonText}>Use my location</Text>
                 </Pressable>
               </View>
             ) : null}
           </View>
         </ScrollView>
 
-        <BottomNav activeLabel="Home" onNavigate={onNavigate} />
-      </View>
-    </SafeAreaView>
+        <BottomNav activeLabel={null} onNavigate={onNavigate} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#EAF2FC",
-  },
-
   screen: {
     flex: 1,
     backgroundColor: "#EAF2FC",
@@ -526,15 +897,17 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    paddingTop: 18,
+    paddingTop: 62,
     paddingHorizontal: 18,
     paddingBottom: BOTTOM_NAV_CONTENT_PADDING,
     alignItems: "center",
+    overflow: "visible",
   },
 
   contentInner: {
     width: "100%",
     maxWidth: 1040,
+    overflow: "visible",
   },
 
   headerRow: {
@@ -598,34 +971,35 @@ const styles = StyleSheet.create({
   },
 
   heroSection: {
-    marginTop: 18,
+    marginTop: 0,
+    marginBottom: 0,
     flexDirection: "row",
-    flexWrap: "wrap",
     alignItems: "flex-end",
     justifyContent: "space-between",
+    zIndex: 1,
   },
 
   heroTextColumn: {
-    flexGrow: 1,
-    flexShrink: 1,
-    minWidth: 230,
-    maxWidth: 410,
-    paddingTop: 8,
-    paddingRight: 14,
+    flex: 1,
+    minWidth: 0,
+    paddingTop: 2,
+    paddingRight: 4,
+    paddingBottom: 10,
+    zIndex: 2,
   },
 
   heading: {
-    fontSize: 52,
-    lineHeight: 56,
+    fontSize: 48,
+    lineHeight: 52,
     fontWeight: "800",
-    letterSpacing: -2,
+    letterSpacing: -1.8,
     color: "#10213B",
   },
 
   subtitle: {
-    marginTop: 12,
-    fontSize: 19,
-    lineHeight: 30,
+    marginTop: 10,
+    fontSize: 17,
+    lineHeight: 26,
     color: "#51607D",
   },
 
@@ -635,23 +1009,17 @@ const styles = StyleSheet.create({
   },
 
   heroArtworkWrap: {
-    flexGrow: 1,
-    minWidth: 220,
-    maxWidth: 430,
-    height: 212,
-    justifyContent: "flex-end",
-    overflow: "hidden",
+    width: 268,
+    aspectRatio: 1536 / 896,
+    marginTop: -4,
+    marginLeft: -12,
+    marginRight: -14,
+    // ~10% of banner height
+    marginBottom: -16,
+    overflow: "visible",
     position: "relative",
-  },
-
-  heroArtworkGlow: {
-    position: "absolute",
-    right: 22,
-    bottom: 10,
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    backgroundColor: "rgba(111, 170, 255, 0.15)",
+    zIndex: 1,
+    backgroundColor: "#EAF2FC",
   },
 
   heroArtworkImage: {
@@ -659,23 +1027,15 @@ const styles = StyleSheet.create({
     height: "100%",
   },
 
-  heroArtworkFade: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 8,
-    backgroundColor: "#EAF2FC",
-  },
-
   searchCard: {
-    marginTop: 14,
+    marginTop: 0,
     paddingHorizontal: 20,
     paddingTop: 22,
     paddingBottom: 20,
     borderRadius: 32,
     backgroundColor: "#156EF6",
     overflow: "hidden",
+    zIndex: 3,
     shadowColor: "#2563EB",
     shadowOpacity: 0.22,
     shadowRadius: 18,
@@ -707,14 +1067,27 @@ const styles = StyleSheet.create({
 
   searchDecorLocation: {
     position: "absolute",
-    top: 28,
-    right: 26,
+    top: 22,
+    right: 22,
+    zIndex: 2,
+  },
+
+  searchDecorBuilding: {
+    position: "absolute",
+    right: 78,
+    bottom: 22,
   },
 
   searchDecorCity: {
     position: "absolute",
-    right: 92,
-    bottom: 18,
+    right: 118,
+    bottom: 28,
+  },
+
+  searchDecorPalm: {
+    position: "absolute",
+    right: 48,
+    bottom: 14,
   },
 
   searchHeaderRow: {
@@ -739,7 +1112,7 @@ const styles = StyleSheet.create({
   searchCopy: {
     flex: 1,
     marginLeft: 16,
-    paddingRight: 40,
+    paddingRight: 88,
   },
 
   searchTitleRow: {
@@ -869,6 +1242,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#16253C",
+    textAlign: "center",
   },
 
   sortPillLabelSelected: {
@@ -899,7 +1273,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 15,
-    backgroundColor: "#E7F0FF",
+    backgroundColor: "#1F5EE9",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
@@ -947,6 +1321,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#1F5EE9",
+  },
+
+  mockBanner: {
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+
+  mockBannerText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#9A3412",
+    fontWeight: "600",
   },
 
   hotelCard: {
@@ -1249,5 +1644,391 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+
+  // Narrow / phone — keep page design; shrink sort pills into one row.
+  scrollContentCompact: {
+    paddingTop: 52,
+    paddingHorizontal: 14,
+  },
+
+  headerRowCompact: {
+    marginBottom: 0,
+  },
+
+  roundHeaderButtonCompact: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+  },
+
+  headerBrandTextCompact: {
+    fontSize: 22,
+  },
+
+  headerActionButtonCompact: {
+    width: 44,
+    height: 44,
+    marginLeft: 4,
+  },
+
+  notificationDotCompact: {
+    top: 7,
+    right: 7,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+
+  heroSectionCompact: {
+    marginTop: 0,
+    alignItems: "flex-end",
+  },
+
+  heroTextColumnCompact: {
+    flex: 1,
+    minWidth: 0,
+    maxWidth: "54%",
+    paddingTop: 0,
+    paddingRight: 2,
+    paddingBottom: 8,
+  },
+
+  headingCompact: {
+    fontSize: 34,
+    lineHeight: 36,
+    letterSpacing: -1.2,
+  },
+
+  subtitleCompact: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  heroArtworkWrapCompact: {
+    width: 204,
+    aspectRatio: 1536 / 896,
+    height: undefined,
+    marginTop: -6,
+    marginLeft: -16,
+    marginRight: -14,
+    // ~10% of banner height
+    marginBottom: -12,
+    flexShrink: 0,
+    backgroundColor: "#EAF2FC",
+  },
+
+  searchCardCompact: {
+    marginTop: 0,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderRadius: 18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+
+  searchIconBadgeCompact: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+  },
+
+  searchCopyCompact: {
+    marginLeft: 10,
+    paddingRight: 72,
+  },
+
+  searchTitleCompact: {
+    fontSize: 17,
+    letterSpacing: -0.3,
+  },
+
+  searchSubtitleCompact: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  destinationInputWrapCompact: {
+    marginTop: 10,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+
+  destinationInputCompact: {
+    marginLeft: 8,
+    fontSize: 15,
+  },
+
+  findHotelsButtonCompact: {
+    marginTop: 8,
+    minHeight: 42,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+
+  findHotelsButtonTextCompact: {
+    fontSize: 14,
+  },
+
+  sortHeadingCompact: {
+    marginTop: 14,
+    fontSize: 15,
+  },
+
+  locationStatusRowCompact: {
+    marginTop: 4,
+  },
+
+  locationStatusTextCompact: {
+    fontSize: 12,
+  },
+
+  locationRefreshTextCompact: {
+    fontSize: 12,
+  },
+
+  sortRowCompact: {
+    marginTop: 8,
+    flexWrap: 'nowrap',
+    marginHorizontal: -3,
+  },
+
+  sortPillCompact: {
+    flex: 1,
+    minHeight: 36,
+    minWidth: 0,
+    marginHorizontal: 3,
+    marginBottom: 0,
+    paddingVertical: 6,
+    paddingHorizontal: 3,
+    borderRadius: 12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  sortPillLabelCompact: {
+    marginLeft: 2,
+    fontSize: 9,
+    lineHeight: 11,
+    letterSpacing: -0.35,
+    textAlign: "center",
+    flexShrink: 1,
+  },
+
+  picksSectionHeaderCompact: {
+    marginTop: 8,
+    marginBottom: 2,
+  },
+
+  picksIconBadgeCompact: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+  },
+
+  picksTitleCompact: {
+    fontSize: 15,
+  },
+
+  picksSubtitleCompact: {
+    marginTop: 1,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+
+  resultsCountCompact: {
+    marginTop: 0,
+    fontSize: 12,
+  },
+
+  hotelCardCompact: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 16,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
+    minHeight: 118,
+  },
+
+  favoriteButtonCompact: {
+    top: 10,
+    right: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+  },
+
+  hotelCardRowCompact: {
+    flexWrap: 'nowrap',
+    alignItems: 'stretch',
+    minHeight: 100,
+  },
+
+  hotelImageCompact: {
+    width: 132,
+    height: 100,
+    borderRadius: 12,
+  },
+
+  hotelContentCompact: {
+    minWidth: 0,
+    flex: 1,
+    marginLeft: 12,
+    paddingRight: 32,
+    justifyContent: 'space-between',
+  },
+
+  hotelHeadingRowCompact: {
+    flexWrap: 'nowrap',
+    alignItems: 'flex-start',
+  },
+
+  hotelHeadingCopyCompact: {
+    minWidth: 0,
+    flex: 1,
+    paddingRight: 8,
+  },
+
+  hotelNameCompact: {
+    fontSize: 15,
+    letterSpacing: -0.2,
+    lineHeight: 19,
+  },
+
+  locationRowCompact: {
+    marginTop: 3,
+  },
+
+  locationTextCompact: {
+    marginLeft: 3,
+    fontSize: 11,
+    flexShrink: 1,
+  },
+
+  inlineSeparatorCompact: {
+    marginHorizontal: 5,
+    fontSize: 11,
+  },
+
+  priceBlockCompact: {
+    marginTop: 0,
+  },
+
+  priceValueCompact: {
+    fontSize: 18,
+    letterSpacing: -0.4,
+  },
+
+  priceUnitCompact: {
+    fontSize: 10,
+  },
+
+  ratingRowCompact: {
+    marginTop: 6,
+  },
+
+  ratingBadgeCompact: {
+    height: 24,
+    paddingHorizontal: 7,
+    borderRadius: 8,
+  },
+
+  ratingValueCompact: {
+    marginLeft: 3,
+    fontSize: 12,
+  },
+
+  reviewTextCompact: {
+    fontSize: 11,
+  },
+
+  amenitiesRowCompact: {
+    marginTop: 6,
+  },
+
+  amenityItemCompact: {
+    marginRight: 8,
+    marginBottom: 2,
+  },
+
+  amenityTextCompact: {
+    marginLeft: 3,
+    fontSize: 11,
+  },
+
+  noteRowCompact: {
+    marginTop: 6,
+    flexDirection: 'row',
+    flexWrap: 'nowrap',
+    alignItems: 'center',
+  },
+
+  noteCardCompact: {
+    minWidth: 0,
+    flex: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+
+  noteIconShellCompact: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 6,
+  },
+
+  noteTextCompact: {
+    fontSize: 11,
+    lineHeight: 14,
+  },
+
+  detailsButtonCompact: {
+    minWidth: 0,
+    minHeight: 34,
+    marginTop: 0,
+    marginLeft: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+  },
+
+  detailsButtonTextCompact: {
+    fontSize: 11,
+  },
+
+  expandedDetailsCardCompact: {
+    marginTop: 8,
+    padding: 10,
+    borderRadius: 12,
+  },
+
+  expandedTitleCompact: {
+    fontSize: 13,
+  },
+
+  expandedCopyCompact: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  expandedChipCompact: {
+    marginRight: 6,
+    marginBottom: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+
+  expandedChipTextCompact: {
+    fontSize: 10,
   },
 });

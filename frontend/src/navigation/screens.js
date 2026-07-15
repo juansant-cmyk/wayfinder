@@ -6,6 +6,7 @@ export const APP_SCREENS = {
   signup: { hash: "#signup" },
   forgotPassword: { hash: "#forgot-password" },
   itinerary: { hash: "#itinerary", title: "Itinerary" },
+  trips: { hash: "#trips", title: "Trips" },
   hotels: { hash: "#hotels", title: "Hotels" },
   flights: { hash: "#flights", title: "Flights" },
   favorites: { hash: "#favorites", title: "Favorites" },
@@ -34,6 +35,8 @@ export async function loadScreenData(screen, token, params = {}, location = null
 
   switch (screen) {
     case "itinerary":
+      return dashboardApi.fetchPlans(token);
+    case "trips":
       return dashboardApi.fetchPlans(token);
     case "hotels":
       return dashboardApi.searchHotels(token, destination, "price", location);

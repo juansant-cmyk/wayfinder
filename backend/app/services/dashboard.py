@@ -6,7 +6,6 @@ from fastapi import HTTPException, status
 
 from app.schemas.dashboard import (
     ChatMessageResponse,
-    FavoriteItemResponse,
     FlightResponse,
     NotificationResponse,
     RecommendedDestinationResponse,
@@ -92,28 +91,6 @@ def search_flights(
     if sort == "price":
         return sorted(flights, key=lambda flight: flight.price)
     return flights
-
-
-def list_favorites(user_id: UUID) -> list[FavoriteItemResponse]:
-    now = datetime.now(UTC)
-    return [
-        FavoriteItemResponse(
-            id=uuid4(),
-            item_type="destination",
-            title="Bali",
-            subtitle="Indonesia",
-            image_url=RECOMMENDED_DESTINATIONS[0].image_url,
-            saved_at=now - timedelta(days=3),
-        ),
-        FavoriteItemResponse(
-            id=uuid4(),
-            item_type="hotel",
-            title="Bali Garden Hotel",
-            subtitle="Pool • Breakfast",
-            image_url=None,
-            saved_at=now - timedelta(days=1),
-        ),
-    ]
 
 
 def get_safety_summary(destination: str | None) -> SafetySummaryResponse:

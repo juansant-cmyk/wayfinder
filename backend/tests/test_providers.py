@@ -17,13 +17,32 @@ async def test_mock_places_provider_returns_limited_places():
 
 
 @pytest.mark.asyncio
+async def test_mock_hotel_provider_get_hotel_details():
+    provider = MockHotelProvider()
+    hotels = await provider.search_hotels("Bali", None, None, None, None, 1, "price")
+    details = await provider.get_hotel_details(hotels[0].provider_hotel_id)
+
+    assert details.provider == "mock"
+    assert details.provider_hotel_id == hotels[0].provider_hotel_id
+    assert details.name == hotels[0].name
+    assert details.amenities
+
+
+@pytest.mark.asyncio
+async def test_mock_hotel_provider_get_hotel_details_unknown_id():
+    provider = MockHotelProvider()
+    with pytest.raises(LookupError):
+        await provider.get_hotel_details("mock-hotel-does-not-exist-9")
+
+
+@pytest.mark.asyncio
 async def test_mock_hotel_provider_sorts_by_price():
     provider = MockHotelProvider()
     hotels = await provider.search_hotels("Paris", None, None, None, None, 2, "price")
 
     assert len(hotels) == 2
     assert hotels[0].nightly_rate <= hotels[1].nightly_rate
-    assert "Wi-Fi" in hotels[0].amenities
+    assert "Wi-Fi included" in hotels[0].amenities
 
 
 @pytest.mark.asyncio

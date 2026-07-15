@@ -107,6 +107,7 @@ function mapApiUser(apiUser) {
 
 const FEATURE_SCREENS = new Set([
   "itinerary",
+  "trips",
   "flights",
   "favorites",
   "weather",
@@ -642,6 +643,7 @@ export default function App() {
       <ItineraryScreen
         onNavigate={handleNavigate}
         onBack={navigateBack}
+        params={screenParams}
       />
     );
   } else if (currentScreen === "maps") {

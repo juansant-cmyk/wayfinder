@@ -1,17 +1,73 @@
-const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || "";
+const CONFIGURED_API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || "";
+const WEB_API_URL = process.env.EXPO_PUBLIC_API_URL_WEB?.replace(/\/$/, "") || "";
+
+function isPrivateLanHost(url) {
+  if (!url) {
+    return false;
+  }
+
+  try {
+    const { hostname } = new URL(url);
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return false;
+    }
+    if (hostname.startsWith("10.")) {
+      return true;
+    }
+    if (hostname.startsWith("192.168.")) {
+      return true;
+    }
+    if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
+function isLocalWebDevHost(hostname) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+
+function resolveApiUrl() {
+  if (typeof window !== "undefined" && typeof document !== "undefined") {
+    const pageHost = window.location.hostname;
+
+    // Expo web on this PC (localhost:8081) — API is on the same machine.
+    if (isLocalWebDevHost(pageHost)) {
+      if (WEB_API_URL) {
+        return WEB_API_URL;
+      }
+      if (isPrivateLanHost(CONFIGURED_API_URL)) {
+        return "http://127.0.0.1:8000";
+      }
+    }
+  }
+
+  return CONFIGURED_API_URL;
+}
 
 let unauthorizedHandler = null;
 
 export function getApiUrl() {
-  return API_URL;
+  return resolveApiUrl();
 }
 
 export function isBackendConfigured() {
-  return Boolean(API_URL);
+  return Boolean(getApiUrl());
 }
 
 export function setUnauthorizedHandler(handler) {
   unauthorizedHandler = handler;
+}
+
+/** Notify app shell that the session is invalid (used by geo + apiRequest). */
+export async function notifySessionExpired() {
+  if (unauthorizedHandler) {
+    await unauthorizedHandler();
+  }
 }
 
 async function parseError(response) {
@@ -45,7 +101,9 @@ async function parseError(response) {
 }
 
 export async function apiRequest(path, { method = "GET", body, token } = {}) {
-  if (!API_URL) {
+  const apiUrl = getApiUrl();
+
+  if (!apiUrl) {
     throw new Error("EXPO_PUBLIC_API_URL is not configured.");
   }
 
@@ -58,14 +116,14 @@ export async function apiRequest(path, { method = "GET", body, token } = {}) {
   let response;
 
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await fetch(`${apiUrl}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch (error) {
     throw new Error(
-      `Cannot reach the API at ${API_URL}. Check your internet connection, ` +
+      `Cannot reach the API at ${apiUrl}. Check your internet connection, ` +
         "confirm EXPO_PUBLIC_API_URL in frontend/.env, and restart Expo (npx expo start --clear). " +
         "If the API is on Render, the first request after idle can take up to a minute."
     );

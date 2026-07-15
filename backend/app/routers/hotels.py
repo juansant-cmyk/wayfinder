@@ -28,6 +28,20 @@ async def search_hotels(
     check_out: date | None = None,
     guests: int = Query(default=1, ge=1, le=20),
     sort: str = Query(default="price", pattern="^(price|rating|distance)$"),
+    guest_nationality: str | None = Query(
+        default=None,
+        min_length=2,
+        max_length=2,
+        pattern="^[A-Za-z]{2}$",
+        description="ISO-3166-1 alpha-2 guest nationality (e.g. US, JP)",
+    ),
+    currency: str | None = Query(
+        default=None,
+        min_length=3,
+        max_length=3,
+        pattern="^[A-Za-z]{3}$",
+        description="ISO-4217 currency (e.g. USD, JPY)",
+    ),
 ):
     if not destination and (lat is None or lng is None):
         raise HTTPException(
@@ -54,6 +68,8 @@ async def search_hotels(
         check_out.isoformat() if check_out else None,
         guests,
         sort,
+        guest_nationality=guest_nationality.upper() if guest_nationality else None,
+        currency=currency.upper() if currency else None,
     )
     return [hotel_service.hotel_to_response(hotel, lat, lng) for hotel in hotels]
 
