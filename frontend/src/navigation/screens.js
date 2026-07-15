@@ -11,7 +11,7 @@ export const APP_SCREENS = {
   favorites: { hash: "#favorites", title: "Saved" },
   safety: { hash: "#safety", title: "Safety" },
   weather: { hash: "#weather", title: "Weather" },
-  chat: { hash: "#chat", title: "Ask Wayfinder" },
+  chat: { hash: "#chat", title: "AI Chat" },
   maps: { hash: "#maps", title: "Maps" },
   travelCheck: { hash: "#travel-check", title: "Travel Check" },
   profile: { hash: "#profile", title: "Profile" },

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { fetchMe, isBackendConfigured, login, register, setUnauthorizedHandler } from "./src/api/client";
 import { clearToken, getToken, saveToken } from "./src/auth/tokenStorage";
 import { UserLocationProvider } from "./src/location/UserLocationContext";
 import { getHashForScreen, getScreenFromHash } from "./src/navigation/screens";
-import ChatScreen from "./screens/ChatScreen";
+import AIChatScreen from "./screens/AIChatScreen";
 import DashboardFeatureScreen from "./screens/DashboardFeatureScreen";
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
 import HomeScreen from "./screens/HomeScreen";
@@ -13,6 +14,7 @@ import HotelsScreen from "./screens/HotelsScreen";
 import ItineraryScreen from "./screens/ItineraryScreen";
 import LoginScreen from "./screens/LoginScreen";
 import SignupScreen from "./screens/SignupScreen";
+import WeatherScreen from "./screens/WeatherScreen";
 
 const AUTH_ONLY_SCREENS = new Set(["login", "signup", "forgotPassword"]);
 
@@ -77,6 +79,10 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState(() => {
     if (isWebPreview()) {
       const fromHash = getScreenFromHash(window.location.hash);
+      if (fromHash === "weather") {
+        return "weather";
+      }
+
       return AUTH_ONLY_SCREENS.has(fromHash) ? fromHash : "login";
     }
 
@@ -122,7 +128,11 @@ export default function App() {
 
         if (!cancelled) {
           setCurrentUser(mapApiUser(user));
-          setCurrentScreen("home");
+          if (isWebPreview() && getScreenFromHash(window.location.hash) === "weather") {
+            setCurrentScreen("weather");
+          } else {
+            setCurrentScreen("home");
+          }
         }
       } catch (error) {
         await clearToken();
@@ -475,7 +485,7 @@ export default function App() {
   let screenContent;
 
   if (currentScreen === "chat") {
-    screenContent = <ChatScreen onBack={navigateBack} onNavigate={handleNavigate} />;
+    screenContent = <AIChatScreen onNavigate={handleNavigate} onBack={navigateBack} />;
   } else if (currentScreen === "hotels") {
     screenContent = (
       <HotelsScreen
@@ -492,6 +502,8 @@ export default function App() {
         onBack={navigateBack}
       />
     );
+  } else if (currentScreen === "weather") {
+    screenContent = <WeatherScreen onNavigate={handleNavigate} />;
   } else if (FEATURE_SCREENS.has(currentScreen)) {
     screenContent = (
       <DashboardFeatureScreen
@@ -513,5 +525,9 @@ export default function App() {
     );
   }
 
-  return <UserLocationProvider>{screenContent}</UserLocationProvider>;
+  return (
+    <SafeAreaProvider>
+      <UserLocationProvider>{screenContent}</UserLocationProvider>
+    </SafeAreaProvider>
+  );
 }

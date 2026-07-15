@@ -5,7 +5,7 @@ import DimPressable from "./DimPressable";
 
 export const BOTTOM_NAV_CONTENT_PADDING = 122;
 
-const NAV_ITEMS = [
+const DEFAULT_NAV_ITEMS = [
   { label: "Home", icon: "home", route: "home" },
   { label: "Itinerary", icon: "calendar-clear", route: "itinerary" },
   { label: "Saved", icon: "bookmark-outline", route: "favorites" },
@@ -25,7 +25,11 @@ export function getBottomNavActiveLabel(screen) {
   return activeByScreen[screen] || null;
 }
 
-export default function BottomNav({ activeLabel = null, onNavigate }) {
+export default function BottomNav({
+  activeLabel = null,
+  onNavigate,
+  items = DEFAULT_NAV_ITEMS,
+}) {
   function handlePress(item) {
     if (item.label === "Home") {
       if (activeLabel === "Home") {
@@ -41,7 +45,7 @@ export default function BottomNav({ activeLabel = null, onNavigate }) {
 
   return (
     <View style={styles.bottomNav}>
-      {NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const isActive = item.label === activeLabel;
 
         return (
@@ -52,7 +56,7 @@ export default function BottomNav({ activeLabel = null, onNavigate }) {
             onPress={() => handlePress(item)}
           >
             <Ionicons
-              name={item.icon}
+              name={isActive ? item.activeIcon || item.icon : item.icon}
               size={24}
               color={isActive ? "#1F78FF" : "#334155"}
             />
