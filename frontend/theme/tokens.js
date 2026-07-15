@@ -1,19 +1,19 @@
 import { Platform } from "react-native";
 
-// Wayfinder design system — an editorial, sophisticated take on the brand.
-// Warm paper background, ink text, a single gold accent, hairline dividers.
+// Wayfinder design system — Ally's blue base (preserved) with Nia's serif
+// headings + gold accent as the lighter touch. Cool/blue neutrals throughout.
 
 export const colors = {
-  paper: "#F4F1EA", // app background (warm paper)
-  surface: "#FCFAF6", // cards
-  surfaceSunken: "#EEEAE0", // chips / insets
-  ink: "#1C1B19", // primary text + headings
-  muted: "#6E6659", // secondary text
-  faint: "#A79E90", // tertiary text / micro-labels
-  line: "rgba(28,27,25,0.12)", // hairline borders
-  gold: "#B0813A", // warm accent — Nia's editorial signature (labels, links)
-  navy: "#2B6CC0", // brand blue — blend of Ally's blue + Nia's steel (heroes, active)
-  cta: "#D96A45", // coral — Ally's accent, refined (primary action buttons)
+  paper: "#EAF2FC", // app background (Ally's light blue)
+  surface: "#FFFFFF", // cards (white on blue, like Ally's)
+  surfaceSunken: "#E3EDF9", // chips / insets (light blue tint)
+  ink: "#14253E", // primary text + headings (Ally's navy)
+  muted: "#51617A", // secondary text (cool slate)
+  faint: "#8A9AB3", // tertiary text / micro-labels (cool light slate)
+  line: "rgba(20,37,62,0.12)", // hairline borders (cool)
+  gold: "#B0813A", // warm accent — Nia's touch (labels, links)
+  navy: "#2B6CC0", // brand blue (heroes, active states)
+  cta: "#D96A45", // coral — Ally's accent (primary action buttons)
   terracotta: "#C25E3A", // sparing warm pop (ratings, alerts)
   onDark: "#F1ECE2", // text on navy
   onDarkMuted: "rgba(241,236,226,0.70)",
