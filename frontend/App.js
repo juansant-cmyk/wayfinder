@@ -42,6 +42,7 @@ import WeatherScreen from "./screens/WeatherScreen";
 
 const AUTH_ONLY_SCREENS = new Set(["login", "signup", "forgotPassword"]);
 const DEV_PUBLIC_PREVIEW_SCREENS = new Set([
+  "itinerary",
   "weather",
   "maps",
   "hotels",
