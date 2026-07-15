@@ -9,6 +9,7 @@ import { getHashForScreen, getScreenFromHash } from "./src/navigation/screens";
 import AIChatScreen from "./screens/AIChatScreen";
 import DashboardFeatureScreen from "./screens/DashboardFeatureScreen";
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
+import FlightsScreen from "./screens/FlightsScreen";
 import HomeScreen from "./screens/HomeScreen";
 import HotelsScreen from "./screens/HotelsScreen";
 import ItineraryScreen from "./screens/ItineraryScreen";
@@ -459,33 +460,38 @@ export default function App() {
     );
   }
 
+  let screenContent;
+
   if (!currentUser) {
     if (currentScreen === "signup") {
-      return <SignupScreen onSignup={handleSignup} onNavigateLogin={navigateLogin} />;
-    }
-
-    if (currentScreen === "forgotPassword") {
-      return (
+      screenContent = <SignupScreen onSignup={handleSignup} onNavigateLogin={navigateLogin} />;
+    } else if (currentScreen === "forgotPassword") {
+      screenContent = (
         <ForgotPasswordScreen
           onForgotPassword={handleForgotPassword}
           onNavigateSignup={navigateSignup}
         />
       );
+    } else {
+      screenContent = (
+        <LoginScreen
+          onLogin={handleLogin}
+          onNavigateForgotPassword={navigateForgotPassword}
+          onNavigateSignup={navigateSignup}
+        />
+      );
     }
-
-    return (
-      <LoginScreen
-        onLogin={handleLogin}
-        onNavigateForgotPassword={navigateForgotPassword}
-        onNavigateSignup={navigateSignup}
+  } else if (currentScreen === "chat") {
+    screenContent = <AIChatScreen onNavigate={handleNavigate} onBack={navigateBack} />;
+  } else if (currentScreen === "flights") {
+    screenContent = (
+      <FlightsScreen
+        onGoBack={navigateBack}
+        onNavigateHome={navigateHome}
+        onNavigate={handleNavigate}
+        params={screenParams}
       />
     );
-  }
-
-  let screenContent;
-
-  if (currentScreen === "chat") {
-    screenContent = <AIChatScreen onNavigate={handleNavigate} onBack={navigateBack} />;
   } else if (currentScreen === "hotels") {
     screenContent = (
       <HotelsScreen
