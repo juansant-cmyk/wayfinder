@@ -16,19 +16,10 @@ import { getToken } from "../src/auth/tokenStorage";
 import { DEFAULT_LAT, DEFAULT_LNG, reverseGeocodeLabel } from "../src/location/geo";
 import { useUserLocation } from "../src/location/UserLocationContext";
 import FeatureHeader from "./shared/FeatureHeader";
+import MapCanvas from "./shared/MapCanvas";
 import { colors, fonts, radius, spacing, tint } from "../theme/tokens";
 
 const RADIUS_OPTIONS = [1, 5, 10, 25];
-
-// Scatter positions for the (placeholder) map pins — a real MapView
-// (react-native-maps) is the follow-up once the native lib is added.
-const PIN_SPOTS = [
-  { top: "16%", left: "18%" },
-  { top: "30%", left: "60%" },
-  { top: "52%", left: "34%" },
-  { top: "62%", left: "72%" },
-  { top: "72%", left: "14%" },
-];
 
 export default function MapsScreen({ onBack }) {
   const { location, status, refreshLocation } = useUserLocation();
@@ -84,7 +75,11 @@ export default function MapsScreen({ onBack }) {
         }
 
         const raw = await dashboardApi.fetchPopularPlaces(token, lat, lng, radiusKm, 20);
-        const mapped = (Array.isArray(raw) ? raw : []).map(mapPlaceForDashboard);
+        const mapped = (Array.isArray(raw) ? raw : []).map((place) => ({
+          ...mapPlaceForDashboard(place),
+          lat: place.lat ?? place.latitude ?? null,
+          lng: place.lng ?? place.longitude ?? null,
+        }));
 
         if (cancelled) return;
         setPlaces(mapped);
@@ -103,7 +98,13 @@ export default function MapsScreen({ onBack }) {
     };
   }, [lat, lng, radiusKm, reloadKey]);
 
-  const pins = places.slice(0, PIN_SPOTS.length);
+  const regionDelta = Math.max((radiusKm * 2) / 111, 0.02);
+  const region = {
+    latitude: lat,
+    longitude: lng,
+    latitudeDelta: regionDelta,
+    longitudeDelta: regionDelta,
+  };
 
   return (
     <View style={styles.screen}>
@@ -160,22 +161,14 @@ export default function MapsScreen({ onBack }) {
           </View>
         </View>
 
-        {/* Map (placeholder — pins driven by real results) */}
-        <View style={styles.mapCard}>
-          {pins.map((place, i) => (
-            <View key={place.id || place.name} style={[styles.pin, PIN_SPOTS[i]]}>
-              <Ionicons name="location" size={15} color={colors.navy} />
-              <Text style={styles.pinText} numberOfLines={1}>{place.name}</Text>
-            </View>
-          ))}
-          <View style={styles.mapCaption}>
-            <Ionicons name="map-outline" size={13} color={colors.muted} />
-            <Text style={styles.mapCaptionText}>
-              {placesStatus === "done"
-                ? `${places.length} place${places.length === 1 ? "" : "s"} within ${radiusKm} km`
-                : "Map preview"}
-            </Text>
-          </View>
+        {/* Map — real MapView on device, placeholder on web */}
+        <View style={styles.mapWrap}>
+          <MapCanvas
+            region={region}
+            places={places}
+            radiusKm={radiusKm}
+            placesStatus={placesStatus}
+          />
         </View>
 
         {/* Places list */}
@@ -278,40 +271,9 @@ const styles = StyleSheet.create({
   radiusChipText: { fontFamily: fonts.sans, fontSize: 13, fontWeight: "600", color: colors.muted },
   radiusChipTextActive: { color: colors.onDark },
 
-  mapCard: {
+  mapWrap: {
     marginTop: spacing.lg,
-    height: 200,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.surfaceSunken,
-    overflow: "hidden",
   },
-  pin: {
-    position: "absolute",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    paddingVertical: 3,
-    paddingHorizontal: 6,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    maxWidth: 150,
-  },
-  pinText: { fontFamily: fonts.sans, fontSize: 11, fontWeight: "600", color: colors.ink },
-  mapCaption: {
-    position: "absolute",
-    bottom: spacing.sm,
-    left: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingVertical: 4,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surface,
-  },
-  mapCaptionText: { fontFamily: fonts.sans, fontSize: 11, color: colors.muted },
 
   sectionTitle: {
     marginTop: spacing.xl,
