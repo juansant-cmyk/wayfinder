@@ -996,7 +996,7 @@ export default function FlightsScreen({
           </View>
         </ScrollView>
 
-        <BottomNav activeLabel="Home" onNavigate={onNavigate} />
+        <BottomNav activeLabel="Flights" onNavigate={onNavigate} />
       </View>
 
       <SheetModal

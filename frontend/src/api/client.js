@@ -51,6 +51,57 @@ function resolveApiUrl() {
 
 let unauthorizedHandler = null;
 
+function wait(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function createApiUnavailableError() {
+  const error = new Error(API_UNAVAILABLE_MESSAGE);
+  error.name = "ApiUnavailableError";
+  error.code = "API_UNAVAILABLE";
+  error.apiUrl = API_URL;
+  return error;
+}
+
+function createApiTimeoutError() {
+  const error = new Error(API_UNAVAILABLE_MESSAGE);
+  error.name = "ApiUnavailableError";
+  error.code = "API_TIMEOUT";
+  error.apiUrl = API_URL;
+  return error;
+}
+
+function createApiConfigError() {
+  const error = new Error(API_CONFIG_ERROR_MESSAGE);
+  error.name = "ApiConfigError";
+  error.code = "API_NOT_CONFIGURED";
+  return error;
+}
+
+function createApiRequestFailedError(requestError) {
+  const error = new Error("The login request could not be completed.");
+  error.name = "ApiRequestFailedError";
+  error.code = "API_REQUEST_FAILED";
+  error.causeName = requestError?.name ?? null;
+  error.causeMessage = requestError?.message ?? null;
+  error.apiUrl = API_URL;
+  return error;
+}
+
+function createApiResponseError(response, raw, parsedBody) {
+  const body = parsedBody || {};
+  const error = new Error(buildErrorMessage(response, raw, body));
+  error.name = "ApiResponseError";
+  error.code = `API_HTTP_${response.status}`;
+  error.status = response.status;
+  error.detail = body.detail;
+  error.fieldErrors = extractValidationErrors(body.detail);
+  error.apiUrl = API_URL;
+  return error;
+}
+
 export function getApiUrl() {
   return resolveApiUrl();
 }
@@ -74,12 +125,76 @@ async function parseError(response) {
   const raw = await response.text();
   let body = {};
 
-  if (raw) {
-    try {
-      body = JSON.parse(raw);
-    } catch {
-      return raw.trim() || `Request failed (${response.status}).`;
+export function isApiConfigError(error) {
+  return error?.code === "API_NOT_CONFIGURED" || error?.name === "ApiConfigError";
+}
+
+export function isApiRequestFailedError(error) {
+  return error?.code === "API_REQUEST_FAILED" || error?.name === "ApiRequestFailedError";
+}
+
+function isAbortError(error) {
+  return error?.name === "AbortError";
+}
+
+async function readResponseText(response) {
+  try {
+    return await response.text();
+  } catch {
+    return "";
+  }
+}
+
+function parseJsonSafely(raw) {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchWithTimeout(url, options) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function extractValidationErrors(detail) {
+  if (!Array.isArray(detail)) {
+    return {};
+  }
+
+  return detail.reduce((fieldErrors, item) => {
+    const path = Array.isArray(item?.loc) ? item.loc : [];
+    const fieldName = path[path.length - 1];
+    if (typeof fieldName !== "string" || typeof item?.msg !== "string") {
+      return fieldErrors;
     }
+
+    return {
+      ...fieldErrors,
+      [fieldName]: item.msg,
+    };
+  }, {});
+}
+
+function buildErrorMessage(response, raw, body) {
+  if (raw && Object.keys(body).length === 0) {
+    return raw.trim() || `Request failed (${response.status}).`;
   }
 
   const { detail } = body;
@@ -100,6 +215,29 @@ async function parseError(response) {
   return `Request failed (${response.status}). Please try again.`;
 }
 
+function logDevLoginFailure(data) {
+  if (!__DEV__) {
+    return;
+  }
+
+  console.info("[auth/login]", data);
+}
+
+async function parseSuccess(response) {
+  const raw = await readResponseText(response);
+
+  if (!raw) {
+    return null;
+  }
+
+  const body = parseJsonSafely(raw);
+  if (body !== null) {
+    return body;
+  }
+
+  throw new Error("The Wayfinder server returned an unreadable response.");
+}
+
 export async function apiRequest(path, { method = "GET", body, token } = {}) {
   const apiUrl = getApiUrl();
 
@@ -114,6 +252,7 @@ export async function apiRequest(path, { method = "GET", body, token } = {}) {
   }
 
   let response;
+  let requestError = null;
 
   try {
     response = await fetch(`${apiUrl}${path}`, {
@@ -135,14 +274,25 @@ export async function apiRequest(path, { method = "GET", body, token } = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(await parseError(response));
+    const raw = await readResponseText(response);
+    const parsedBody = parseJsonSafely(raw);
+
+    if (path === "/auth/login") {
+      logDevLoginFailure({
+        detail: parsedBody?.detail ?? null,
+        event: "response",
+        status: response.status,
+      });
+    }
+
+    throw createApiResponseError(response, raw, parsedBody);
   }
 
   if (response.status === 204) {
     return null;
   }
 
-  return response.json();
+  return parseSuccess(response);
 }
 
 export function register({ email, password, fullName, username }) {
@@ -166,4 +316,5 @@ export function login(identity, password) {
 
 export function fetchMe(token) {
   return apiRequest("/auth/me", { token });
+}
 }

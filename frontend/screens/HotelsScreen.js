@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import * as dashboardApi from "../src/api/dashboard";
 import {
@@ -125,8 +126,10 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
   const [savedHotels, setSavedHotels] = useState([]);
   const [pendingFavoriteKeys, setPendingFavoriteKeys] = useState([]);
   const [expandedHotelId, setExpandedHotelId] = useState(null);
-  const [hotels, setHotels] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [hotels, setHotels] = useState(() =>
+    previewMode ? buildPreviewHotels(params.destination || dashboardApi.DEFAULT_DESTINATION) : []
+  );
+  const [loading, setLoading] = useState(previewMode);
   const [error, setError] = useState(null);
   const [invalidLocationQuery, setInvalidLocationQuery] = useState(null);
   const pendingFavoriteKeysRef = useRef(new Set());
@@ -635,6 +638,15 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
                 <Ionicons name="information-circle-outline" size={18} color="#B45309" />
                 <Text style={styles.mockBannerText}>
                   Showing demo hotels — the API is using mock data, not LiteAPI live rates.
+                </Text>
+              </View>
+            ) : null}
+
+            {previewMode ? (
+              <View style={styles.previewMessageCard}>
+                <Ionicons name="eye-outline" size={18} color="#1F78FF" />
+                <Text style={styles.previewMessageText}>
+                  Local preview mode is showing curated hotel cards without calling the backend.
                 </Text>
               </View>
             ) : null}
