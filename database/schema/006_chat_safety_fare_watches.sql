@@ -35,11 +35,23 @@ CREATE TABLE IF NOT EXISTS safety_alerts (
     lng DOUBLE PRECISION,
     starts_at TIMESTAMPTZ,
     ends_at TIMESTAMPTZ,
+    headline VARCHAR(255),
+    urgency VARCHAR(50),
+    areas TEXT,
+    event VARCHAR(255),
+    instruction TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT safety_alerts_source_destination_title_unique
         UNIQUE (source, destination, alert_type, title)
 );
+
+ALTER TABLE IF EXISTS safety_alerts
+    ADD COLUMN IF NOT EXISTS headline VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS urgency VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS areas TEXT,
+    ADD COLUMN IF NOT EXISTS event VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS instruction TEXT;
 
 CREATE INDEX IF NOT EXISTS safety_alerts_destination_idx
     ON safety_alerts(destination);

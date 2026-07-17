@@ -155,6 +155,25 @@ Protected routes require `Authorization: Bearer <token>`.
 
 Places, hotels, flights, and dashboard feeds use deterministic mock data by default.
 
+## WeatherAPI.com setup
+
+Weather uses mock data unless `WEATHER_PROVIDER=weatherapi` is configured. To enable live current
+weather, icons, 3-day forecasts, air quality, and severe weather warnings:
+
+```env
+WEATHER_PROVIDER=weatherapi
+WEATHER_API_KEY=<your WeatherAPI.com key>
+WEATHERAPI_BASE_URL=https://api.weatherapi.com/v1
+```
+
+Add those values to `backend/.env`. Keep `USE_MOCK_PROVIDERS=true` if you want mock fallback when
+WeatherAPI is missing or temporarily unavailable.
+
+`GET /weather/current` accepts either `destination=Bali` or `lat=-8.34&lng=115.09`. Existing fields
+remain unchanged, and the backend also returns optional fields for `icon_url`, wind, pressure,
+precipitation, feels-like temperature, UV, visibility, cloud cover, local time, `air_quality`,
+`forecast_days`, and severe weather `warnings`.
+
 ## Environment variables
 
 See [.env.example](.env.example):
@@ -167,7 +186,9 @@ See [.env.example](.env.example):
 | `CORS_ORIGINS` | Comma-separated Expo dev origins |
 | `GOOGLE_MAPS_API_KEY` | Google Places key (maps / POI features) |
 | `HOTEL_API_KEY` | Legacy unused key |
-| `WEATHER_API_KEY` | Weather provider key for future live safety/weather adapters |
+| `WEATHER_PROVIDER` | `mock` \| `weatherapi`; selects WeatherAPI.com when configured |
+| `WEATHER_API_KEY` | WeatherAPI.com key for live weather, forecast, AQI, and alerts |
+| `WEATHERAPI_BASE_URL` | Default `https://api.weatherapi.com/v1` |
 | `TRAVEL_ADVISORY_API_KEY` | Travel advisory provider key for future live adapters |
 | `OPENAI_API_KEY` | LLM provider key for future live chat adapter |
 | `LITEAPI_API_KEY` | LiteAPI / Nuitee Connect API key |
@@ -175,8 +196,8 @@ See [.env.example](.env.example):
 | `LITEAPI_GUEST_NATIONALITY` | ISO country for rate search (default `US`) |
 | `LITEAPI_CURRENCY` | Rate currency (default `USD`) |
 | `HOTEL_PROVIDER` | `mock` \| `liteapi` when mocks are off |
-| `USE_MOCK_PROVIDERS` | `true` → mock hotels; `false` → LiteAPI when keyed |
-| `EXTERNAL_REQUEST_TIMEOUT_SECONDS` | HTTP timeout (default `30` for hotel searches) |
+| `USE_MOCK_PROVIDERS` | `true` enables mock fallback for supported live providers |
+| `EXTERNAL_REQUEST_TIMEOUT_SECONDS` | HTTP timeout (default `30` for external provider calls) |
 
 ## Related docs
 

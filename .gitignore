@@ -6,8 +6,10 @@ frontend/.expo/
 
 # Env / secrets
 .env
+.env.example
 frontend/.env
 backend/.env
+backend/.env.example
 
 # Python
 __pycache__/

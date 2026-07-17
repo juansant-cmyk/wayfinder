@@ -4,8 +4,15 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.travel import AlertDismissal, SafetyAlert
 from app.providers.base import ProviderSafetyAlert, TravelAdvisoryProvider, WeatherProvider
+from app.providers.mock import MockWeatherProvider
+from app.providers.weatherapi import (
+    WeatherApiLocationNotFound,
+    WeatherApiMissingKey,
+    WeatherApiUnavailable,
+)
 
 
 async def safety_alerts(
@@ -18,7 +25,29 @@ async def safety_alerts(
     destination: str,
 ) -> list[SafetyAlert]:
     provider_alerts: list[ProviderSafetyAlert] = []
-    provider_alerts.extend(await weather_provider.alerts(lat, lng, destination))
+    try:
+        provider_alerts.extend(await weather_provider.alerts(lat, lng, destination))
+    except WeatherApiLocationNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Weather location not found",
+        ) from exc
+    except WeatherApiMissingKey as exc:
+        if settings.use_mock_providers:
+            provider_alerts.extend(await MockWeatherProvider().alerts(lat, lng, destination))
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="WEATHER_API_KEY is required for WeatherAPI",
+            ) from exc
+    except WeatherApiUnavailable as exc:
+        if settings.use_mock_providers:
+            provider_alerts.extend(await MockWeatherProvider().alerts(lat, lng, destination))
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Weather provider unavailable",
+            ) from exc
     provider_alerts.extend(await advisory_provider.alerts(destination))
     alerts = [await _upsert_alert(db, alert) for alert in provider_alerts]
     await db.commit()
@@ -65,6 +94,11 @@ async def _upsert_alert(db: AsyncSession, item: ProviderSafetyAlert) -> SafetyAl
         "lng": item.lng,
         "starts_at": item.starts_at,
         "ends_at": item.ends_at,
+        "headline": item.headline,
+        "urgency": item.urgency,
+        "areas": item.areas,
+        "event": item.event,
+        "instruction": item.instruction,
     }
     if alert is None:
         alert = SafetyAlert(

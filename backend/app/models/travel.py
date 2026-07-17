@@ -174,12 +174,29 @@ class SafetyAlert(Base):
     lng: Mapped[float | None] = mapped_column(Float, nullable=True)
     starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    headline: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    urgency: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    areas: Mapped[str | None] = mapped_column(Text, nullable=True)
+    event: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+    @property
+    def effective(self) -> datetime | None:
+        return self.starts_at
+
+    @property
+    def expires(self) -> datetime | None:
+        return self.ends_at
+
+    @property
+    def desc(self) -> str:
+        return self.description
 
 
 class AlertDismissal(Base):

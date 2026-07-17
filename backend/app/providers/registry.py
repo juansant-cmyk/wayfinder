@@ -1,5 +1,6 @@
 from app.core.config import settings
 from app.providers.base import (
+    CurrentWeatherProvider,
     FareProvider,
     HotelProvider,
     LLMProvider,
@@ -16,6 +17,7 @@ from app.providers.mock import (
     MockTravelAdvisoryProvider,
     MockWeatherProvider,
 )
+from app.providers.weatherapi import WeatherApiProvider
 
 
 def get_places_provider() -> PlacesProvider:
@@ -36,6 +38,20 @@ def get_hotel_provider() -> HotelProvider:
 
 
 def get_weather_provider() -> WeatherProvider:
+    choice = (settings.weather_provider or "").strip().lower()
+    if choice == "weatherapi":
+        return WeatherApiProvider()
+    if settings.use_mock_providers:
+        return MockWeatherProvider()
+    return MockWeatherProvider()
+
+
+def get_current_weather_provider() -> CurrentWeatherProvider:
+    choice = (settings.weather_provider or "").strip().lower()
+    if choice == "weatherapi":
+        return WeatherApiProvider()
+    if settings.use_mock_providers:
+        return MockWeatherProvider()
     return MockWeatherProvider()
 
 

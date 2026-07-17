@@ -135,6 +135,14 @@ class SafetyFeedAlertResponse(BaseModel):
     lng: float | None
     starts_at: datetime | None
     ends_at: datetime | None
+    headline: str | None = None
+    urgency: str | None = None
+    areas: str | None = None
+    event: str | None = None
+    effective: datetime | None = None
+    expires: datetime | None = None
+    desc: str | None = None
+    instruction: str | None = None
     created_at: datetime
 
 
