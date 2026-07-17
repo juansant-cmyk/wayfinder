@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Linking,
   Modal,
@@ -18,8 +19,19 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import * as dashboardApi from "../src/api/dashboard";
+import {
+  PLAN_FAVORITE_ITEM_TYPE,
+  PLAN_FAVORITE_PROVIDER,
+  favoriteKeyFromItem,
+  planFavoriteKey,
+  planFavoritePayload,
+} from "../src/api/mappers";
 import { getToken } from "../src/auth/tokenStorage";
 import { formatDateRange, formatNights, mapPlanDetail } from "../src/itinerary/mapPlan";
+import DestinationSuggestField, {
+  INVALID_MESSAGE as INVALID_DESTINATION_MESSAGE,
+} from "../src/itinerary/DestinationSuggestField";
+import TripSwitcherSheet from "../src/itinerary/TripSwitcherSheet";
 import { useUserLocation } from "../src/location/UserLocationContext";
 import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
@@ -351,6 +363,7 @@ function createEmptyTripDraft() {
   return {
     title: "",
     destination: "",
+    selectedDestination: null,
     startDate: "",
     endDate: "",
     hotelName: "",
@@ -362,6 +375,9 @@ function createTripDraftFromTrip(trip) {
   return {
     title: trip?.title || "",
     destination: trip?.destination || "",
+    selectedDestination: trip?.destination
+      ? { label: trip.destination, lat: null, lng: null }
+      : null,
     startDate: trip?.startDate || "",
     endDate: trip?.endDate || "",
     hotelName: trip?.hotelName || "",
@@ -725,6 +741,19 @@ function Field({ label, value, onChangeText, placeholder, keyboardType = "defaul
   );
 }
 
+function TripCoverImage({ uri, fallback, style }) {
+  const [failed, setFailed] = useState(false);
+  const source = uri && !failed ? { uri } : fallback;
+  return (
+    <Image
+      source={source}
+      resizeMode="cover"
+      style={style}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 function StaticField({ label, value }) {
   return (
     <View style={styles.fieldGroup}>
@@ -799,6 +828,15 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
   const [tipsVisible, setTipsVisible] = useState(false);
   const [selectedActivityRef, setSelectedActivityRef] = useState(null);
 
+  const [isPlanFavorited, setIsPlanFavorited] = useState(false);
+  const [isFavoritePending, setIsFavoritePending] = useState(false);
+
+  const [switcherVisible, setSwitcherVisible] = useState(false);
+  const [activePlans, setActivePlans] = useState([]);
+  const [pastPlans, setPastPlans] = useState([]);
+  const [switcherLoading, setSwitcherLoading] = useState(false);
+  const [switcherError, setSwitcherError] = useState("");
+
   const selectedDay = days.find((day) => day.id === selectedDayId) || days[0] || null;
   const selectedActivity = selectedActivityRef
     ? days
@@ -847,7 +885,7 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
 
         let targetId = requestedPlanId || null;
         if (!targetId) {
-          const plans = await dashboardApi.fetchPlans(token);
+          const plans = await dashboardApi.fetchPlans(token, "active");
           if (!plans?.length) {
             setPlanId(null);
             setTrip(null);
@@ -878,6 +916,259 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
   useEffect(() => {
     loadPlan(params.planId);
   }, [params.planId, location?.lat, location?.lng, loadPlan]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFavoriteState(currentPlanId) {
+      if (!currentPlanId || viewMode !== "plan") {
+        setIsPlanFavorited(false);
+        return;
+      }
+      try {
+        const token = await getToken();
+        if (!token) {
+          if (!cancelled) {
+            setIsPlanFavorited(false);
+          }
+          return;
+        }
+        const favorites = await dashboardApi.fetchFavorites(token);
+        const key = planFavoriteKey(currentPlanId);
+        const isSaved = (favorites || []).some(
+          (item) =>
+            item.item_type === PLAN_FAVORITE_ITEM_TYPE && favoriteKeyFromItem(item) === key
+        );
+        if (!cancelled) {
+          setIsPlanFavorited(isSaved);
+        }
+      } catch {
+        // Keep prior heart state if refresh fails.
+      }
+    }
+
+    loadFavoriteState(planId);
+    return () => {
+      cancelled = true;
+    };
+  }, [planId, viewMode]);
+
+  const togglePlanFavorite = async () => {
+    if (viewMode !== "plan" || !planId || !trip) {
+      return;
+    }
+    if (isFavoritePending) {
+      return;
+    }
+
+    const token = await getToken();
+    if (!token) {
+      Alert.alert("Sign in required", "Sign in to save trips to your favorites.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign in", onPress: () => onNavigate?.("login") },
+      ]);
+      return;
+    }
+
+    const wasSaved = isPlanFavorited;
+    setIsFavoritePending(true);
+    setIsPlanFavorited(!wasSaved);
+
+    try {
+      if (wasSaved) {
+        await dashboardApi.removeFavorite(token, {
+          itemType: PLAN_FAVORITE_ITEM_TYPE,
+          provider: PLAN_FAVORITE_PROVIDER,
+          providerItemId: String(planId),
+        });
+        setNotice("Removed from favorites.");
+      } else {
+        await dashboardApi.addFavorite(token, planFavoritePayload(planId, trip));
+        setNotice("Saved to favorites.");
+      }
+    } catch (err) {
+      setIsPlanFavorited(wasSaved);
+      Alert.alert("Couldn't update favorites", err?.message || "Please try again.");
+    } finally {
+      setIsFavoritePending(false);
+    }
+  };
+
+  const refreshPlanLists = useCallback(async () => {
+    setSwitcherLoading(true);
+    setSwitcherError("");
+    try {
+      const token = await getToken();
+      if (!token) {
+        setActivePlans([]);
+        setPastPlans([]);
+        setSwitcherError("Sign in to manage trips.");
+        return;
+      }
+      const [active, past] = await Promise.all([
+        dashboardApi.fetchPlans(token, "active"),
+        dashboardApi.fetchPlans(token, "completed"),
+      ]);
+      setActivePlans(active || []);
+      setPastPlans(past || []);
+    } catch (error) {
+      setSwitcherError(error instanceof Error ? error.message : "Couldn't load trips.");
+    } finally {
+      setSwitcherLoading(false);
+    }
+  }, []);
+
+  const hasDirtyDrafts = () =>
+    isCreateTripVisible || editTripVisible || addActivityVisible;
+
+  const confirmDiscardThen = (action) => {
+    if (!hasDirtyDrafts()) {
+      action();
+      return;
+    }
+    Alert.alert("Discard changes?", "You have unsaved edits. Discard them and continue?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Discard",
+        style: "destructive",
+        onPress: () => {
+          setIsCreateTripVisible(false);
+          setEditTripVisible(false);
+          setAddActivityVisible(false);
+          setCreateDraftError("");
+          setTripDraftError("");
+          setActivityDraftError("");
+          action();
+        },
+      },
+    ]);
+  };
+
+  const openTripSwitcher = () => {
+    if (viewMode === "demo") {
+      Alert.alert("Demo mode", "Create a real trip to use the trip switcher.");
+      return;
+    }
+    confirmDiscardThen(() => {
+      setSwitcherVisible(true);
+      refreshPlanLists();
+    });
+  };
+
+  const closeTripSwitcher = () => setSwitcherVisible(false);
+
+  const showEmptyActiveState = () => {
+    setPlanId(null);
+    setTrip(null);
+    setDays([]);
+    setSelectedDayId(null);
+    setViewMode("empty");
+    setIsPlanFavorited(false);
+  };
+
+  const loadPlanById = async (nextPlanId) => {
+    const token = await getToken();
+    if (!token) {
+      setLoadError("Sign in to load or create a trip.");
+      showEmptyActiveState();
+      return;
+    }
+    const plan = await dashboardApi.fetchPlan(token, nextPlanId);
+    applyMappedPlan(plan, location);
+  };
+
+  const handleSelectPlan = (plan) => {
+    confirmDiscardThen(async () => {
+      try {
+        closeTripSwitcher();
+        if (String(plan.id) === String(planId) && viewMode === "plan") {
+          return;
+        }
+        await loadPlanById(plan.id);
+      } catch (error) {
+        Alert.alert("Couldn't open trip", error instanceof Error ? error.message : "Try again.");
+      }
+    });
+  };
+
+  const handleCreateFromSwitcher = () => {
+    confirmDiscardThen(() => {
+      closeTripSwitcher();
+      openCreateTrip();
+    });
+  };
+
+  const handleCompletePlan = async (plan) => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        return;
+      }
+      await dashboardApi.completePlan(token, plan.id);
+      await refreshPlanLists();
+      const wasCurrent = String(plan.id) === String(planId);
+      if (wasCurrent) {
+        const remaining = (await dashboardApi.fetchPlans(token, "active")) || [];
+        setActivePlans(remaining);
+        if (remaining.length > 0) {
+          await loadPlanById(remaining[0].id);
+          setNotice("Trip marked complete.");
+        } else {
+          showEmptyActiveState();
+          setNotice("Trip marked complete. Create a new trip when you're ready.");
+        }
+      } else {
+        setNotice("Trip marked complete.");
+      }
+    } catch (error) {
+      Alert.alert("Couldn't complete trip", error instanceof Error ? error.message : "Try again.");
+    }
+  };
+
+  const handleReopenPlan = async (plan) => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        return;
+      }
+      const updated = await dashboardApi.reopenPlan(token, plan.id);
+      await refreshPlanLists();
+      await loadPlanById(updated.id);
+      closeTripSwitcher();
+      setNotice("Trip reopened.");
+    } catch (error) {
+      Alert.alert("Couldn't reopen trip", error instanceof Error ? error.message : "Try again.");
+    }
+  };
+
+  const handleDeletePlan = async (plan) => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        return;
+      }
+      const wasCurrent = String(plan.id) === String(planId);
+      await dashboardApi.deletePlan(token, plan.id);
+      if (wasCurrent && isPlanFavorited) {
+        setIsPlanFavorited(false);
+      }
+      await refreshPlanLists();
+      if (wasCurrent) {
+        const remaining = (await dashboardApi.fetchPlans(token, "active")) || [];
+        setActivePlans(remaining);
+        if (remaining.length > 0) {
+          await loadPlanById(remaining[0].id);
+        } else {
+          showEmptyActiveState();
+        }
+        setNotice("Trip deleted.");
+      } else {
+        setNotice("Trip deleted.");
+      }
+    } catch (error) {
+      Alert.alert("Couldn't delete trip", error instanceof Error ? error.message : "Try again.");
+    }
+  };
 
   useEffect(() => {
     if (!notice) {
@@ -917,6 +1208,14 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
       return;
     }
 
+    if (
+      !createDraft.selectedDestination ||
+      createDraft.selectedDestination.label.trim().toLowerCase() !== destination.toLowerCase()
+    ) {
+      setCreateDraftError(INVALID_DESTINATION_MESSAGE);
+      return;
+    }
+
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
       setCreateDraftError("Use YYYY-MM-DD for start and end dates.");
       return;
@@ -934,10 +1233,14 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
 
       const body = {
         title,
-        destination_name: destination,
+        destination_name: createDraft.selectedDestination.label || destination,
         start_date: startDate,
         end_date: endDate,
       };
+      if (createDraft.selectedDestination.lat != null && createDraft.selectedDestination.lng != null) {
+        body.center_lat = createDraft.selectedDestination.lat;
+        body.center_lng = createDraft.selectedDestination.lng;
+      }
       if (hotelName) {
         body.hotel_name = hotelName;
       }
@@ -976,6 +1279,14 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
 
     if (!title || !destination || !startDate || !endDate) {
       setTripDraftError("Title, destination, start date, and end date are required.");
+      return;
+    }
+
+    if (
+      !tripDraft.selectedDestination ||
+      tripDraft.selectedDestination.label.trim().toLowerCase() !== destination.toLowerCase()
+    ) {
+      setTripDraftError(INVALID_DESTINATION_MESSAGE);
       return;
     }
 
@@ -1018,17 +1329,32 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
 
       const body = {
         title,
-        destination_name: destination,
+        destination_name: tripDraft.selectedDestination.label || destination,
         start_date: startDate,
         end_date: endDate,
         hotel_name: hotelName || null,
       };
+      if (tripDraft.selectedDestination.lat != null && tripDraft.selectedDestination.lng != null) {
+        body.center_lat = tripDraft.selectedDestination.lat;
+        body.center_lng = tripDraft.selectedDestination.lng;
+      }
       if (hotelProviderId) {
         body.hotel_provider_id = hotelProviderId;
       }
 
       const plan = await dashboardApi.updatePlan(token, planId, body);
       applyMappedPlan(plan, location);
+      if (isPlanFavorited) {
+        const mapped = mapPlanDetail(plan, location);
+        try {
+          await dashboardApi.addFavorite(
+            token,
+            planFavoritePayload(planId, mapped.trip)
+          );
+        } catch {
+          // Favorites list still hydrates from the live plan on refresh.
+        }
+      }
       setEditTripVisible(false);
       setNotice("Trip details updated.");
     } catch (error) {
@@ -1275,20 +1601,64 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
                   </View>
                 ) : null}
 
+                {viewMode === "plan" && trip.status === "completed" ? (
+                  <View style={styles.completedBanner}>
+                    <Ionicons name="checkmark-circle" size={18} color="#8A5A00" />
+                    <Text style={styles.completedBannerText}>Completed</Text>
+                  </View>
+                ) : null}
+
                 <View style={[styles.tripCard, cardShadowStyle, isPhone && styles.tripCardPhone]}>
-                  <Image
-                    source={tripPreviewImage}
-                    resizeMode="cover"
+                  <TripCoverImage
+                    uri={trip.coverImageUrl}
+                    fallback={tripPreviewImage}
                     style={[styles.tripImage, isPhone && styles.tripImagePhone]}
                   />
 
                   <View style={[styles.tripCardBody, isPhone && styles.tripCardBodyPhone]}>
                     <View style={styles.tripDetailsColumn}>
                       <View style={styles.tripTitleRow}>
-                        <Text numberOfLines={2} style={[styles.tripTitle, isPhone && styles.tripTitlePhone]}>
-                          {trip.title}
-                        </Text>
+                        {viewMode === "plan" ? (
+                          <DimPressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Switch trips, current ${trip.title}`}
+                            onPress={openTripSwitcher}
+                            style={styles.tripTitleButton}
+                          >
+                            <Text
+                              numberOfLines={2}
+                              style={[styles.tripTitle, isPhone && styles.tripTitlePhone]}
+                            >
+                              {trip.title}
+                            </Text>
+                            <Ionicons name="chevron-down" size={18} color="#14253E" />
+                          </DimPressable>
+                        ) : (
+                          <Text numberOfLines={2} style={[styles.tripTitle, isPhone && styles.tripTitlePhone]}>
+                            {trip.title}
+                          </Text>
+                        )}
                         <Ionicons name="sparkles" size={18} color="#F5A623" />
+                        {viewMode === "plan" ? (
+                          <DimPressable
+                            accessibilityRole="button"
+                            accessibilityLabel={
+                              isPlanFavorited
+                                ? `Remove ${trip.title} from favorites`
+                                : `Save ${trip.title} to favorites`
+                            }
+                            accessibilityState={{ disabled: isFavoritePending }}
+                            disabled={isFavoritePending}
+                            onPress={togglePlanFavorite}
+                            style={styles.tripFavoriteButton}
+                          >
+                            <Ionicons
+                              name={isPlanFavorited ? "heart" : "heart-outline"}
+                              size={22}
+                              color={isPlanFavorited ? "#FF5A4E" : "#14253E"}
+                            />
+                          </DimPressable>
+                        ) : null}
                       </View>
 
                       <View style={styles.tripMetaRow}>
@@ -1315,14 +1685,27 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
                       ) : null}
                     </View>
 
-                    <PillButton
-                      label="Edit Trip"
-                      iconName="pencil-outline"
-                      onPress={openTripEditor}
-                      outlined
-                      compact={isPhone}
-                      style={[styles.editTripButton, isPhone && styles.editTripButtonPhone]}
-                    />
+                    <View style={[styles.tripCardActions, isPhone && styles.tripCardActionsPhone]}>
+                      {viewMode === "plan" ? (
+                        <PillButton
+                          label="My trips"
+                          iconName="list-outline"
+                          onPress={openTripSwitcher}
+                          outlined
+                          compact={isPhone}
+                          accessibilityLabel="Open trip switcher"
+                          style={[styles.editTripButton, isPhone && styles.editTripButtonPhone]}
+                        />
+                      ) : null}
+                      <PillButton
+                        label="Edit Trip"
+                        iconName="pencil-outline"
+                        onPress={openTripEditor}
+                        outlined
+                        compact={isPhone}
+                        style={[styles.editTripButton, isPhone && styles.editTripButtonPhone]}
+                      />
+                    </View>
                   </View>
                 </View>
 
@@ -1435,11 +1818,25 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
           onChangeText={(value) => setCreateDraft((current) => ({ ...current, title: value }))}
           placeholder="Los Angeles Trip"
         />
-        <Field
+        <DestinationSuggestField
           label="Destination"
           value={createDraft.destination}
-          onChangeText={(value) => setCreateDraft((current) => ({ ...current, destination: value }))}
-          placeholder="Los Angeles, California"
+          selectedLabel={createDraft.selectedDestination?.label || null}
+          onChangeText={(value) =>
+            setCreateDraft((current) => ({
+              ...current,
+              destination: value,
+              selectedDestination: null,
+            }))
+          }
+          onSelectSuggestion={(suggestion) =>
+            setCreateDraft((current) => ({
+              ...current,
+              destination: suggestion?.label || current.destination,
+              selectedDestination: suggestion,
+            }))
+          }
+          placeholder="Start typing a city or country"
         />
         <Field
           label="Start Date (YYYY-MM-DD)"
@@ -1495,11 +1892,25 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
           onChangeText={(value) => setTripDraft((current) => ({ ...current, title: value }))}
           placeholder="Los Angeles Trip"
         />
-        <Field
+        <DestinationSuggestField
           label="Destination"
           value={tripDraft.destination}
-          onChangeText={(value) => setTripDraft((current) => ({ ...current, destination: value }))}
-          placeholder="Los Angeles, California"
+          selectedLabel={tripDraft.selectedDestination?.label || null}
+          onChangeText={(value) =>
+            setTripDraft((current) => ({
+              ...current,
+              destination: value,
+              selectedDestination: null,
+            }))
+          }
+          onSelectSuggestion={(suggestion) =>
+            setTripDraft((current) => ({
+              ...current,
+              destination: suggestion?.label || current.destination,
+              selectedDestination: suggestion,
+            }))
+          }
+          placeholder="Start typing a city or country"
         />
         <Field
           label="Start Date (YYYY-MM-DD)"
@@ -1658,6 +2069,22 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
           </View>
         ))}
       </ModalShell>
+
+      <TripSwitcherSheet
+        visible={switcherVisible}
+        currentPlanId={planId}
+        activePlans={activePlans}
+        pastPlans={pastPlans}
+        loading={switcherLoading}
+        error={switcherError}
+        onClose={closeTripSwitcher}
+        onCreateTrip={handleCreateFromSwitcher}
+        onSelectPlan={handleSelectPlan}
+        onCompletePlan={handleCompletePlan}
+        onReopenPlan={handleReopenPlan}
+        onDeletePlan={handleDeletePlan}
+        onRetry={refreshPlanLists}
+      />
     </SafeAreaView>
   );
 }
@@ -1830,6 +2257,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#1849A9",
+  },
+
+  completedBanner: {
+    marginBottom: 16,
+    alignSelf: "stretch",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    backgroundColor: "#FFF6E0",
+    borderWidth: 1,
+    borderColor: "#F0D79A",
+  },
+
+  completedBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#8A5A00",
   },
 
   loadingBlock: {
@@ -2017,6 +2465,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 
+  tripTitleButton: {
+    flexShrink: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: "72%",
+  },
+
+  tripFavoriteButton: {
+    marginLeft: "auto",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   tripTitle: {
     flexShrink: 1,
     fontSize: 22,
@@ -2068,6 +2533,20 @@ const styles = StyleSheet.create({
 
   editTripButtonPhone: {
     alignSelf: "flex-start",
+  },
+
+  tripCardActions: {
+    alignSelf: "center",
+    flexShrink: 0,
+    alignItems: "stretch",
+    gap: 10,
+  },
+
+  tripCardActionsPhone: {
+    alignSelf: "stretch",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
   },
 
   selectorRow: {
@@ -2801,8 +3280,8 @@ const styles = StyleSheet.create({
   formErrorText: {
     marginBottom: 2,
     fontSize: 14,
-    fontWeight: "600",
-    color: "#C2410C",
+    fontWeight: "700",
+    color: "#E11D48",
   },
 
   detailsModalCard: {

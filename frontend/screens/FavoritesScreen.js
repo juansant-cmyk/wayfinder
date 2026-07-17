@@ -1,10 +1,14 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
+  Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +17,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import * as dashboardApi from "../src/api/dashboard";
+import {
+  PLAN_FAVORITE_ITEM_TYPE,
+  PLAN_FAVORITE_PROVIDER,
+  mapPlanFavoriteToCard,
+} from "../src/api/mappers";
+import { getToken } from "../src/auth/tokenStorage";
 import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
@@ -21,10 +32,16 @@ const heroArtworkImage = require("../assets/images/favorites/favorites-hero-art.
 const sunsetInnImage = require("../assets/images/favorites/favorites-hotel-sunset-inn-clean.png");
 const cityViewImage = require("../assets/images/favorites/favorites-hotel-city-view-clean.png");
 const losAngelesTripImage = require("../assets/images/favorites/favorites-itinerary-los-angeles.png");
-const japanTripImage = require("../assets/images/favorites/favorites-itinerary-japan.png");
 const tokyoTowerImage = require("../assets/images/favorites/favorites-place-tokyo-tower.png");
 const shibuyaCrossingImage = require("../assets/images/favorites/favorites-place-shibuya-crossing.png");
 
+/** Preview caps per Favorites section — raise later without rewriting UI. */
+const SECTION_PREVIEW_LIMITS = {
+  itineraries: 3,
+};
+
+/** Fraction of screen height for the "View all" sheet (scalable). */
+const VIEW_ALL_SHEET_HEIGHT_RATIO = 0.75;
 const COLORS = {
   background: "#EAF2FC",
   card: "#FFFFFF",
@@ -138,37 +155,6 @@ const SAVED_FLIGHTS = [
     stopInfo: "1 stop | ICN",
     stopColor: COLORS.subtext,
     price: 612,
-  },
-];
-
-const SAVED_ITINERARIES = [
-  {
-    id: "la-trip",
-    title: "Los Angeles Trip",
-    accentIconName: "sparkles",
-    accentIconFamily: "ion",
-    accentIconColor: "#F59E0B",
-    month: "JUL",
-    day: "12",
-    year: "2025",
-    dates: "Jul 12 - Jul 15, 2025",
-    nights: "3 Nights",
-    tags: ["Flights", "Hotels", "Itinerary"],
-    image: losAngelesTripImage,
-  },
-  {
-    id: "japan-adventure",
-    title: "Japan Adventure",
-    accentIconName: "flower-tulip-outline",
-    accentIconFamily: "material",
-    accentIconColor: "#E1457D",
-    month: "SEP",
-    day: "20",
-    year: "2025",
-    dates: "Sep 20 - Sep 30, 2025",
-    nights: "10 Nights",
-    tags: ["Flights", "Hotels", "Itinerary"],
-    image: japanTripImage,
   },
 ];
 
@@ -321,7 +307,7 @@ function FavoriteTabs({ activeTab, onSelect, compact = false, tight = false }) {
   );
 }
 
-function SectionHeader({ title, iconName, iconFamily = "ion", onViewAll }) {
+function SectionHeader({ title, iconName, iconFamily = "ion", onViewAll, showViewAll = true }) {
   return (
     <View style={styles.sectionHeaderRow}>
       <View style={styles.sectionHeaderCopy}>
@@ -331,14 +317,65 @@ function SectionHeader({ title, iconName, iconFamily = "ion", onViewAll }) {
         <Text style={styles.sectionTitle}>{title}</Text>
       </View>
 
-      <Pressable accessibilityRole="button" onPress={onViewAll} style={styles.sectionLinkButton}>
-        <Text style={styles.sectionLinkText}>View all</Text>
-        <Ionicons name="chevron-forward" size={18} color={COLORS.blue} />
-      </Pressable>
+      {showViewAll ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`View all ${title}`}
+          onPress={onViewAll}
+          style={styles.sectionLinkButton}
+        >
+          <Text style={styles.sectionLinkText}>View all</Text>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.blue} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
 
+function FavoritesViewAllSheet({
+  visible,
+  title,
+  heightRatio = VIEW_ALL_SHEET_HEIGHT_RATIO,
+  onClose,
+  children,
+}) {
+  const { height } = useWindowDimensions();
+  const sheetHeight = Math.round(height * heightRatio);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.viewAllOverlay}>
+        <Pressable
+          style={styles.viewAllBackdrop}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close view all sheet"
+        />
+        <View style={[styles.viewAllSheet, { height: sheetHeight }]}>
+          <View style={styles.viewAllHandle} />
+          <View style={styles.viewAllHeader}>
+            <Text style={styles.viewAllTitle}>{title}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              onPress={onClose}
+              hitSlop={8}
+            >
+              <Ionicons name="close" size={24} color={COLORS.text} />
+            </Pressable>
+          </View>
+          <ScrollView
+            style={styles.viewAllScroll}
+            contentContainerStyle={styles.viewAllScrollContent}
+            showsVerticalScrollIndicator
+          >
+            {children}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 function HotelFavoriteCard({
   hotel,
   isSaved,
@@ -657,8 +694,20 @@ function ItineraryFavoriteCard({
               {accentIcon}
             </View>
 
-            <Text numberOfLines={2} style={[styles.itineraryMeta, styles.itineraryMetaCompact]}>
-              {itinerary.dates} <Text style={styles.itineraryMetaDivider}>•</Text> {itinerary.nights}
+            <Text numberOfLines={3} style={[styles.itineraryMeta, styles.itineraryMetaCompact]}>
+              {itinerary.destination ? (
+                <>
+                  {itinerary.destination}
+                  {"\n"}
+                </>
+              ) : null}
+              {itinerary.dates}
+              {itinerary.nights ? (
+                <>
+                  {" "}
+                  <Text style={styles.itineraryMetaDivider}>•</Text> {itinerary.nights}
+                </>
+              ) : null}
             </Text>
           </View>
 
@@ -700,7 +749,19 @@ function ItineraryFavoriteCard({
           </View>
 
           <Text style={styles.itineraryMeta}>
-            {itinerary.dates} <Text style={styles.itineraryMetaDivider}>•</Text> {itinerary.nights}
+            {itinerary.destination ? (
+              <>
+                {itinerary.destination}
+                {"\n"}
+              </>
+            ) : null}
+            {itinerary.dates}
+            {itinerary.nights ? (
+              <>
+                {" "}
+                <Text style={styles.itineraryMetaDivider}>•</Text> {itinerary.nights}
+              </>
+            ) : null}
           </Text>
         </View>
 
@@ -765,10 +826,55 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
   const [activeTab, setActiveTab] = useState("hotels");
   const [savedHotelIds, setSavedHotelIds] = useState(SAVED_HOTELS.map((hotel) => hotel.id));
   const [savedFlightIds, setSavedFlightIds] = useState(SAVED_FLIGHTS.map((flight) => flight.id));
-  const [savedItineraryIds, setSavedItineraryIds] = useState(
-    SAVED_ITINERARIES.map((itinerary) => itinerary.id)
-  );
+  const [savedItineraries, setSavedItineraries] = useState([]);
+  const [itinerariesLoading, setItinerariesLoading] = useState(true);
+  const [itinerariesError, setItinerariesError] = useState("");
+  const [pendingItineraryIds, setPendingItineraryIds] = useState([]);
+  const [itinerariesSheetVisible, setItinerariesSheetVisible] = useState(false);
   const [savedPlaceIds, setSavedPlaceIds] = useState(SAVED_PLACES.map((place) => place.id));
+  const [refreshing, setRefreshing] = useState(false);
+
+  const itineraryPreviewLimit = SECTION_PREVIEW_LIMITS.itineraries ?? 3;
+  const previewItineraries = savedItineraries.slice(0, itineraryPreviewLimit);
+  const hasMoreItineraries = savedItineraries.length > itineraryPreviewLimit;
+  const loadSavedItineraries = useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) {
+      setItinerariesLoading(true);
+    }
+    setItinerariesError("");
+    try {
+      const token = await getToken();
+      if (!token) {
+        setSavedItineraries([]);
+        setItinerariesError("Sign in to see saved itineraries.");
+        return;
+      }
+      const favorites = await dashboardApi.fetchFavorites(token);
+      const plans = (favorites || [])
+        .filter((item) => item.item_type === PLAN_FAVORITE_ITEM_TYPE)
+        .map((item) => mapPlanFavoriteToCard(item, losAngelesTripImage));
+      setSavedItineraries(plans);
+    } catch (err) {
+      setItinerariesError(err?.message || "Couldn't load saved itineraries.");
+    } finally {
+      if (!quiet) {
+        setItinerariesLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSavedItineraries();
+  }, [loadSavedItineraries]);
+
+  const onRefreshFavorites = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadSavedItineraries({ quiet: true });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadSavedItineraries]);
 
   const toggleSaved = (setter, itemId) => {
     setter((currentIds) =>
@@ -776,6 +882,39 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
         ? currentIds.filter((currentId) => currentId !== itemId)
         : [...currentIds, itemId]
     );
+  };
+
+  const toggleItineraryFavorite = async (itinerary) => {
+    if (pendingItineraryIds.includes(itinerary.id)) {
+      return;
+    }
+
+    const token = await getToken();
+    if (!token) {
+      Alert.alert("Sign in required", "Sign in to manage saved itineraries.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign in", onPress: () => onNavigate?.("login") },
+      ]);
+      return;
+    }
+
+    setPendingItineraryIds((current) => [...current, itinerary.id]);
+    setSavedItineraries((current) => current.filter((item) => item.id !== itinerary.id));
+
+    try {
+      await dashboardApi.removeFavorite(token, {
+        itemType: PLAN_FAVORITE_ITEM_TYPE,
+        provider: PLAN_FAVORITE_PROVIDER,
+        providerItemId: String(itinerary.id),
+      });
+    } catch (err) {
+      setSavedItineraries((current) =>
+        current.some((item) => item.id === itinerary.id) ? current : [...current, itinerary]
+      );
+      Alert.alert("Couldn't update favorites", err?.message || "Please try again.");
+    } finally {
+      setPendingItineraryIds((current) => current.filter((id) => id !== itinerary.id));
+    }
   };
 
   const setSectionOffset = (sectionKey, event) => {
@@ -793,10 +932,19 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
   };
 
   const handleViewAll = (sectionKey) => {
+    if (sectionKey === "itineraries") {
+      setActiveTab("itineraries");
+      setItinerariesSheetVisible(true);
+      return;
+    }
     setActiveTab(sectionKey);
     scrollToSection(sectionKey);
   };
 
+  const openItineraryFromFavorites = (itinerary) => {
+    setItinerariesSheetVisible(false);
+    onNavigate?.("itinerary", { planId: itinerary.planId });
+  };
   const handleGoBack = () => {
     if (onGoBack) {
       onGoBack();
@@ -824,6 +972,9 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
             { paddingBottom: BOTTOM_NAV_CONTENT_PADDING + 20 },
           ]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefreshFavorites} />
+          }
         >
           <View style={[styles.pageInner, { maxWidth: pageMaxWidth }]}>
             <View style={styles.pageGlowTop} />
@@ -940,18 +1091,72 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
                 title="Saved Itineraries"
                 iconName="calendar-outline"
                 onViewAll={() => handleViewAll("itineraries")}
+                showViewAll={
+                  !itinerariesLoading && !itinerariesError && savedItineraries.length > 0
+                }
               />
               <View style={styles.sectionStack}>
-                {SAVED_ITINERARIES.map((itinerary) => (
-                  <ItineraryFavoriteCard
-                    key={itinerary.id}
-                    itinerary={itinerary}
-                    isSaved={savedItineraryIds.includes(itinerary.id)}
-                    compact={shouldCompactItineraryCards}
-                    onPress={() => onNavigate?.("itinerary")}
-                    onToggleSaved={() => toggleSaved(setSavedItineraryIds, itinerary.id)}
-                  />
-                ))}
+                {itinerariesLoading ? (
+                  <View style={styles.itinerariesStatusBlock}>
+                    <ActivityIndicator size="small" color={COLORS.blue} />
+                    <Text style={styles.itinerariesStatusText}>Loading saved trips…</Text>
+                  </View>
+                ) : null}
+
+                {!itinerariesLoading && itinerariesError ? (
+                  <View style={styles.itinerariesStatusBlock}>
+                    <Text style={styles.itinerariesStatusText}>{itinerariesError}</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Retry loading itineraries"
+                      onPress={loadSavedItineraries}
+                    >
+                      <Text style={styles.itinerariesRetryText}>Retry</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+
+                {!itinerariesLoading && !itinerariesError && savedItineraries.length === 0 ? (
+                  <View style={styles.itinerariesStatusBlock}>
+                    <Text style={styles.itinerariesStatusText}>
+                      Heart a trip on Itinerary to save it here.
+                    </Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Open itinerary"
+                      onPress={() => onNavigate?.("itinerary")}
+                    >
+                      <Text style={styles.itinerariesRetryText}>Open Itinerary</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+
+                {!itinerariesLoading &&
+                  !itinerariesError &&
+                  previewItineraries.map((itinerary) => (
+                    <ItineraryFavoriteCard
+                      key={itinerary.id}
+                      itinerary={itinerary}
+                      isSaved
+                      compact={shouldCompactItineraryCards}
+                      onPress={() => openItineraryFromFavorites(itinerary)}
+                      onToggleSaved={() => toggleItineraryFavorite(itinerary)}
+                    />
+                  ))}
+
+                {!itinerariesLoading && !itinerariesError && hasMoreItineraries ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="View all saved itineraries"
+                    onPress={() => handleViewAll("itineraries")}
+                    style={styles.viewAllInlineButton}
+                  >
+                    <Text style={styles.viewAllInlineText}>
+                      View all {savedItineraries.length} itineraries
+                    </Text>
+                    <Ionicons name="chevron-forward" size={16} color={COLORS.blue} />
+                  </Pressable>
+                ) : null}
               </View>
             </View>
 
@@ -976,6 +1181,28 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
             </View>
           </View>
         </ScrollView>
+
+        <FavoritesViewAllSheet
+          visible={itinerariesSheetVisible}
+          title={`Saved Itineraries (${savedItineraries.length})`}
+          heightRatio={VIEW_ALL_SHEET_HEIGHT_RATIO}
+          onClose={() => setItinerariesSheetVisible(false)}
+        >
+          {savedItineraries.length === 0 ? (
+            <Text style={styles.itinerariesStatusText}>No saved itineraries yet.</Text>
+          ) : (
+            savedItineraries.map((itinerary) => (
+              <ItineraryFavoriteCard
+                key={`sheet-${itinerary.id}`}
+                itinerary={itinerary}
+                isSaved
+                compact
+                onPress={() => openItineraryFromFavorites(itinerary)}
+                onToggleSaved={() => toggleItineraryFavorite(itinerary)}
+              />
+            ))
+          )}
+        </FavoritesViewAllSheet>
 
         <BottomNav activeLabel="Favorites" onNavigate={onNavigate} />
       </View>
@@ -1293,6 +1520,94 @@ const styles = StyleSheet.create({
 
   sectionStack: {
     gap: 16,
+  },
+
+  itinerariesStatusBlock: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    paddingVertical: 22,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    gap: 10,
+  },
+
+  itinerariesStatusText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: COLORS.subtext,
+    textAlign: "center",
+    fontWeight: "500",
+  },
+
+  itinerariesRetryText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.blue,
+  },
+
+  viewAllInlineButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+  },
+
+  viewAllInlineText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.blue,
+  },
+
+  viewAllOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(16, 33, 59, 0.35)",
+  },
+
+  viewAllBackdrop: {
+    flex: 1,
+  },
+
+  viewAllSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 18,
+  },
+
+  viewAllHandle: {
+    alignSelf: "center",
+    width: 42,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#D5DEEC",
+    marginBottom: 12,
+  },
+
+  viewAllHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+
+  viewAllTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: COLORS.text,
+    letterSpacing: -0.3,
+  },
+
+  viewAllScroll: {
+    flex: 1,
+  },
+
+  viewAllScrollContent: {
+    gap: 14,
+    paddingBottom: 24,
   },
 
   cardHovered: {

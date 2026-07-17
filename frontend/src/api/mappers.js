@@ -91,11 +91,65 @@ export function hotelFavoriteKey(provider, providerHotelId) {
   return `${provider}::${providerHotelId}`;
 }
 
+export const PLAN_FAVORITE_PROVIDER = "wayfinder";
+export const PLAN_FAVORITE_ITEM_TYPE = "plan";
+
+export function planFavoriteKey(planId) {
+  if (!planId) {
+    return null;
+  }
+  return hotelFavoriteKey(PLAN_FAVORITE_PROVIDER, String(planId));
+}
+
 export function favoriteKeyFromItem(item) {
   if (!item?.provider || !item?.provider_item_id) {
     return null;
   }
   return hotelFavoriteKey(item.provider, item.provider_item_id);
+}
+
+/** Build POST /favorites body for a saved travel plan. */
+export function planFavoritePayload(planId, trip) {
+  const dates = trip?.dates || "";
+  const nights = trip?.nights || "";
+  const subtitle = [dates, nights].filter(Boolean).join(" • ") || null;
+  return {
+    item_type: PLAN_FAVORITE_ITEM_TYPE,
+    provider: PLAN_FAVORITE_PROVIDER,
+    provider_item_id: String(planId),
+    entity_id: planId,
+    snapshot: {
+      name: trip?.title || "Trip",
+      subtitle,
+      address: trip?.destination || null,
+      image_url: trip?.coverImageUrl || null,
+    },
+  };
+}
+
+/** Map a plan favorite API item into FavoritesScreen card props. */
+export function mapPlanFavoriteToCard(item, fallbackImage) {
+  const subtitle = item?.subtitle || "";
+  const [datesPart, nightsPart] = subtitle.split(" • ").map((part) => part.trim());
+  const dates = datesPart || subtitle;
+  const monthMatch = dates.match(/^([A-Za-z]{3})\s+(\d{1,2})/);
+  const yearMatch = dates.match(/(\d{4})/);
+  return {
+    id: item.provider_item_id,
+    planId: String(item.entity_id || item.provider_item_id),
+    title: item.title || "Trip",
+    accentIconName: "sparkles",
+    accentIconFamily: "ion",
+    accentIconColor: "#F59E0B",
+    month: monthMatch?.[1]?.toUpperCase() || "—",
+    day: monthMatch?.[2] || "—",
+    year: yearMatch?.[1] || "",
+    dates: dates || "Dates TBD",
+    nights: nightsPart || "",
+    tags: ["Itinerary"],
+    image: item.image_url ? { uri: item.image_url } : fallbackImage,
+    destination: item.address || "",
+  };
 }
 
 export function sortKeyToApi(sortKey) {

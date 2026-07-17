@@ -155,6 +155,9 @@ export function mapPlanToTrip(plan) {
     hotelProviderId: plan.hotel_provider_id || "",
     nightsCount: plan.nights,
     dayCount: plan.day_count,
+    status: plan.status || "active",
+    completedAt: plan.completed_at || null,
+    coverImageUrl: plan.cover_image_url || null,
   };
 }
 
