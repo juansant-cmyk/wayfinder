@@ -1,6 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -14,6 +14,11 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+import * as dashboardApi from "../src/api/dashboard";
+import { mapWeatherForScreen } from "../src/api/mappers";
+import { getToken } from "../src/auth/tokenStorage";
+import { reverseGeocodeLabel, suggestGeocodeQuery } from "../src/location/geo";
+import { useUserLocation } from "../src/location/UserLocationContext";
 import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
@@ -46,196 +51,24 @@ const LOCATION_OPTIONS = [
   { id: "lisbon", label: "Lisbon, Portugal" },
 ];
 
-const HOURLY_FORECAST = [
-  { id: "now", label: "Now", condition: "Sunny", temperature: "23°", wind: "8 km/h" },
-  { id: "10am", label: "10 AM", condition: "Sunny", temperature: "24°", wind: "9 km/h" },
-  { id: "11am", label: "11 AM", condition: "Sunny", temperature: "25°", wind: "10 km/h" },
-  { id: "12pm", label: "12 PM", condition: "Partly Cloudy", temperature: "26°", wind: "11 km/h" },
-  { id: "1pm", label: "1 PM", condition: "Partly Cloudy", temperature: "27°", wind: "11 km/h" },
-  { id: "2pm", label: "2 PM", condition: "Partly Cloudy", temperature: "27°", wind: "12 km/h" },
-  { id: "3pm", label: "3 PM", condition: "Partly Cloudy", temperature: "26°", wind: "12 km/h" },
-  { id: "4pm", label: "4 PM", condition: "Sunny", temperature: "25°", wind: "11 km/h" },
-];
+const FALLBACK_LOCATION = LOCATION_OPTIONS[0];
 
-const DAILY_FORECAST = [
-  {
-    id: "sat",
-    day: "Saturday",
-    condition: "Sunny",
-    low: "18°",
-    high: "27°",
-    precipitation: "10%",
-    detail: "Bright skies through the afternoon with light breezes and comfortable evening temperatures.",
+const EMPTY_WEATHER = {
+  destination: FALLBACK_LOCATION.label,
+  forecastSummary: "",
+  current: {
+    temperature: "—",
+    unit: "°C",
+    condition: "Loading…",
+    feelsLike: "Feels like —",
+    timestamp: "",
+    iconUrl: null,
+    details: [],
   },
-  {
-    id: "sun",
-    day: "Sunday",
-    condition: "Partly Cloudy",
-    low: "18°",
-    high: "26°",
-    precipitation: "20%",
-    detail: "A few passing clouds later in the day, but most sightseeing windows stay dry and pleasant.",
-  },
-  {
-    id: "mon",
-    day: "Monday",
-    condition: "Showers",
-    low: "17°",
-    high: "21°",
-    precipitation: "60%",
-    detail: "Showers become more likely around midday, so plan indoor stops or an umbrella for transit.",
-  },
-  {
-    id: "tue",
-    day: "Tuesday",
-    condition: "Cloudy",
-    low: "16°",
-    high: "20°",
-    precipitation: "30%",
-    detail: "Cloud cover sticks around most of the day with cooler air and a small chance of light rain.",
-  },
-  {
-    id: "wed",
-    day: "Wednesday",
-    condition: "Partly Cloudy",
-    low: "15°",
-    high: "22°",
-    precipitation: "20%",
-    detail: "A calmer split between clouds and sunshine makes this one of the easier sightseeing days.",
-  },
-  {
-    id: "thu",
-    day: "Thursday",
-    condition: "Sunny",
-    low: "16°",
-    high: "24°",
-    precipitation: "10%",
-    detail: "Clearer skies return with warmer afternoon temperatures and very low rain risk.",
-  },
-  {
-    id: "fri",
-    day: "Friday",
-    condition: "Mostly Sunny",
-    low: "17°",
-    high: "25°",
-    precipitation: "10%",
-    detail: "A bright finish to the week with just a touch of cloud cover and dry evening conditions.",
-  },
-];
-
-const WEATHER_ALERTS = [
-  {
-    id: "uv",
-    title: "High UV Index",
-    badge: "Alert",
-    description:
-      "High UV levels expected today. Use sunscreen, wear protective clothing, and stay hydrated.",
-    detail:
-      "Peak exposure is expected from late morning through mid-afternoon, so lightweight layers and shaded breaks are recommended.",
-    timestamp: "May 10, 2025 • 9:00 AM",
-    iconFamily: "ion",
-    iconName: "warning",
-    colors: {
-      border: "#F9C7B1",
-      background: "#FFF8F3",
-      iconBackground: "#FFF1E7",
-      iconColor: "#F97316",
-      badgeBackground: "#FFE4D3",
-      badgeColor: "#E8632F",
-      buttonBorder: "#F7B794",
-      buttonText: "#E8632F",
-    },
-  },
-  {
-    id: "rain",
-    title: "Heavy Rain Advisory",
-    badge: "Advisory",
-    description:
-      "Periods of heavy rain expected Monday. Plan for possible travel delays and wet conditions.",
-    detail:
-      "Transit platforms and roadways may slow down during the heaviest rain bands, especially later in the day.",
-    timestamp: "May 10, 2025 • 8:45 AM",
-    iconFamily: "ion",
-    iconName: "rainy",
-    colors: {
-      border: "#C9DCFF",
-      background: "#F6FAFF",
-      iconBackground: "#E7F0FF",
-      iconColor: "#2F86FF",
-      badgeBackground: "#E3EEFF",
-      badgeColor: "#2C6AE6",
-      buttonBorder: "#B4CEFF",
-      buttonText: "#2C6AE6",
-    },
-  },
-  {
-    id: "storm",
-    title: "Thunderstorm Watch",
-    badge: "Watch",
-    description:
-      "Thunderstorms possible late Monday night through Tuesday morning. Stay tuned for updates.",
-    detail:
-      "If the timing holds, expect the strongest cells overnight with occasional lightning and short bursts of intense rain.",
-    timestamp: "May 10, 2025 • 8:30 AM",
-    iconFamily: "ion",
-    iconName: "flash",
-    colors: {
-      border: "#E0CCFF",
-      background: "#FBF7FF",
-      iconBackground: "#F1E8FF",
-      iconColor: "#8B5CF6",
-      badgeBackground: "#EEE1FF",
-      badgeColor: "#7C3AED",
-      buttonBorder: "#D6BDFF",
-      buttonText: "#7C3AED",
-    },
-  },
-];
-
-const WEATHER_SUMMARY = [
-  {
-    id: "sunrise",
-    label: "Sunrise",
-    value: "4:45 AM",
-    iconFamily: "material",
-    iconName: "weather-sunset-up",
-  },
-  {
-    id: "sunset",
-    label: "Sunset",
-    value: "6:32 PM",
-    iconFamily: "material",
-    iconName: "weather-sunset-down",
-  },
-  {
-    id: "precipitation",
-    label: "Precipitation",
-    value: "10%",
-    iconFamily: "ion",
-    iconName: "water",
-  },
-  {
-    id: "air-quality",
-    label: "Air Quality",
-    value: "Good (28)",
-    iconFamily: "ion",
-    iconName: "leaf",
-  },
-];
-
-const CURRENT_WEATHER = {
-  temperature: "23",
-  unit: "°C",
-  condition: "Sunny",
-  feelsLike: "Feels like 24°",
-  timestamp: "May 10, 2025 • 9:30 AM",
-  details: [
-    { id: "humidity", label: "Humidity", value: "58%", iconFamily: "ion", iconName: "water-outline" },
-    { id: "wind", label: "Wind", value: "8 km/h NE", iconFamily: "material", iconName: "weather-windy" },
-    { id: "uv", label: "UV Index", value: "6 High", iconFamily: "material", iconName: "white-balance-sunny" },
-    { id: "visibility", label: "Visibility", value: "10 km", iconFamily: "ion", iconName: "eye-outline" },
-    { id: "pressure", label: "Pressure", value: "1016 hPa", iconFamily: "material", iconName: "gauge" },
-  ],
+  hourly: [],
+  daily: [],
+  alerts: [],
+  summary: [],
 };
 
 const HERO_SKYLINE_BUILDINGS = [
@@ -283,23 +116,26 @@ function renderIcon(family, name, size, color) {
 }
 
 function getConditionIcon(condition) {
-  if (condition === "Sunny") {
-    return { family: "ion", name: "sunny", color: "#FDB515" };
+  const key = String(condition || "").toLowerCase();
+  if (key.includes("thunder") || key.includes("storm")) {
+    return { family: "ion", name: "flash", color: "#8B5CF6" };
   }
-
-  if (condition === "Mostly Sunny") {
-    return { family: "ion", name: "partly-sunny", color: "#FDB515" };
-  }
-
-  if (condition === "Partly Cloudy") {
-    return { family: "ion", name: "partly-sunny", color: "#FDB515" };
-  }
-
-  if (condition === "Showers") {
+  if (key.includes("rain") || key.includes("shower") || key.includes("drizzle")) {
     return { family: "ion", name: "rainy", color: "#51A2FF" };
   }
-
-  return { family: "ion", name: "cloud", color: "#8FA0BA" };
+  if (key.includes("snow") || key.includes("sleet") || key.includes("ice")) {
+    return { family: "ion", name: "snow", color: "#7DD3FC" };
+  }
+  if (key.includes("cloud") && (key.includes("part") || key.includes("mostly"))) {
+    return { family: "ion", name: "partly-sunny", color: "#FDB515" };
+  }
+  if (key.includes("cloud") || key.includes("overcast") || key.includes("fog") || key.includes("mist")) {
+    return { family: "ion", name: "cloud", color: "#8FA0BA" };
+  }
+  if (key.includes("sun") || key.includes("clear")) {
+    return { family: "ion", name: "sunny", color: "#FDB515" };
+  }
+  return { family: "ion", name: "partly-sunny", color: "#FDB515" };
 }
 
 function HeaderActionButton({ iconName, onPress, showDot = false }) {
@@ -372,7 +208,11 @@ function HourlyForecastItem({ item, active, onPress }) {
     >
       <Text style={[styles.hourlyLabel, active && styles.hourlyLabelActive]}>{item.label}</Text>
       <View style={styles.hourlyIconWrap}>
-        {renderIcon(icon.family, icon.name, 34, icon.color)}
+        {item.iconUrl ? (
+          <Image source={{ uri: item.iconUrl }} style={{ width: 34, height: 34 }} resizeMode="contain" />
+        ) : (
+          renderIcon(icon.family, icon.name, 34, icon.color)
+        )}
       </View>
       <Text style={styles.hourlyTemperature}>{item.temperature}</Text>
       <View style={styles.hourlyWindRow}>
@@ -392,7 +232,11 @@ function DailyForecastRow({ item, expanded, onPress, compact }) {
         <Text style={[styles.dailyDayText, compact && styles.dailyDayTextCompact]}>{item.day}</Text>
 
         <View style={[styles.dailyConditionWrap, compact && styles.dailyConditionWrapCompact]}>
-          {renderIcon(icon.family, icon.name, 26, icon.color)}
+          {item.iconUrl ? (
+            <Image source={{ uri: item.iconUrl }} style={{ width: 26, height: 26 }} resizeMode="contain" />
+          ) : (
+            renderIcon(icon.family, icon.name, 26, icon.color)
+          )}
           <Text style={styles.dailyConditionText}>{item.condition}</Text>
         </View>
 
@@ -424,35 +268,54 @@ function DailyForecastRow({ item, expanded, onPress, compact }) {
 
 function WeatherAlertCard({ item, expanded, onPress, compact }) {
   return (
-    <View style={[styles.alertCard, { borderColor: item.colors.border, backgroundColor: item.colors.background }]}>
+    <View
+      style={[
+        styles.alertCard,
+        { borderColor: item.colors.border, backgroundColor: item.colors.background },
+      ]}
+    >
       <View style={[styles.alertCardMain, compact && styles.alertCardMainCompact]}>
         <View style={[styles.alertIconBubble, { backgroundColor: item.colors.iconBackground }]}>
-          {renderIcon(item.iconFamily, item.iconName, 36, item.colors.iconColor)}
+          {renderIcon(item.iconFamily, item.iconName, 28, item.colors.iconColor)}
         </View>
 
         <View style={styles.alertBody}>
-          <View style={[styles.alertHeaderRow, compact && styles.alertHeaderRowCompact]}>
-            <View style={styles.alertTitleGroup}>
-              <Text style={styles.alertTitle}>{item.title}</Text>
-              <View style={[styles.alertBadge, { backgroundColor: item.colors.badgeBackground }]}>
-                <Text style={[styles.alertBadgeText, { color: item.colors.badgeColor }]}>{item.badge}</Text>
-              </View>
+          <View style={styles.alertTitleRow}>
+            <Text style={styles.alertTitle} numberOfLines={2}>
+              {item.title}
+            </Text>
+            <View style={[styles.alertBadge, { backgroundColor: item.colors.badgeBackground }]}>
+              <Text style={[styles.alertBadgeText, { color: item.colors.badgeColor }]}>
+                {item.badge}
+              </Text>
             </View>
-            <Text style={styles.alertTimestamp}>{item.timestamp}</Text>
           </View>
 
-          <Text style={styles.alertDescription}>{item.description}</Text>
+          <Text style={styles.alertDescription} numberOfLines={expanded ? 8 : 3}>
+            {item.description}
+          </Text>
 
-          {expanded ? <Text style={styles.alertDetailText}>{item.detail}</Text> : null}
+          {expanded && item.detail ? (
+            <Text style={styles.alertDetailText} numberOfLines={6}>
+              {item.detail}
+            </Text>
+          ) : null}
+
+          <View style={styles.alertFooterRow}>
+            <Text style={styles.alertTimestamp} numberOfLines={1}>
+              {item.timestamp}
+            </Text>
+            <DimPressable
+              accessibilityRole="button"
+              onPress={onPress}
+              style={[styles.alertButton, { borderColor: item.colors.buttonBorder }]}
+            >
+              <Text style={[styles.alertButtonText, { color: item.colors.buttonText }]}>
+                {expanded ? "Hide Details" : "View Details"}
+              </Text>
+            </DimPressable>
+          </View>
         </View>
-
-        <DimPressable
-          accessibilityRole="button"
-          onPress={onPress}
-          style={[styles.alertButton, compact && styles.alertButtonCompact, { borderColor: item.colors.buttonBorder }]}
-        >
-          <Text style={[styles.alertButtonText, { color: item.colors.buttonText }]}>View Details</Text>
-        </DimPressable>
       </View>
     </View>
   );
@@ -496,16 +359,24 @@ function WeatherSummaryItem({ item, compact, showDivider }) {
 export default function WeatherScreen({ onNavigate, onBack }) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const { refreshLocation } = useUserLocation();
   const [searchText, setSearchText] = useState("");
-  const [selectedLocationId, setSelectedLocationId] = useState(LOCATION_OPTIONS[0].id);
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [searchSuggestLoading, setSearchSuggestLoading] = useState(false);
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  const [selectedLocationId, setSelectedLocationId] = useState("current");
+  const [selectedLocationLabel, setSelectedLocationLabel] = useState("Locating…");
   const [locationMenuOpen, setLocationMenuOpen] = useState(false);
-  const [filterActive, setFilterActive] = useState(false);
   const [locating, setLocating] = useState(false);
   const [hourlyFocusActive, setHourlyFocusActive] = useState(false);
-  const [selectedHourlyId, setSelectedHourlyId] = useState(HOURLY_FORECAST[0].id);
+  const [selectedHourlyId, setSelectedHourlyId] = useState("now");
   const [expandedDayIds, setExpandedDayIds] = useState([]);
   const [expandedAlertIds, setExpandedAlertIds] = useState([]);
+  const [weather, setWeather] = useState(EMPTY_WEATHER);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
+  const filterActive = searchText.trim().length > 0;
   const isPhone = width < 430;
   const isHeroStacked = width < 760;
   const stackLocationControls = width < 700;
@@ -518,8 +389,144 @@ export default function WeatherScreen({ onNavigate, onBack }) {
   const showBackButton = width < 760 && typeof onBack === "function";
   const heroArtworkWidth = isHeroStacked ? Math.min(pageWidth, 340) : Math.min(pageWidth * 0.49, 408);
   const heroArtworkHeight = isHeroStacked ? 188 : 220;
-  const selectedLocation =
-    LOCATION_OPTIONS.find((locationOption) => locationOption.id === selectedLocationId) || LOCATION_OPTIONS[0];
+  const currentWeather = weather.current;
+  const hourlyForecast = weather.hourly;
+  const dailyForecast = weather.daily;
+  const weatherAlerts = weather.alerts;
+  const weatherSummary = weather.summary;
+  const conditionIcon = getConditionIcon(currentWeather.condition);
+
+  const loadWeather = useCallback(async (query) => {
+    setLoading(true);
+    setError("");
+    try {
+      const token = await getToken();
+      if (!token) {
+        setError("Sign in to load live weather.");
+        setWeather(EMPTY_WEATHER);
+        return;
+      }
+      const payload = await dashboardApi.fetchWeather(token, query);
+      const mapped = mapWeatherForScreen(payload);
+      setWeather(mapped);
+      setSelectedLocationLabel(mapped.destination || query?.destination || FALLBACK_LOCATION.label);
+      setSelectedHourlyId(mapped.hourly[0]?.id || "now");
+      setExpandedDayIds([]);
+      setExpandedAlertIds([]);
+    } catch (err) {
+      setError(err?.message || "Couldn't load weather.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadDefaultWeather = useCallback(async () => {
+    setSearchText("");
+    setShowSearchSuggestions(false);
+    setSearchSuggestions([]);
+    setLocating(true);
+    setSelectedLocationLabel("Locating…");
+
+    try {
+      const location = await refreshLocation();
+      if (location?.lat != null && location?.lng != null) {
+        const label =
+          (await reverseGeocodeLabel(location.lat, location.lng)) ||
+          `${Number(location.lat).toFixed(2)}, ${Number(location.lng).toFixed(2)}`;
+        setSelectedLocationId("current");
+        setSelectedLocationLabel(label);
+        await loadWeather({
+          lat: location.lat,
+          lng: location.lng,
+          destination: label,
+        });
+        return;
+      }
+    } catch {
+      // Fall through to Tokyo.
+    } finally {
+      setLocating(false);
+    }
+
+    setSelectedLocationId(FALLBACK_LOCATION.id);
+    setSelectedLocationLabel(FALLBACK_LOCATION.label);
+    await loadWeather({ destination: FALLBACK_LOCATION.label });
+  }, [loadWeather, refreshLocation]);
+
+  useEffect(() => {
+    loadDefaultWeather();
+  }, [loadDefaultWeather]);
+
+  useEffect(() => {
+    const trimmed = searchText.trim();
+    if (trimmed.length < 2) {
+      setSearchSuggestions([]);
+      setSearchSuggestLoading(false);
+      setShowSearchSuggestions(false);
+      return undefined;
+    }
+    if (selectedLocationLabel.trim().toLowerCase() === trimmed.toLowerCase()) {
+      setSearchSuggestions([]);
+      setShowSearchSuggestions(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setSearchSuggestLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const results = await suggestGeocodeQuery(trimmed, 5);
+        if (!cancelled) {
+          setSearchSuggestions(results);
+          setShowSearchSuggestions(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setSearchSuggestions([]);
+          setShowSearchSuggestions(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setSearchSuggestLoading(false);
+        }
+      }
+    }, 280);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchText, selectedLocationLabel]);
+
+  async function handleSelectSuggestion(suggestion) {
+    const label = suggestion.label;
+    setSearchText(label);
+    setSelectedLocationId(null);
+    setSelectedLocationLabel(label);
+    setShowSearchSuggestions(false);
+    setSearchSuggestions([]);
+    setLocationMenuOpen(false);
+    await loadWeather({
+      destination: label,
+      lat: suggestion.lat,
+      lng: suggestion.lng,
+    });
+  }
+
+  async function handleSearchSubmit() {
+    const query = searchText.trim();
+    if (!query) {
+      return;
+    }
+    if (searchSuggestions.length > 0) {
+      await handleSelectSuggestion(searchSuggestions[0]);
+      return;
+    }
+    setLocationMenuOpen(false);
+    setShowSearchSuggestions(false);
+    setSelectedLocationId(null);
+    await loadWeather({ destination: query });
+  }
 
   async function handleCurrentLocationPress() {
     if (locating) {
@@ -529,13 +536,26 @@ export default function WeatherScreen({ onNavigate, onBack }) {
     setLocating(true);
     setLocationMenuOpen(false);
 
-    await new Promise((resolve) => {
-      setTimeout(resolve, 850);
-    });
-
-    setSelectedLocationId("tokyo");
-    setSearchText("");
-    setLocating(false);
+    try {
+      const location = await refreshLocation();
+      if (!location?.lat || !location?.lng) {
+        setError("Location permission is required to use current location.");
+        return;
+      }
+      const label =
+        (await reverseGeocodeLabel(location.lat, location.lng)) ||
+        `${location.lat.toFixed(2)}, ${location.lng.toFixed(2)}`;
+      setSelectedLocationId("current");
+      setSelectedLocationLabel(label);
+      setSearchText("");
+      setShowSearchSuggestions(false);
+      setSearchSuggestions([]);
+      await loadWeather({ lat: location.lat, lng: location.lng, destination: label });
+    } catch (err) {
+      setError(err?.message || "Couldn't read your location.");
+    } finally {
+      setLocating(false);
+    }
   }
 
   function toggleDailyRow(dayId) {
@@ -555,12 +575,12 @@ export default function WeatherScreen({ onNavigate, onBack }) {
   }
 
   function toggleAllDailyDetails() {
-    if (expandedDayIds.length === DAILY_FORECAST.length) {
+    if (expandedDayIds.length === dailyForecast.length) {
       setExpandedDayIds([]);
       return;
     }
 
-    setExpandedDayIds(DAILY_FORECAST.map((item) => item.id));
+    setExpandedDayIds(dailyForecast.map((item) => item.id));
   }
 
   return (
@@ -679,25 +699,61 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                 <Ionicons name="search-outline" size={28} color="#7888A3" />
                 <TextInput
                   value={searchText}
-                  onChangeText={setSearchText}
+                  onChangeText={(value) => {
+                    setSearchText(value);
+                    setShowSearchSuggestions(true);
+                  }}
                   placeholder="Search destination or city"
                   placeholderTextColor="#7F8EA8"
                   style={styles.searchInput}
                   selectionColor="#1F78FF"
                   returnKeyType="search"
+                  onSubmitEditing={handleSearchSubmit}
+                  onFocus={() => {
+                    if (searchSuggestions.length > 0) {
+                      setShowSearchSuggestions(true);
+                    }
+                  }}
                 />
-                <DimPressable
-                  accessibilityRole="button"
-                  onPress={() => setFilterActive((currentValue) => !currentValue)}
-                  style={[styles.filterButton, filterActive && styles.filterButtonActive]}
-                >
-                  <MaterialCommunityIcons
-                    name="tune-variant"
-                    size={22}
-                    color={filterActive ? "#1F78FF" : "#7888A3"}
-                  />
-                </DimPressable>
+                {searchSuggestLoading ? (
+                  <ActivityIndicator color="#1F78FF" style={{ marginRight: 8 }} />
+                ) : (
+                  <DimPressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Search weather"
+                    onPress={handleSearchSubmit}
+                    style={[styles.filterButton, filterActive && styles.filterButtonActive]}
+                  >
+                    <Ionicons
+                      name="arrow-forward-circle"
+                      size={24}
+                      color={filterActive ? "#1F78FF" : "#7888A3"}
+                    />
+                  </DimPressable>
+                )}
               </View>
+
+              {showSearchSuggestions && (searchSuggestions.length > 0 || searchSuggestLoading) ? (
+                <View style={styles.searchSuggestionsList}>
+                  {searchSuggestions.map((suggestion) => (
+                    <DimPressable
+                      key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Select ${suggestion.label}`}
+                      onPress={() => handleSelectSuggestion(suggestion)}
+                      style={styles.searchSuggestionItem}
+                    >
+                      <Ionicons name="location-outline" size={18} color="#1F78FF" />
+                      <Text style={styles.searchSuggestionText} numberOfLines={1}>
+                        {suggestion.label}
+                      </Text>
+                    </DimPressable>
+                  ))}
+                  {!searchSuggestLoading && searchSuggestions.length === 0 ? (
+                    <Text style={styles.searchSuggestionEmpty}>No matching locations</Text>
+                  ) : null}
+                </View>
+              ) : null}
 
               <View
                 style={[
@@ -716,7 +772,7 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                 >
                   <View style={styles.locationSelectorContent}>
                     <Ionicons name="location" size={22} color="#1F78FF" />
-                    <Text style={styles.locationSelectorText}>{selectedLocation.label}</Text>
+                    <Text style={styles.locationSelectorText}>{selectedLocationLabel}</Text>
                   </View>
                   <Ionicons
                     name={locationMenuOpen ? "chevron-up" : "chevron-down"}
@@ -756,8 +812,12 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                         accessibilityRole="button"
                         onPress={() => {
                           setSelectedLocationId(locationOption.id);
+                          setSelectedLocationLabel(locationOption.label);
                           setSearchText(locationOption.label);
                           setLocationMenuOpen(false);
+                          setShowSearchSuggestions(false);
+                          setSearchSuggestions([]);
+                          loadWeather({ destination: locationOption.label });
                         }}
                         style={[styles.locationMenuItem, selected && styles.locationMenuItemSelected]}
                       >
@@ -776,6 +836,20 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                 </View>
               ) : null}
             </View>
+
+            {error ? (
+              <View style={styles.statusBanner}>
+                <Text style={styles.statusBannerText}>{error}</Text>
+                <DimPressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry weather load"
+                  onPress={() => loadDefaultWeather()}
+                  style={styles.statusRetryButton}
+                >
+                  <Text style={styles.statusRetryText}>Retry</Text>
+                </DimPressable>
+              </View>
+            ) : null}
 
             <View style={[styles.currentWeatherCardShell, weatherCardShadowStyle]}>
               <View style={styles.currentWeatherCard}>
@@ -799,36 +873,73 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                     stackCurrentWeather && styles.currentWeatherContentStacked,
                   ]}
                 >
-                  <View style={[styles.currentWeatherPrimary, stackCurrentWeather && styles.currentWeatherPrimaryStacked]}>
-                    <View style={[styles.currentWeatherTopRow, stackCurrentWeather && styles.currentWeatherTopRowStacked]}>
-                      <View style={styles.currentWeatherSunWrap}>
-                        <Ionicons name="sunny" size={isPhone ? 108 : 126} color="#FFC83D" />
-                      </View>
-
-                      <View style={styles.currentWeatherHeadlineWrap}>
-                        <View style={styles.currentWeatherTemperatureRow}>
-                          <Text style={[styles.currentWeatherTemperature, isPhone && styles.currentWeatherTemperaturePhone]}>
-                            {CURRENT_WEATHER.temperature}
-                          </Text>
-                          <Text style={styles.currentWeatherUnit}>{CURRENT_WEATHER.unit}</Text>
-                        </View>
-                        <Text style={styles.currentWeatherCondition}>{CURRENT_WEATHER.condition}</Text>
-                        <Text style={styles.currentWeatherFeelsLike}>{CURRENT_WEATHER.feelsLike}</Text>
-                      </View>
+                  {loading ? (
+                    <View style={styles.weatherLoadingBlock}>
+                      <ActivityIndicator color="#FFFFFF" size="large" />
+                      <Text style={styles.weatherLoadingText}>Loading weather…</Text>
                     </View>
+                  ) : (
+                    <>
+                      <View
+                        style={[
+                          styles.currentWeatherPrimary,
+                          stackCurrentWeather && styles.currentWeatherPrimaryStacked,
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.currentWeatherTopRow,
+                            stackCurrentWeather && styles.currentWeatherTopRowStacked,
+                          ]}
+                        >
+                          <View style={styles.currentWeatherSunWrap}>
+                            {renderIcon(
+                              conditionIcon.family,
+                              conditionIcon.name,
+                              isPhone ? 96 : 118,
+                              conditionIcon.color === "#8FA0BA" ? "#FFC83D" : conditionIcon.color
+                            )}
+                          </View>
 
-                    <Text style={styles.currentWeatherTimestamp}>{CURRENT_WEATHER.timestamp}</Text>
-                  </View>
+                          <View style={styles.currentWeatherHeadlineWrap}>
+                            <View style={styles.currentWeatherTemperatureRow}>
+                              <Text
+                                style={[
+                                  styles.currentWeatherTemperature,
+                                  isPhone && styles.currentWeatherTemperaturePhone,
+                                ]}
+                              >
+                                {currentWeather.temperature}
+                              </Text>
+                              <Text style={styles.currentWeatherUnit}>{currentWeather.unit}</Text>
+                            </View>
+                            <Text style={styles.currentWeatherCondition}>
+                              {currentWeather.condition}
+                            </Text>
+                            <Text style={styles.currentWeatherFeelsLike}>
+                              {currentWeather.feelsLike}
+                            </Text>
+                          </View>
+                        </View>
 
-                  <View style={[styles.metricsGrid, stackCurrentWeather && styles.metricsGridStacked]}>
-                    {CURRENT_WEATHER.details.map((item) => (
-                      <WeatherMetric
-                        key={item.id}
-                        item={item}
-                        compact={stackCurrentWeather}
-                      />
-                    ))}
-                  </View>
+                        <Text style={styles.currentWeatherTimestamp}>
+                          {currentWeather.timestamp}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={[styles.metricsGrid, stackCurrentWeather && styles.metricsGridStacked]}
+                      >
+                        {currentWeather.details.map((item) => (
+                          <WeatherMetric
+                            key={item.id}
+                            item={item}
+                            compact={stackCurrentWeather}
+                          />
+                        ))}
+                      </View>
+                    </>
+                  )}
                 </View>
               </View>
             </View>
@@ -851,20 +962,26 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.hourlyScrollContent}
               >
-                {HOURLY_FORECAST.map((item, index) => (
-                  <HourlyForecastItem
-                    key={item.id}
-                    item={item}
-                    active={selectedHourlyId === item.id || (!hourlyFocusActive && index === 0)}
-                    onPress={() => setSelectedHourlyId(item.id)}
-                  />
-                ))}
+                {hourlyForecast.length === 0 ? (
+                  <Text style={styles.emptySectionText}>Hourly details unavailable for this location.</Text>
+                ) : (
+                  hourlyForecast.map((item, index) => (
+                    <HourlyForecastItem
+                      key={item.id}
+                      item={item}
+                      active={selectedHourlyId === item.id || (!hourlyFocusActive && index === 0)}
+                      onPress={() => setSelectedHourlyId(item.id)}
+                    />
+                  ))
+                )}
               </ScrollView>
             </View>
 
             <View style={[styles.sectionCard, surfaceShadowStyle]}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>7-Day Forecast</Text>
+                <Text style={styles.sectionTitle}>
+                  {dailyForecast.length ? `${dailyForecast.length}-Day Forecast` : "Forecast"}
+                </Text>
                 <DimPressable
                   accessibilityRole="button"
                   onPress={toggleAllDailyDetails}
@@ -876,19 +993,26 @@ export default function WeatherScreen({ onNavigate, onBack }) {
               </View>
 
               <View style={styles.dailyList}>
-                {DAILY_FORECAST.map((item, index) => (
-                  <View
-                    key={item.id}
-                    style={[styles.dailyRowWrap, index < DAILY_FORECAST.length - 1 && styles.dailyRowBorder]}
-                  >
-                    <DailyForecastRow
-                      item={item}
-                      expanded={expandedDayIds.includes(item.id)}
-                      onPress={() => toggleDailyRow(item.id)}
-                      compact={compactForecastRows}
-                    />
-                  </View>
-                ))}
+                {dailyForecast.length === 0 ? (
+                  <Text style={styles.emptySectionText}>No forecast days returned yet.</Text>
+                ) : (
+                  dailyForecast.map((item, index) => (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.dailyRowWrap,
+                        index < dailyForecast.length - 1 && styles.dailyRowBorder,
+                      ]}
+                    >
+                      <DailyForecastRow
+                        item={item}
+                        expanded={expandedDayIds.includes(item.id)}
+                        onPress={() => toggleDailyRow(item.id)}
+                        compact={compactForecastRows}
+                      />
+                    </View>
+                  ))
+                )}
               </View>
             </View>
 
@@ -896,25 +1020,29 @@ export default function WeatherScreen({ onNavigate, onBack }) {
               <Text style={styles.sectionTitle}>Weather Alerts & Advisories</Text>
 
               <View style={styles.alertsList}>
-                {WEATHER_ALERTS.map((item) => (
-                  <WeatherAlertCard
-                    key={item.id}
-                    item={item}
-                    expanded={expandedAlertIds.includes(item.id)}
-                    onPress={() => toggleAlert(item.id)}
-                    compact={compactAlerts}
-                  />
-                ))}
+                {weatherAlerts.length === 0 ? (
+                  <Text style={styles.emptySectionText}>No active weather alerts for this area.</Text>
+                ) : (
+                  weatherAlerts.map((item) => (
+                    <WeatherAlertCard
+                      key={item.id}
+                      item={item}
+                      expanded={expandedAlertIds.includes(item.id)}
+                      onPress={() => toggleAlert(item.id)}
+                      compact={compactAlerts}
+                    />
+                  ))
+                )}
               </View>
             </View>
 
             <View style={[styles.summaryCard, surfaceShadowStyle]}>
-              {WEATHER_SUMMARY.map((item, index) => (
+              {weatherSummary.map((item, index) => (
                 <WeatherSummaryItem
                   key={item.id}
                   item={item}
                   compact={compactSummary}
-                  showDivider={index < WEATHER_SUMMARY.length - 1}
+                  showDivider={index < weatherSummary.length - 1}
                 />
               ))}
             </View>
@@ -1210,6 +1338,39 @@ const styles = StyleSheet.create({
     backgroundColor: "#EAF3FF",
   },
 
+  searchSuggestionsList: {
+    marginTop: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#D7E4F7",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+
+  searchSuggestionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E5EDF8",
+  },
+
+  searchSuggestionText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#223D69",
+  },
+
+  searchSuggestionEmpty: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: "#6B7C99",
+  },
+
   locationControlsRow: {
     marginTop: 12,
     flexDirection: "row",
@@ -1329,7 +1490,7 @@ const styles = StyleSheet.create({
   currentWeatherCard: {
     borderRadius: 28,
     overflow: "hidden",
-    backgroundColor: "#4690F5",
+    backgroundColor: "#3B8BFF",
     position: "relative",
   },
 
@@ -1354,38 +1515,38 @@ const styles = StyleSheet.create({
   },
 
   currentWeatherSceneWrap: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "flex-end",
   },
 
   currentWeatherScene: {
-    width: 356,
-    height: 214,
-    marginLeft: 138,
-    opacity: 0.42,
+    width: "100%",
+    height: 240,
+    marginLeft: 0,
+    opacity: 0.35,
   },
 
   currentWeatherSceneMobile: {
-    opacity: 0.2,
+    opacity: 0.28,
   },
 
   currentWeatherSceneCompact: {
-    width: 214,
-    height: 128,
+    width: "100%",
+    height: 180,
     marginLeft: 0,
-    marginRight: 12,
-    alignSelf: "flex-end",
+    marginRight: 0,
+    alignSelf: "stretch",
   },
 
   currentWeatherContent: {
     paddingHorizontal: 26,
-    paddingVertical: 22,
+    paddingVertical: 24,
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "stretch",
+    minHeight: 220,
+    zIndex: 1,
   },
 
   currentWeatherContentStacked: {
@@ -1414,6 +1575,71 @@ const styles = StyleSheet.create({
 
   currentWeatherSunWrap: {
     marginRight: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  currentWeatherIcon: {
+    width: 104,
+    height: 104,
+  },
+
+  weatherLoadingBlock: {
+    minHeight: 180,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    paddingVertical: 24,
+  },
+
+  weatherLoadingText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+
+  currentWeatherSummary: {
+    marginTop: 8,
+    color: "rgba(255,255,255,0.88)",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "500",
+  },
+
+  statusBanner: {
+    backgroundColor: "#FFECEA",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 14,
+    gap: 10,
+  },
+
+  statusBannerText: {
+    color: "#B42318",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  statusRetryButton: {
+    alignSelf: "flex-start",
+    backgroundColor: "#1F78FF",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+
+  statusRetryText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  emptySectionText: {
+    color: "#5D6B86",
+    fontSize: 14,
+    fontWeight: "500",
+    paddingVertical: 8,
   },
 
   currentWeatherHeadlineWrap: {
@@ -1469,12 +1695,15 @@ const styles = StyleSheet.create({
   },
 
   metricsGrid: {
-    width: 300,
-    paddingTop: 8,
+    width: 190,
+    maxWidth: "42%",
+    paddingTop: 4,
+    flexShrink: 0,
   },
 
   metricsGridStacked: {
     width: "100%",
+    maxWidth: "100%",
     marginTop: 20,
     flexDirection: "column",
   },
@@ -1737,67 +1966,62 @@ const styles = StyleSheet.create({
 
   alertsList: {
     marginTop: 14,
+    gap: 12,
   },
 
   alertCard: {
     borderWidth: 1.5,
     borderRadius: 22,
-    paddingHorizontal: 18,
+    paddingHorizontal: 14,
     paddingVertical: 14,
-    marginBottom: 12,
+    overflow: "hidden",
   },
 
   alertCardMain: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
+    gap: 12,
   },
 
   alertCardMainCompact: {
-    flexDirection: "column",
-    alignItems: "stretch",
+    flexDirection: "row",
+    alignItems: "flex-start",
   },
 
   alertIconBubble: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 16,
+    flexShrink: 0,
   },
 
   alertBody: {
     flex: 1,
+    minWidth: 0,
   },
 
-  alertHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  alertHeaderRowCompact: {
-    flexDirection: "column",
-    alignItems: "flex-start",
-  },
-
-  alertTitleGroup: {
+  alertTitleRow: {
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 6,
   },
 
   alertTitle: {
-    fontSize: 17,
+    flexShrink: 1,
+    fontSize: 16,
     fontWeight: "800",
     color: "#183158",
   },
 
   alertBadge: {
-    marginLeft: 12,
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderRadius: 999,
+    flexShrink: 0,
   },
 
   alertBadgeText: {
@@ -1805,46 +2029,48 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  alertTimestamp: {
-    marginLeft: 12,
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#53627F",
-  },
-
   alertDescription: {
-    marginTop: 8,
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 20,
     color: "#35507B",
   },
 
   alertDetailText: {
     marginTop: 8,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 13,
+    lineHeight: 19,
     color: "#5B6C89",
   },
 
+  alertFooterRow: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  alertTimestamp: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#53627F",
+  },
+
   alertButton: {
-    minWidth: 126,
-    minHeight: 42,
-    marginLeft: 18,
-    borderRadius: 16,
+    flexShrink: 0,
+    minHeight: 36,
+    borderRadius: 14,
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 16,
-  },
-
-  alertButtonCompact: {
-    marginLeft: 0,
-    marginTop: 14,
-    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
 
   alertButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
   },
 

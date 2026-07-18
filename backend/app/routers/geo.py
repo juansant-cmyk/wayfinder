@@ -63,3 +63,25 @@ async def search_geocode(
         lng=float(result["lng"]),
         provider=result.get("provider"),
     )
+
+
+@router.get("/suggest", response_model=list[GeocodeResult])
+async def suggest_geocode(
+    q: Annotated[str, Query(min_length=1, max_length=255)],
+    _current_user: Annotated[User, Depends(get_current_user)],
+    limit: Annotated[int, Query(ge=1, le=5)] = 5,
+):
+    results = await geocode_service.suggest_geocode(q, limit=limit)
+    return [
+        GeocodeResult(
+            label=str(item.get("label") or q),
+            city=item.get("city"),
+            region=item.get("region"),
+            country=item.get("country"),
+            lat=float(item["lat"]),
+            lng=float(item["lng"]),
+            provider=item.get("provider"),
+        )
+        for item in results
+        if item.get("lat") is not None and item.get("lng") is not None
+    ]

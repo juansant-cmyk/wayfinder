@@ -15,7 +15,7 @@ services:
       - key: JWT_EXPIRE_HOURS
         value: "24"
       - key: USE_MOCK_PROVIDERS
-        value: "false"
+        value: "true"
       - key: HOTEL_PROVIDER
         value: "liteapi"
       - key: LITEAPI_API_KEY
@@ -26,5 +26,9 @@ services:
         value: "US"
       - key: LITEAPI_CURRENCY
         value: "USD"
+      - key: WEATHER_PROVIDER
+        value: "weatherapi"
+      - key: WEATHER_API_KEY
+        sync: false
       - key: CORS_ORIGINS
         sync: false

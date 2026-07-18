@@ -66,7 +66,9 @@ export function isApiConfigError(error) {
 
 export function isApiUnavailableError(error) {
   const message = error instanceof Error ? error.message : String(error ?? "");
-  return message.startsWith("Cannot reach the API");
+  return (
+    message.startsWith("Cannot reach the API") || message.includes("timed out")
+  );
 }
 
 export function isApiRequestFailedError(error) {
@@ -131,16 +133,31 @@ export async function apiRequest(path, { method = "GET", body, token } = {}) {
   let response;
 
   try {
-    response = await fetch(`${apiUrl}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeoutId = controller
+      ? setTimeout(() => controller.abort(), 20000)
+      : null;
+
+    try {
+      response = await fetch(`${apiUrl}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller?.signal,
+      });
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }
   } catch (error) {
+    const aborted = error?.name === "AbortError";
     throw new Error(
-      `Cannot reach the API at ${apiUrl}. Check your internet connection, ` +
-        "confirm EXPO_PUBLIC_API_URL in frontend/.env, and restart Expo (npx expo start --clear). " +
-        "If the API is on Render, the first request after idle can take up to a minute."
+      aborted
+        ? `Request to ${apiUrl} timed out. Confirm EXPO_PUBLIC_API_URL and that the API is running.`
+        : `Cannot reach the API at ${apiUrl}. Check your internet connection, ` +
+            "confirm EXPO_PUBLIC_API_URL in frontend/.env, and restart Expo (npx expo start --clear). " +
+            "If the API is on Render, the first request after idle can take up to a minute."
     );
   }
 
@@ -150,7 +167,10 @@ export async function apiRequest(path, { method = "GET", body, token } = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(await parseError(response));
+    const message = await parseError(response);
+    const err = new Error(message);
+    err.status = response.status;
+    throw err;
   }
 
   if (response.status === 204) {

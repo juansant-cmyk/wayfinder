@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     )
     google_maps_api_key: str = ""
     hotel_api_key: str = ""
+    weather_api_key: str = ""
+    weather_provider: str = "mock"
+    weatherapi_base_url: str = "https://api.weatherapi.com/v1"
     liteapi_api_key: str = ""
     liteapi_base_url: str = "https://api.liteapi.travel/v3.0"
     liteapi_guest_nationality: str = "US"

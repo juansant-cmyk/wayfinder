@@ -2,6 +2,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
+    Boolean,
     Date,
     DateTime,
     Float,
@@ -38,6 +39,10 @@ class TravelPlan(Base):
     hotel_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     hotel_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     hotel_provider_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    suppress_auto_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    cover_image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

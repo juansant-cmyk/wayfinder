@@ -131,6 +131,9 @@ export async function geocodeQuery(query) {
       lat: Number(fromApi.lat),
       lng: Number(fromApi.lng),
       label: fromApi.label || fromApi.city || prettyQuery,
+      city: fromApi.city || null,
+      region: fromApi.region || null,
+      country: fromApi.country || null,
       source: "search",
       query: trimmed,
     };
@@ -155,4 +158,36 @@ export async function geocodeQuery(query) {
   } catch {
     return null;
   }
+}
+
+/** Top destination suggestions for typeahead (city / country). */
+export async function suggestGeocodeQuery(query, limit = 5) {
+  const trimmed = String(query || "").trim();
+  if (trimmed.length < 2) {
+    return [];
+  }
+
+  const fromApi = await backendGeo(
+    `/geo/suggest?q=${encodeURIComponent(trimmed)}&limit=${encodeURIComponent(limit)}`
+  );
+  if (fromApi === GEO_AUTH_REQUIRED) {
+    return [];
+  }
+  if (!Array.isArray(fromApi)) {
+    return [];
+  }
+
+  return fromApi
+    .filter((item) => item?.lat != null && item?.lng != null && item?.label)
+    .slice(0, limit)
+    .map((item) => ({
+      lat: Number(item.lat),
+      lng: Number(item.lng),
+      label: item.label,
+      city: item.city || null,
+      region: item.region || null,
+      country: item.country || null,
+      provider: item.provider || null,
+      source: "suggest",
+    }));
 }

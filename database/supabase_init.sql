@@ -120,3 +120,44 @@ CREATE TABLE IF NOT EXISTS plan_activities (
 );
 
 CREATE INDEX IF NOT EXISTS plan_activities_day_id_idx ON plan_activities(day_id);
+
+-- 005 favorites
+CREATE TABLE IF NOT EXISTS favorites (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    item_type TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    provider_item_id TEXT NOT NULL,
+    entity_id UUID,
+    snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
+    saved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT favorites_user_item_unique
+        UNIQUE (user_id, item_type, provider, provider_item_id)
+);
+
+CREATE INDEX IF NOT EXISTS favorites_user_saved_at_idx
+    ON favorites (user_id, saved_at DESC);
+
+CREATE INDEX IF NOT EXISTS favorites_user_item_type_idx
+    ON favorites (user_id, item_type);
+
+-- 007 plan status (active | completed)
+ALTER TABLE travel_plans
+    ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'active',
+    ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS suppress_auto_complete BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE travel_plans
+    DROP CONSTRAINT IF EXISTS travel_plans_status_check;
+
+ALTER TABLE travel_plans
+    ADD CONSTRAINT travel_plans_status_check
+    CHECK (status IN ('active', 'completed'));
+
+CREATE INDEX IF NOT EXISTS travel_plans_user_status_idx
+    ON travel_plans (user_id, status);
+
+-- 008 plan cover image
+ALTER TABLE travel_plans
+    ADD COLUMN IF NOT EXISTS cover_image_url TEXT;

@@ -257,15 +257,57 @@ async def rebuild_plan_days(db: AsyncSession, plan: TravelPlan) -> None:
 
 
 async def ensure_plan_center(plan: TravelPlan) -> None:
-    if plan.center_lat is not None and plan.center_lng is not None:
+    needs_cover = _cover_needs_refresh(plan.cover_image_url)
+    if plan.center_lat is not None and plan.center_lng is not None and not needs_cover:
         return
     resolved = await geocode_service.search_geocode(plan.destination_name)
     if not resolved:
+        if needs_cover:
+            plan.cover_image_url = geocode_service._flickr_cover_url(
+                plan.destination_name, None, None
+            )
         return
-    plan.center_lat = resolved.get("lat")
-    plan.center_lng = resolved.get("lng")
+    if plan.center_lat is None:
+        plan.center_lat = resolved.get("lat")
+    if plan.center_lng is None:
+        plan.center_lng = resolved.get("lng")
+    if needs_cover and plan.center_lat is not None and plan.center_lng is not None:
+        plan.cover_image_url = await geocode_service.destination_cover_image(
+            label=str(resolved.get("label") or plan.destination_name),
+            city=resolved.get("city"),
+            country=resolved.get("country"),
+            lat=float(plan.center_lat),
+            lng=float(plan.center_lng),
+        )
 
 
+def _cover_needs_refresh(url: str | None) -> bool:
+    if not url:
+        return True
+    lower = url.lower()
+    dead_markers = (
+        "staticmap.openstreetmap.de",
+        ".svg",
+        "flag_of_",
+    )
+    return any(marker in lower for marker in dead_markers)
+
+
+async def refresh_plan_cover_from_destination(plan: TravelPlan) -> None:
+    """Force re-resolve center + cover when destination_name changes."""
+    resolved = await geocode_service.search_geocode(plan.destination_name)
+    if not resolved or resolved.get("lat") is None or resolved.get("lng") is None:
+        plan.cover_image_url = geocode_service._flickr_cover_url(plan.destination_name, None, None)
+        return
+    plan.center_lat = float(resolved["lat"])
+    plan.center_lng = float(resolved["lng"])
+    plan.cover_image_url = await geocode_service.destination_cover_image(
+        label=str(resolved.get("label") or plan.destination_name),
+        city=resolved.get("city"),
+        country=resolved.get("country"),
+        lat=plan.center_lat,
+        lng=plan.center_lng,
+    )
 async def create_activity(
     db: AsyncSession,
     user_id: UUID,

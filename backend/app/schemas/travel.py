@@ -40,6 +40,7 @@ class TravelPlanBase(BaseModel):
     hotel_name: str | None = Field(default=None, max_length=255)
     hotel_provider: str | None = Field(default=None, max_length=50)
     hotel_provider_id: str | None = Field(default=None, max_length=255)
+    cover_image_url: str | None = Field(default=None, max_length=1000)
 
     @model_validator(mode="after")
     def validate_ranges(self):
@@ -69,6 +70,8 @@ class TravelPlanUpdate(BaseModel):
     hotel_name: str | None = Field(default=None, max_length=255)
     hotel_provider: str | None = Field(default=None, max_length=50)
     hotel_provider_id: str | None = Field(default=None, max_length=255)
+    cover_image_url: str | None = Field(default=None, max_length=1000)
+    status: str | None = Field(default=None, pattern="^(active|completed)$")
 
 
 class PlanActivityResponse(BaseModel):
@@ -104,6 +107,8 @@ class TravelPlanResponse(TravelPlanBase):
 
     id: UUID
     user_id: UUID
+    status: str = "active"
+    completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
     nights: int | None = None
