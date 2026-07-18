@@ -61,9 +61,22 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Wayfinder API", version="0.1.0", lifespan=lifespan)
 
+# Explicit list from CORS_ORIGINS, plus localhost / LAN Expo web (any port).
+# Without the regex, opening Expo at http://10.x.x.x:8081 fails browser CORS
+# and the app surfaces a generic "Cannot reach the API" error.
+_CORS_ORIGIN_REGEX = (
+    r"https?://("
+    r"localhost|127\.0\.0\.1|\[::1\]|"
+    r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+    r"192\.168\.\d{1,3}\.\d{1,3}|"
+    r"172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
+    r")(:\d+)?"
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list(),
+    allow_origin_regex=_CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

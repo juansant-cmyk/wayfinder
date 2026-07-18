@@ -87,6 +87,23 @@ export async function notifySessionExpired() {
   }
 }
 
+function isRenderApi(apiUrl) {
+  try {
+    return new URL(apiUrl).hostname.endsWith(".onrender.com");
+  } catch {
+    return false;
+  }
+}
+
+function requestTimeoutMs(apiUrl) {
+  // Render free/starter cold starts often exceed 20s; keep local APIs snappy.
+  return isRenderApi(apiUrl) ? 90000 : 20000;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function parseError(response) {
   const raw = await response.text();
   let body = {};
@@ -117,6 +134,48 @@ async function parseError(response) {
   return `Request failed (${response.status}). Please try again.`;
 }
 
+async function fetchOnce(apiUrl, path, { method, headers, body, timeoutMs }) {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+
+  try {
+    return await fetch(`${apiUrl}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller?.signal,
+    });
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
+function unreachableMessage(apiUrl, error) {
+  const aborted = error?.name === "AbortError";
+  if (aborted) {
+    return (
+      `Request to ${apiUrl} timed out. Open ${apiUrl}/health in a browser to wake Render, ` +
+      "then try again."
+    );
+  }
+
+  const detail = error instanceof Error && error.message ? ` (${error.message})` : "";
+  const webHint =
+    typeof window !== "undefined"
+      ? " If you are on Expo web, open the app at http://localhost:8081 (not a LAN IP) " +
+        "or set Render CORS_ORIGINS to match the address bar origin."
+      : "";
+
+  return (
+    `Cannot reach the API at ${apiUrl}${detail}. Check your internet connection, ` +
+    "confirm EXPO_PUBLIC_API_URL in frontend/.env, and restart Expo (npx expo start --clear). " +
+    "If the API is on Render, the first request after idle can take up to a minute." +
+    webHint
+  );
+}
+
 export async function apiRequest(path, { method = "GET", body, token } = {}) {
   const apiUrl = getApiUrl();
 
@@ -130,35 +189,44 @@ export async function apiRequest(path, { method = "GET", body, token } = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
+  const timeoutMs = requestTimeoutMs(apiUrl);
+  const attempts = isRenderApi(apiUrl) ? 3 : 1;
   let response;
+  let lastError;
 
-  try {
-    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-    const timeoutId = controller
-      ? setTimeout(() => controller.abort(), 20000)
-      : null;
-
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      response = await fetch(`${apiUrl}${path}`, {
+      // Wake sleeping Render instances before the real call.
+      if (isRenderApi(apiUrl) && attempt === 1 && path !== "/health") {
+        try {
+          await fetchOnce(apiUrl, "/health", {
+            method: "GET",
+            headers: {},
+            timeoutMs,
+          });
+        } catch {
+          // Ignore wake failures; the real request may still succeed.
+        }
+      }
+
+      response = await fetchOnce(apiUrl, path, {
         method,
         headers,
-        body: body ? JSON.stringify(body) : undefined,
-        signal: controller?.signal,
+        body,
+        timeoutMs,
       });
-    } finally {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        await sleep(2000 * attempt);
       }
     }
-  } catch (error) {
-    const aborted = error?.name === "AbortError";
-    throw new Error(
-      aborted
-        ? `Request to ${apiUrl} timed out. Confirm EXPO_PUBLIC_API_URL and that the API is running.`
-        : `Cannot reach the API at ${apiUrl}. Check your internet connection, ` +
-            "confirm EXPO_PUBLIC_API_URL in frontend/.env, and restart Expo (npx expo start --clear). " +
-            "If the API is on Render, the first request after idle can take up to a minute."
-    );
+  }
+
+  if (!response) {
+    throw new Error(unreachableMessage(apiUrl, lastError));
   }
 
   if (response.status === 401 && token && unauthorizedHandler) {

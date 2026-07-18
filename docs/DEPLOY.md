@@ -195,6 +195,7 @@ Keep local `.env` files **out of git**. Use Render/Supabase dashboards for produ
 | Deploy log: `tenant/user postgres.[ref] not found` | Pooler **region/host is wrong** — re-copy the Session pooler URI from Supabase (do not guess `aws-0-us-west-1`; use your project's exact host) |
 | Render deploy exits on startup | Fixed in latest backend — DB check logs a warning but app still starts; fix `DATABASE_URL` then check `/health/db` |
 | Login works locally, not on phone | `EXPO_PUBLIC_API_URL=https://wayfinder-e30f.onrender.com` (not `localhost`) |
+| Expo shows "Cannot reach the API" to Render | Wake the service (open `/health` in a browser), wait up to ~60s, retry. Expo web also needs `CORS_ORIGINS` to include `http://localhost:8081` (and other Expo ports). Native Expo Go ignores CORS. Client timeout for `*.onrender.com` is 90s. |
 | `/favorites` returns 500 | Run [`005_favorites.sql`](../database/schema/005_favorites.sql) on Supabase |
 | Weather still shows mock / `"Your destination"` | Set `WEATHER_PROVIDER=weatherapi` and a valid `WEATHER_API_KEY` on Render, then redeploy |
 | `/geo/suggest` 404 | Deploy includes geo suggest — confirm latest `main` is live on Render |

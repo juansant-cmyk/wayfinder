@@ -404,7 +404,8 @@ export default function App() {
       if (isApiUnavailableError(error)) {
         return {
           ok: false,
-          message: API_UNAVAILABLE_MESSAGE,
+          // Prefer the detailed client message (includes API URL / CORS hints).
+          message: message || API_UNAVAILABLE_MESSAGE,
         };
       }
 
@@ -535,7 +536,7 @@ export default function App() {
       if (isApiUnavailableError(error)) {
         return {
           ok: false,
-          message: API_UNAVAILABLE_MESSAGE,
+          message: message || API_UNAVAILABLE_MESSAGE,
         };
       }
 
