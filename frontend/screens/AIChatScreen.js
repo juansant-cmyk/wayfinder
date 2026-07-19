@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import * as dashboardApi from "../src/api/dashboard";
 import { getToken } from "../src/auth/tokenStorage";
+import MarkdownText from "../src/ui/MarkdownText";
 import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
@@ -245,6 +246,11 @@ function PopularQuestionChip({ item, width, onPress, compact = false, singleColu
 
 function MessageBubble({ message, compact = false }) {
   const isUser = message.role === "user";
+  const textStyle = [
+    styles.messageText,
+    compact && styles.messageTextCompact,
+    isUser ? styles.userMessageText : styles.assistantMessageText,
+  ];
 
   return (
     <View
@@ -257,15 +263,11 @@ function MessageBubble({ message, compact = false }) {
       <Text style={[styles.messageMeta, isUser ? styles.userMeta : styles.assistantMeta]}>
         {isUser ? "You" : "Wayfinder"}
       </Text>
-      <Text
-        style={[
-          styles.messageText,
-          compact && styles.messageTextCompact,
-          isUser ? styles.userMessageText : styles.assistantMessageText,
-        ]}
-      >
-        {message.text}
-      </Text>
+      {isUser ? (
+        <Text style={textStyle}>{message.text}</Text>
+      ) : (
+        <MarkdownText text={message.text} style={textStyle} />
+      )}
     </View>
   );
 }
