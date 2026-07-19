@@ -13,6 +13,9 @@ jobs:
     defaults:
       run:
         working-directory: backend
+
+    env:
+      JWT_SECRET: ci-test-secret
         
     steps:
       - uses: actions/checkout@v4
