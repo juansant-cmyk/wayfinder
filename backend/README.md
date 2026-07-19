@@ -148,6 +148,7 @@ Protected routes require `Authorization: Bearer <token>`.
 | Flights | `GET /flights/search` |
 | Favorites | `GET /favorites`, `POST /favorites`, `DELETE /favorites` |
 | Safety | `GET /safety/summary` |
+| Safety report | `GET /safety/report` |
 | Safety feed | `GET /safety`, `POST /alerts/{alert_id}/dismiss` |
 | Weather | `GET /weather/current` |
 | Chat | `POST /chat/messages`, `POST/GET /chat/sessions`, `GET/POST /chat/sessions/{session_id}/messages` |
@@ -177,6 +178,22 @@ remain unchanged, and the backend also returns optional fields for `icon_url`, w
 precipitation, feels-like temperature, UV, visibility, cloud cover, local time, `air_quality`,
 `forecast_days`, and severe weather `warnings`.
 
+## TravelRiskAPI setup
+
+Country-level risk scores, advisories, and disaster alerts use mock data unless TravelRiskAPI is
+enabled:
+
+```env
+TRAVEL_RISK_PROVIDER=travelrisk
+TRAVEL_RISK_API_KEY=<your TravelRiskAPI key>
+TRAVEL_RISK_BASE_URL=https://travelriskapi.com/api/v1
+TRAVEL_RISK_CACHE_TTL_SECONDS=300
+```
+
+Apply `database/schema/010_travelrisk_safety.sql` before enabling the live provider. Credentials
+stay in `backend/.env` locally or deployment environment variables and are never sent to the
+frontend.
+
 ## Environment variables
 
 See [.env.example](.env.example):
@@ -196,6 +213,10 @@ See [.env.example](.env.example):
 | `WEATHER_API_KEY` | WeatherAPI.com key for live weather, forecast, AQI, and alerts |
 | `WEATHERAPI_BASE_URL` | Default `https://api.weatherapi.com/v1` |
 | `TRAVEL_ADVISORY_API_KEY` | Travel advisory provider key for future live adapters |
+| `TRAVEL_RISK_PROVIDER` | `mock` \| `travelrisk`; selects country-level TravelRiskAPI data |
+| `TRAVEL_RISK_API_KEY` | Server-side TravelRiskAPI key |
+| `TRAVEL_RISK_BASE_URL` | Default `https://travelriskapi.com/api/v1` |
+| `TRAVEL_RISK_CACHE_TTL_SECONDS` | Country report cache lifetime; defaults to `300` seconds |
 | `OPENAI_API_KEY` | LLM provider key for future live chat adapter |
 | `LITEAPI_API_KEY` | LiteAPI / Nuitee Connect API key |
 | `LITEAPI_BASE_URL` | Default `https://api.liteapi.travel/v3.0` |

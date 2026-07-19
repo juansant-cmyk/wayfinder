@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     weather_provider: str = "mock"
     weatherapi_base_url: str = "https://api.weatherapi.com/v1"
     travel_advisory_api_key: str = ""
+    travel_risk_provider: str = "mock"
+    travel_risk_api_key: str = ""
+    travel_risk_base_url: str = "https://travelriskapi.com/api/v1"
+    travel_risk_cache_ttl_seconds: int = 300
     openai_api_key: str = ""
     liteapi_api_key: str = ""
     liteapi_base_url: str = "https://api.liteapi.travel/v3.0"

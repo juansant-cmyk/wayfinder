@@ -19,9 +19,9 @@ import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 import * as dashboardApi from "../src/api/dashboard";
-import { deriveSafetyOverview, mapSafetyAlertsForScreen } from "../src/api/mappers";
+import { mapSafetyReportForScreen } from "../src/api/mappers";
 import { getToken } from "../src/auth/tokenStorage";
-import { geocodeQuery, reverseGeocodeLabel, suggestGeocodeQuery } from "../src/location/geo";
+import { geocodeQuery, reverseGeocodeQuery, suggestGeocodeQuery } from "../src/location/geo";
 import { useUserLocation } from "../src/location/UserLocationContext";
 
 const LIVE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
@@ -87,387 +87,6 @@ const SKYLINE_BUILDINGS = [
   { left: "85%", width: 40, height: 76 },
 ];
 
-const DESTINATION_OPTIONS = [
-  {
-    id: "tokyo",
-    label: "Tokyo, Japan",
-    cityLabel: "Tokyo",
-    aliases: ["tokyo", "japan", "tokyo japan"],
-    updatedAt: new Date(2025, 4, 10, 9, 30),
-    overall: {
-      level: "low",
-      label: "Low Risk",
-      description:
-        "Tokyo is currently a low risk destination.\nExercise normal safety precautions\nand follow local guidance.",
-      indicatorLeft: "11%",
-      about:
-        "Low risk destinations still call for everyday precautions, but broad disruptions or major advisories are not currently expected.",
-    },
-    alerts: [
-      {
-        id: "tokyo-public-event",
-        tone: "danger",
-        label: "Safety Alert",
-        title: "Large Public Event",
-        location: "Shibuya, Tokyo",
-        timestamp: "May 10, 2025 \u2022 8:45 AM",
-        description:
-          "Large event expected May 11. Expect increased\ncrowds, traffic restrictions, and possible delays.",
-        details:
-          "Crowd control measures are expected around Shibuya Crossing, station exits, and nearby arterial streets.",
-      },
-      {
-        id: "tokyo-pickpocketing",
-        tone: "advisory",
-        label: "Safety Advisory",
-        title: "Pickpocketing Reported",
-        location: "Shinjuku, Tokyo",
-        timestamp: "May 10, 2025 \u2022 7:15 AM",
-        description:
-          "Recent reports of pickpocketing in shopping\nareas and train stations. Keep belongings secure.",
-        details:
-          "Use zipped outer layers, keep phones out of back pockets, and stay especially alert on packed trains.",
-      },
-    ],
-    categories: [
-      {
-        id: "crime",
-        title: "Crime & Security",
-        status: "Low Risk",
-        iconFamily: "ion",
-        iconName: "shield-checkmark",
-        iconColor: "#1F78FF",
-        iconBackground: "#EAF3FF",
-      },
-      {
-        id: "health",
-        title: "Health",
-        status: "Low Risk",
-        iconFamily: "material",
-        iconName: "medical-bag",
-        iconColor: "#149647",
-        iconBackground: "#EAF9F0",
-      },
-      {
-        id: "transportation",
-        title: "Transportation",
-        status: "Low Risk",
-        iconFamily: "ion",
-        iconName: "train-outline",
-        iconColor: "#7D58F2",
-        iconBackground: "#F1EAFF",
-      },
-      {
-        id: "laws",
-        title: "Local Laws",
-        status: "Low Risk",
-        iconFamily: "material",
-        iconName: "bank-outline",
-        iconColor: "#F59E0B",
-        iconBackground: "#FFF5DE",
-      },
-      {
-        id: "updates",
-        title: "Local Updates",
-        status: "1 Active",
-        iconFamily: "ion",
-        iconName: "megaphone-outline",
-        iconColor: "#8B5CF6",
-        iconBackground: "#F3EEFF",
-      },
-    ],
-    tips: [
-      {
-        id: "belongings",
-        title: "Secure your belongings",
-        description:
-          "Keep bags zipped and wallets in front pockets, especially in crowded areas.",
-        detail:
-          "Cross-body bags and zipped outer pockets work best on busy rail lines and during events.",
-        iconFamily: "ion",
-        iconName: "lock-closed",
-        iconColor: "#1F78FF",
-        iconBackground: "#EAF3FF",
-      },
-      {
-        id: "awareness",
-        title: "Stay aware of your surroundings",
-        description:
-          "Be mindful in busy places and avoid distractions while walking.",
-        detail:
-          "Pause inside a shop or station concourse if you need to check directions or your phone.",
-        iconFamily: "ion",
-        iconName: "location",
-        iconColor: "#149647",
-        iconBackground: "#EAF9F0",
-      },
-      {
-        id: "contacts",
-        title: "Important Contacts",
-        description:
-          "Police: 110  \u2022  Ambulance/Fire: 119  \u2022  Tourist Hotline: 03-3201-3331",
-        detail: "Save these numbers before you head out so they are available even without service.",
-        iconFamily: "ion",
-        iconName: "call",
-        iconColor: "#7D58F2",
-        iconBackground: "#F1EAFF",
-      },
-    ],
-  },
-  {
-    id: "seoul",
-    label: "Seoul, South Korea",
-    cityLabel: "Seoul",
-    aliases: ["seoul", "south korea", "seoul south korea", "korea"],
-    updatedAt: new Date(2025, 4, 10, 8, 55),
-    overall: {
-      level: "moderate",
-      label: "Moderate Risk",
-      description:
-        "Seoul is currently a moderate risk destination.\nMonitor demonstrations and busy transit hubs,\nespecially during peak evening hours.",
-      indicatorLeft: "43%",
-      about:
-        "Moderate risk destinations are generally manageable, but current conditions call for extra awareness around specific neighborhoods or disruptions.",
-    },
-    alerts: [
-      {
-        id: "seoul-demonstration",
-        tone: "danger",
-        label: "Safety Alert",
-        title: "Large Demonstration Planned",
-        location: "Gwanghwamun, Seoul",
-        timestamp: "May 10, 2025 \u2022 8:20 AM",
-        description:
-          "Large demonstration expected downtown this evening.\nExpect road closures and intermittent transit delays.",
-        details:
-          "Avoid central protest corridors after 5 PM and allow extra time if you need to pass through Jongno District.",
-      },
-      {
-        id: "seoul-subway",
-        tone: "advisory",
-        label: "Safety Advisory",
-        title: "Transit Crowding Reported",
-        location: "Line 2, Seoul",
-        timestamp: "May 10, 2025 \u2022 7:40 AM",
-        description:
-          "Peak-hour congestion has led to platform crowding\nand longer wait times at major transfer stations.",
-        details:
-          "Plan alternate transfers when possible and keep valuables secured while boarding during rush hour.",
-      },
-    ],
-    categories: [
-      {
-        id: "crime",
-        title: "Crime & Security",
-        status: "Low Risk",
-        iconFamily: "ion",
-        iconName: "shield-checkmark",
-        iconColor: "#1F78FF",
-        iconBackground: "#EAF3FF",
-      },
-      {
-        id: "health",
-        title: "Health",
-        status: "Low Risk",
-        iconFamily: "material",
-        iconName: "medical-bag",
-        iconColor: "#149647",
-        iconBackground: "#EAF9F0",
-      },
-      {
-        id: "transportation",
-        title: "Transportation",
-        status: "Moderate",
-        iconFamily: "ion",
-        iconName: "train-outline",
-        iconColor: "#7D58F2",
-        iconBackground: "#F1EAFF",
-      },
-      {
-        id: "laws",
-        title: "Local Laws",
-        status: "Low Risk",
-        iconFamily: "material",
-        iconName: "bank-outline",
-        iconColor: "#F59E0B",
-        iconBackground: "#FFF5DE",
-      },
-      {
-        id: "updates",
-        title: "Local Updates",
-        status: "2 Active",
-        iconFamily: "ion",
-        iconName: "megaphone-outline",
-        iconColor: "#8B5CF6",
-        iconBackground: "#F3EEFF",
-      },
-    ],
-    tips: [
-      {
-        id: "belongings",
-        title: "Keep valuables close",
-        description:
-          "Use zipped bags and keep your phone secure in crowded stations and shopping areas.",
-        detail:
-          "Move backpacks to your front on packed subway cars and be cautious on escalators near exits.",
-        iconFamily: "ion",
-        iconName: "lock-closed",
-        iconColor: "#1F78FF",
-        iconBackground: "#EAF3FF",
-      },
-      {
-        id: "awareness",
-        title: "Track local notices",
-        description:
-          "Watch for metro announcements, road closures, and district advisories before heading out.",
-        detail:
-          "A quick check before you leave can help you avoid demonstration routes and delays.",
-        iconFamily: "ion",
-        iconName: "location",
-        iconColor: "#149647",
-        iconBackground: "#EAF9F0",
-      },
-      {
-        id: "contacts",
-        title: "Important Contacts",
-        description:
-          "Police: 112  \u2022  Ambulance/Fire: 119  \u2022  Tourist Hotline: 1330",
-        detail: "Keep the Korea Travel Hotline handy for translation help and regional guidance.",
-        iconFamily: "ion",
-        iconName: "call",
-        iconColor: "#7D58F2",
-        iconBackground: "#F1EAFF",
-      },
-    ],
-  },
-  {
-    id: "lisbon",
-    label: "Lisbon, Portugal",
-    cityLabel: "Lisbon",
-    aliases: ["lisbon", "portugal", "lisbon portugal"],
-    updatedAt: new Date(2025, 4, 10, 7, 50),
-    overall: {
-      level: "low",
-      label: "Low Risk",
-      description:
-        "Lisbon is currently a low risk destination.\nStay alert on trams and at major viewpoints,\nand follow standard city travel precautions.",
-      indicatorLeft: "18%",
-      about:
-        "Low risk destinations may still have targeted nuisance crime or transport issues, but conditions remain broadly stable for travelers.",
-    },
-    alerts: [
-      {
-        id: "lisbon-viewpoint",
-        tone: "danger",
-        label: "Safety Alert",
-        title: "Crowding Near Viewpoints",
-        location: "Alfama, Lisbon",
-        timestamp: "May 10, 2025 \u2022 8:05 AM",
-        description:
-          "Heavy visitor traffic expected near popular miradouros.\nWatch for bag snatching in photo-heavy areas.",
-        details:
-          "Visit earlier in the day when possible and keep straps close when stopping for photos.",
-      },
-      {
-        id: "lisbon-tram",
-        tone: "advisory",
-        label: "Safety Advisory",
-        title: "Pickpocketing Advisory",
-        location: "Tram 28, Lisbon",
-        timestamp: "May 10, 2025 \u2022 7:10 AM",
-        description:
-          "Recent reports of pickpocketing on historic trams\nand in dense queue areas near boarding points.",
-        details:
-          "Keep backpacks closed, avoid wallets in rear pockets, and stand clear of crowded doorways.",
-      },
-    ],
-    categories: [
-      {
-        id: "crime",
-        title: "Crime & Security",
-        status: "Low Risk",
-        iconFamily: "ion",
-        iconName: "shield-checkmark",
-        iconColor: "#1F78FF",
-        iconBackground: "#EAF3FF",
-      },
-      {
-        id: "health",
-        title: "Health",
-        status: "Low Risk",
-        iconFamily: "material",
-        iconName: "medical-bag",
-        iconColor: "#149647",
-        iconBackground: "#EAF9F0",
-      },
-      {
-        id: "transportation",
-        title: "Transportation",
-        status: "Low Risk",
-        iconFamily: "ion",
-        iconName: "train-outline",
-        iconColor: "#7D58F2",
-        iconBackground: "#F1EAFF",
-      },
-      {
-        id: "laws",
-        title: "Local Laws",
-        status: "Low Risk",
-        iconFamily: "material",
-        iconName: "bank-outline",
-        iconColor: "#F59E0B",
-        iconBackground: "#FFF5DE",
-      },
-      {
-        id: "updates",
-        title: "Local Updates",
-        status: "1 Active",
-        iconFamily: "ion",
-        iconName: "megaphone-outline",
-        iconColor: "#8B5CF6",
-        iconBackground: "#F3EEFF",
-      },
-    ],
-    tips: [
-      {
-        id: "belongings",
-        title: "Secure your belongings",
-        description:
-          "Keep valuables close on trams, funiculars, and at crowded viewpoints.",
-        detail:
-          "Small cross-body bags work especially well when boarding packed public transit.",
-        iconFamily: "ion",
-        iconName: "lock-closed",
-        iconColor: "#1F78FF",
-        iconBackground: "#EAF3FF",
-      },
-      {
-        id: "awareness",
-        title: "Watch your footing",
-        description:
-          "Wear stable shoes and move carefully on steep hills, stairs, and slick stone streets.",
-        detail:
-          "A little extra care goes a long way around tram tracks and polished stone walkways.",
-        iconFamily: "ion",
-        iconName: "location",
-        iconColor: "#149647",
-        iconBackground: "#EAF9F0",
-      },
-      {
-        id: "contacts",
-        title: "Important Contacts",
-        description:
-          "Police: 112  \u2022  Medical Emergency: 112  \u2022  Tourism Support: 808-781-212",
-        detail: "Save the national emergency number once and you will have both police and medical help covered.",
-        iconFamily: "ion",
-        iconName: "call",
-        iconColor: "#7D58F2",
-        iconBackground: "#F1EAFF",
-      },
-    ],
-  },
-];
-
 const alertToneStyles = {
   danger: {
     borderColor: "#FFD5CF",
@@ -522,10 +141,6 @@ function formatTimestamp(date) {
   return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} \u2022 ${hours12}:${minutes} ${meridiem}`;
 }
 
-function normalizeDestinationValue(value) {
-  return value.trim().toLowerCase();
-}
-
 function titleCaseWords(value) {
   return value
     .trim()
@@ -547,26 +162,6 @@ function getCityFromLabel(label) {
   return label.split(",")[0]?.trim() || label.trim();
 }
 
-function getDestinationMatchIndex(query) {
-  const normalizedQuery = normalizeDestinationValue(query);
-
-  if (!normalizedQuery) {
-    return -1;
-  }
-
-  return DESTINATION_OPTIONS.findIndex((option) => {
-    const candidates = [option.label, ...(option.aliases || [])];
-    return candidates.some((candidate) => {
-      const normalizedCandidate = normalizeDestinationValue(candidate);
-      return (
-        normalizedCandidate === normalizedQuery ||
-        normalizedCandidate.includes(normalizedQuery) ||
-        normalizedQuery.includes(normalizedCandidate)
-      );
-    });
-  });
-}
-
 function renderIcon(iconFamily, iconName, color, size) {
   if (iconFamily === "material") {
     return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
@@ -585,7 +180,7 @@ function getOverallStyles(level) {
     };
   }
 
-  if (level === "high") {
+  if (level === "high" || level === "extreme") {
     return {
       color: "#E23D35",
       softBackground: "#FFE8E4",
@@ -603,6 +198,9 @@ function getOverallStyles(level) {
 }
 
 function getCategoryStatusColor(status) {
+  if (status.toLowerCase().includes("extreme") || status.toLowerCase().includes("high")) {
+    return "#E23D35";
+  }
   if (status.toLowerCase().includes("active")) {
     return "#F04D33";
   }
@@ -768,6 +366,9 @@ function CategoryCard({ item, isSelected, onPress, width }) {
       <Text style={[styles.categoryStatus, { color: getCategoryStatusColor(item.status) }]}>
         {item.status}
       </Text>
+      {isSelected ? (
+        <Text style={styles.categoryDescription}>{item.description}</Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -793,7 +394,12 @@ function TipRow({ tip, isSelected, isLast, onPress }) {
         <View style={styles.tipCopy}>
           <Text style={styles.tipTitle}>{tip.title}</Text>
           <Text style={styles.tipDescription}>{tip.description}</Text>
-          {isSelected ? <Text style={styles.tipDetail}>{tip.detail}</Text> : null}
+          {isSelected ? (
+            <>
+              <Text style={styles.tipDetail}>{tip.detail}</Text>
+              <Text style={styles.tipSource}>{tip.source}</Text>
+            </>
+          ) : null}
         </View>
 
         <Ionicons
@@ -814,31 +420,43 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
   const useScrollableCategories = width < 900;
   const pageMaxWidth = width >= 1180 ? 1020 : 960;
 
-  const initialDestination = DESTINATION_OPTIONS[0];
-  const [destinationIndex, setDestinationIndex] = useState(0);
+  const initialDestinationLabel = "Bali, Indonesia";
   const [destinationInput, setDestinationInput] = useState("");
   const [destinationSuggestions, setDestinationSuggestions] = useState([]);
   const [destinationSuggestLoading, setDestinationSuggestLoading] = useState(false);
   const [showDestinationSuggestions, setShowDestinationSuggestions] = useState(false);
-  const [appliedDestinationLabel, setAppliedDestinationLabel] = useState(initialDestination.label);
-  const [lastUpdated, setLastUpdated] = useState(initialDestination.updatedAt);
-  const [selectedAlertId, setSelectedAlertId] = useState(initialDestination.alerts[0]?.id ?? null);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(initialDestination.categories[0]?.id ?? null);
+  const [appliedDestinationLabel, setAppliedDestinationLabel] = useState(initialDestinationLabel);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [selectedAlertId, setSelectedAlertId] = useState(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [selectedTipId, setSelectedTipId] = useState(null);
   const [showSafetyInfo, setShowSafetyInfo] = useState(false);
   const [liveAlerts, setLiveAlerts] = useState([]);
+  const [liveReport, setLiveReport] = useState(null);
   const [safetyLoading, setSafetyLoading] = useState(true);
   const [safetyError, setSafetyError] = useState("");
   const [isStale, setIsStale] = useState(false);
-  const activeQueryRef = useRef({ destination: initialDestination.label });
+  const activeQueryRef = useRef({ destination: initialDestinationLabel, countryIso: "IDN" });
   const requestInFlightRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
+  const mountedRef = useRef(true);
 
-  const destination = DESTINATION_OPTIONS[destinationIndex];
-  const displayDestinationLabel = appliedDestinationLabel || destination.label;
+  const destination = {
+    overall: liveReport?.risk || {
+      level: "low",
+      label: "Loading risk",
+      indicatorLeft: "1%",
+      description: "Loading current country-level safety information.",
+      about:
+        "Risk information is country-level and does not represent a city crime, health, or transportation score.",
+    },
+    categories: liveReport?.categories || [],
+    tips: liveReport?.tips || [],
+  };
+  const displayDestinationLabel = liveReport?.destinationLabel || appliedDestinationLabel;
   const displayCityLabel = getCityFromLabel(displayDestinationLabel);
   const visibleAlerts = liveAlerts;
-  const safetyOverview = deriveSafetyOverview(visibleAlerts, displayDestinationLabel);
+  const safetyOverview = destination.overall;
   const overallDescription = safetyOverview.description;
   const overallStyles = getOverallStyles(safetyOverview.level);
   const categoryCardWidth = useScrollableCategories ? 154 : "18.6%";
@@ -857,21 +475,43 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
       if (!token) {
         throw new Error("Sign in to load live safety alerts.");
       }
-      const payload = await dashboardApi.fetchSafetyAlerts(token, query);
-      const mapped = mapSafetyAlertsForScreen(payload);
+      const payload = await dashboardApi.fetchSafetyReport(token, query);
+      const mappedReport = mapSafetyReportForScreen(payload);
+      if (!mountedRef.current) return;
+      const mapped = mappedReport.alerts;
+      activeQueryRef.current = {
+        ...query,
+        destination: mappedReport.destinationLabel,
+        ...(mappedReport.countryIso ? { countryIso: mappedReport.countryIso } : {}),
+      };
+      setLiveReport(mappedReport);
       setLiveAlerts(mapped);
+      setAppliedDestinationLabel(mappedReport.destinationLabel);
+      setSelectedCategoryId((currentId) =>
+        mappedReport.categories.some((item) => item.id === currentId)
+          ? currentId
+          : mappedReport.categories[0]?.id ?? null
+      );
       setSelectedAlertId((currentId) =>
         mapped.some((alert) => alert.id === currentId) ? currentId : mapped[0]?.id ?? null
       );
-      setLastUpdated(new Date());
-      setIsStale(false);
+      setLastUpdated(mappedReport.fetchedAt);
+      setIsStale(mappedReport.isStale);
     } catch (error) {
+      if (!mountedRef.current) return;
       setSafetyError(error?.message || "Couldn't refresh safety alerts.");
       setIsStale(true);
     } finally {
       requestInFlightRef.current = false;
-      setSafetyLoading(false);
+      if (mountedRef.current) setSafetyLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -880,10 +520,15 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
       const location = await refreshLocation();
       if (cancelled) return;
       if (location?.lat != null && location?.lng != null) {
-        const label =
-          (await reverseGeocodeLabel(location.lat, location.lng)) || initialDestination.label;
+        const resolved = await reverseGeocodeQuery(location.lat, location.lng);
+        const label = resolved?.label || initialDestinationLabel;
         if (cancelled) return;
-        activeQueryRef.current = { destination: label, lat: location.lat, lng: location.lng };
+        activeQueryRef.current = {
+          destination: label,
+          lat: location.lat,
+          lng: location.lng,
+          ...(resolved?.countryIso ? { countryIso: resolved.countryIso } : {}),
+        };
         setAppliedDestinationLabel(label);
       }
       await loadSafety(activeQueryRef.current, true);
@@ -945,14 +590,11 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
     };
   }, [destinationInput, displayDestinationLabel]);
 
-  function applyDestination(nextIndex, nextLabel) {
-    const nextDestination = DESTINATION_OPTIONS[nextIndex];
-
-    setDestinationIndex(nextIndex);
+  function applyDestination(nextLabel) {
     setAppliedDestinationLabel(nextLabel);
     setLastUpdated(new Date());
     setSelectedAlertId(null);
-    setSelectedCategoryId(nextDestination.categories[0]?.id ?? null);
+    setSelectedCategoryId(null);
     setSelectedTipId(null);
     setShowSafetyInfo(false);
   }
@@ -969,30 +611,15 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
       return;
     }
 
-    const matchedIndex = getDestinationMatchIndex(trimmedDestination);
-
-    if (matchedIndex >= 0) {
-      const matchedDestination = DESTINATION_OPTIONS[matchedIndex];
-      setDestinationInput(matchedDestination.label);
-      setShowDestinationSuggestions(false);
-      const geocoded = await geocodeQuery(matchedDestination.label);
-      applyDestination(matchedIndex, matchedDestination.label, false);
-      activeQueryRef.current = {
-        destination: matchedDestination.label,
-        ...(geocoded ? { lat: geocoded.lat, lng: geocoded.lng } : {}),
-      };
-      await loadSafety(activeQueryRef.current, true);
-      return;
-    }
-
     const formattedLabel = formatDestinationLabel(trimmedDestination);
     setDestinationInput(formattedLabel);
     setShowDestinationSuggestions(false);
-    applyDestination(destinationIndex, formattedLabel, true);
+    applyDestination(formattedLabel);
     const geocoded = await geocodeQuery(formattedLabel);
     activeQueryRef.current = {
       destination: geocoded?.label || formattedLabel,
       ...(geocoded ? { lat: geocoded.lat, lng: geocoded.lng } : {}),
+      ...(geocoded?.countryIso ? { countryIso: geocoded.countryIso } : {}),
     };
     if (geocoded?.label) {
       setAppliedDestinationLabel(geocoded.label);
@@ -1008,16 +635,15 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
 
   async function handleSelectDestinationSuggestion(suggestion) {
     const label = suggestion.label;
-    const matchedIndex = getDestinationMatchIndex(label);
-    const nextIndex = matchedIndex >= 0 ? matchedIndex : destinationIndex;
     setDestinationInput(label);
     setDestinationSuggestions([]);
     setShowDestinationSuggestions(false);
-    applyDestination(nextIndex, label);
+    applyDestination(label);
     activeQueryRef.current = {
       destination: label,
       lat: suggestion.lat,
       lng: suggestion.lng,
+      ...(suggestion.countryIso ? { countryIso: suggestion.countryIso } : {}),
     };
     await loadSafety(activeQueryRef.current, true);
   }
@@ -1033,6 +659,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
       await dashboardApi.dismissSafetyAlert(token, alertId);
       setLiveAlerts((alerts) => alerts.filter((alert) => alert.id !== alertId));
       setSelectedAlertId(null);
+      await loadSafety();
     } catch (error) {
       setSafetyError(error?.message || "Couldn't dismiss this alert.");
     }
@@ -1183,6 +810,10 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                   </View>
                 ) : null}
 
+                <Text style={styles.destinationScopeText}>
+                  {liveReport?.scopeLabel || "Country-level risk information"}
+                </Text>
+
                 <View style={[styles.destinationUpdatedRow, isPhone && styles.destinationUpdatedRowCompact]}>
                   <Text style={styles.destinationUpdatedText}>
                     Last updated: {formatTimestamp(lastUpdated)}{isStale ? " (stale)" : ""}
@@ -1263,10 +894,10 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
             <View style={styles.alertsList}>
               {safetyError ? <Text style={styles.liveStateText}>{safetyError}</Text> : null}
               {safetyLoading && visibleAlerts.length === 0 ? (
-                <Text style={styles.liveStateText}>Loading current safety alerts...</Text>
+                <Text style={styles.liveStateText}>Loading current safety report...</Text>
               ) : null}
               {!safetyLoading && visibleAlerts.length === 0 ? (
-                <Text style={styles.liveStateText}>No active alerts for this destination.</Text>
+                <Text style={styles.liveStateText}>No active country or weather alerts were reported.</Text>
               ) : null}
               {visibleAlerts.map((alert) => (
                 <AlertCard
@@ -1328,13 +959,15 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
             )}
 
             <View style={styles.sectionTopRow}>
-              <Text style={styles.largeSectionTitle}>Safety Tips for {displayCityLabel}</Text>
+              <Text style={styles.largeSectionTitle}>
+                General Preparedness Guidance for {displayCityLabel}
+              </Text>
               <Pressable
                 accessibilityRole="button"
                 onPress={() => setSelectedTipId(null)}
                 style={({ pressed }) => [styles.sectionLinkButton, pressed && styles.linkPressed]}
               >
-                <Text style={styles.sectionLinkText}>View all tips</Text>
+                <Text style={styles.sectionLinkText}>View all guidance</Text>
               </Pressable>
             </View>
 
@@ -1792,6 +1425,14 @@ const styles = StyleSheet.create({
     gap: 14,
   },
 
+  destinationScopeText: {
+    marginTop: 12,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.94)",
+  },
+
   destinationUpdatedRowCompact: {
     alignItems: "flex-start",
   },
@@ -2193,6 +1834,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
+  categoryDescription: {
+    marginTop: 10,
+    textAlign: "center",
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#51637E",
+  },
+
   tipsCard: {
     marginTop: 2,
     borderRadius: 24,
@@ -2257,6 +1906,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     color: "#587093",
+  },
+
+  tipSource: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#6B7C99",
   },
 
   tipChevron: {

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import pytest
 
 from app.providers.base import ProviderSafetyAlert
-from app.services.safety import alert_dedupe_key, normalize_severity
+from app.services.safety import alert_dedupe_key, normalize_severity, score_to_level
 
 pytestmark = pytest.mark.unit
 
@@ -43,3 +43,20 @@ def test_alert_dedupe_key_uses_requested_destination_and_times():
     assert alert_dedupe_key(first, "Tokyo, Japan") != alert_dedupe_key(
         first, "Seoul, South Korea"
     )
+
+
+def test_provider_alert_id_is_stable_across_city_labels():
+    item = alert(starts_at=datetime(2026, 7, 18, tzinfo=timezone.utc))
+    object.__setattr__(item, "provider_alert_id", "gdacs-42")
+
+    assert alert_dedupe_key(item, "Tokyo, Japan") == alert_dedupe_key(
+        item, "Osaka, Japan"
+    )
+
+
+@pytest.mark.parametrize(
+    ("score", "level"),
+    [(0, "low"), (1.49, "low"), (1.5, "moderate"), (2.5, "high"), (3.5, "extreme"), (5, "extreme")],
+)
+def test_score_to_level(score, level):
+    assert score_to_level(score) == level

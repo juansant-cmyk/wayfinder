@@ -15,7 +15,7 @@ services:
       - key: JWT_EXPIRE_HOURS
         value: "24"
       - key: USE_MOCK_PROVIDERS
-        value: "true"
+        value: "false"
       - key: HOTEL_PROVIDER
         value: "liteapi"
       - key: LITEAPI_API_KEY
@@ -30,5 +30,13 @@ services:
         value: "weatherapi"
       - key: WEATHER_API_KEY
         sync: false
+      - key: TRAVEL_RISK_PROVIDER
+        value: "travelrisk"
+      - key: TRAVEL_RISK_API_KEY
+        sync: false
+      - key: TRAVEL_RISK_BASE_URL
+        value: "https://travelriskapi.com/api/v1"
+      - key: TRAVEL_RISK_CACHE_TTL_SECONDS
+        value: "300"
       - key: CORS_ORIGINS
         sync: false

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
+import pycountry
 
 from app.core.config import settings
 
@@ -51,6 +52,17 @@ def _label_from_parts(city: str | None, region: str | None, country: str | None,
     return city or region or country or fallback
 
 
+def normalize_country_codes(value: str | None) -> tuple[str | None, str | None]:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return None, None
+    try:
+        country = pycountry.countries.lookup(cleaned)
+    except LookupError:
+        return None, None
+    return country.alpha_2, country.alpha_3
+
+
 def _google_components(components: list[dict[str, Any]]) -> dict[str, str]:
     mapped: dict[str, str] = {}
     for item in components:
@@ -66,6 +78,9 @@ def _google_components(components: list[dict[str, Any]]) -> dict[str, str]:
             mapped["region"] = name
         elif "country" in types:
             mapped["country"] = name
+            short_name = item.get("short_name")
+            if short_name:
+                mapped["country_code"] = str(short_name).upper()
     return mapped
 
 
@@ -100,6 +115,12 @@ async def _google_geocode(params: dict[str, Any]) -> dict[str, Any] | None:
         "city": parts.get("city"),
         "region": parts.get("region"),
         "country": parts.get("country"),
+        "country_code": normalize_country_codes(
+            parts.get("country_code") or parts.get("country")
+        )[0],
+        "country_iso": normalize_country_codes(
+            parts.get("country_code") or parts.get("country")
+        )[1],
         "lat": geometry.get("lat"),
         "lng": geometry.get("lng"),
         "provider": "google",
@@ -125,6 +146,7 @@ async def _nominatim_reverse(lat: float, lng: float) -> dict[str, Any] | None:
     )
     region = address.get("state") or address.get("region")
     country = address.get("country")
+    country_code, country_iso = normalize_country_codes(address.get("country_code") or country)
     label = _label_from_parts(city, region, country, payload.get("display_name"))
     if not label:
         return None
@@ -133,6 +155,8 @@ async def _nominatim_reverse(lat: float, lng: float) -> dict[str, Any] | None:
         "city": city,
         "region": region,
         "country": country,
+        "country_code": country_code,
+        "country_iso": country_iso,
         "lat": lat,
         "lng": lng,
         "provider": "nominatim",
@@ -166,6 +190,7 @@ async def _nominatim_search(query: str, *, limit: int = 1) -> list[dict[str, Any
         )
         region = address.get("state") or address.get("region")
         country = address.get("country")
+        country_code, country_iso = normalize_country_codes(address.get("country_code") or country)
         # Require a city/town/region or country so free-text junk is filtered out.
         if not city and not country:
             continue
@@ -183,6 +208,8 @@ async def _nominatim_search(query: str, *, limit: int = 1) -> list[dict[str, Any
                 "city": city,
                 "region": region,
                 "country": country,
+                "country_code": country_code,
+                "country_iso": country_iso,
                 "lat": lat,
                 "lng": lng,
                 "provider": "nominatim",
@@ -243,6 +270,12 @@ async def _google_geocode_many(params: dict[str, Any], *, limit: int = 5) -> lis
                 "city": parts.get("city"),
                 "region": parts.get("region"),
                 "country": parts.get("country"),
+                "country_code": normalize_country_codes(
+                    parts.get("country_code") or parts.get("country")
+                )[0],
+                "country_iso": normalize_country_codes(
+                    parts.get("country_code") or parts.get("country")
+                )[1],
                 "lat": float(lat),
                 "lng": float(lng),
                 "provider": "google",

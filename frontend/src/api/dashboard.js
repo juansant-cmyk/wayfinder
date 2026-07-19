@@ -200,6 +200,16 @@ export function fetchSafetyAlerts(token, options = {}) {
   return apiRequest(`/safety?${params.toString()}`, { token });
 }
 
+export function fetchSafetyReport(token, options = {}) {
+  const params = new URLSearchParams();
+  params.set("destination", options.destination || DEFAULT_DESTINATION);
+  withCoordinates(params, options);
+  if (options.countryIso) {
+    params.set("country_iso", String(options.countryIso).toUpperCase());
+  }
+  return apiRequest(`/safety/report?${params.toString()}`, { token });
+}
+
 export function dismissSafetyAlert(token, alertId) {
   return apiRequest(`/alerts/${encodeURIComponent(alertId)}/dismiss`, {
     method: "POST",

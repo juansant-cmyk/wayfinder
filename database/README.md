@@ -48,6 +48,7 @@ docker compose exec -T db psql -U wayfinder -d wayfinder < schema/006_plan_itine
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/007_plan_status.sql
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/008_plan_cover_image.sql
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/009_safety_alert_deduplication.sql
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/010_travelrisk_safety.sql
 
 # macOS / Linux
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/001_users.sql
@@ -60,6 +61,7 @@ docker compose exec -T db psql -U wayfinder -d wayfinder < schema/006_plan_itine
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/007_plan_status.sql
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/008_plan_cover_image.sql
 docker compose exec -T db psql -U wayfinder -d wayfinder < schema/009_safety_alert_deduplication.sql
+docker compose exec -T db psql -U wayfinder -d wayfinder < schema/010_travelrisk_safety.sql
 ```
 
 Default connection (matches `backend/.env.example`):

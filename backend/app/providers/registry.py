@@ -6,6 +6,7 @@ from app.providers.base import (
     LLMProvider,
     PlacesProvider,
     TravelAdvisoryProvider,
+    TravelRiskProvider,
     WeatherProvider,
 )
 from app.providers.google_places import GooglePlacesProvider
@@ -18,7 +19,9 @@ from app.providers.mock import (
     MockTravelAdvisoryProvider,
     MockWeatherProvider,
     NoopTravelAdvisoryProvider,
+    MockTravelRiskProvider,
 )
+from app.providers.travelrisk import TravelRiskApiProvider
 from app.providers.weatherapi import WeatherApiProvider
 
 
@@ -63,6 +66,12 @@ def get_travel_advisory_provider() -> TravelAdvisoryProvider:
     if settings.use_mock_providers:
         return MockTravelAdvisoryProvider()
     return NoopTravelAdvisoryProvider()
+
+
+def get_travel_risk_provider() -> TravelRiskProvider:
+    if (settings.travel_risk_provider or "").strip().lower() == "travelrisk":
+        return TravelRiskApiProvider()
+    return MockTravelRiskProvider()
 
 
 def get_fare_provider() -> FareProvider:

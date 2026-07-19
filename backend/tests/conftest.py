@@ -1,6 +1,8 @@
 # Shared test fixtures — isolated async DB sessions and ASGI client for auth tests.
 import os
 
+os.environ.setdefault("JWT_SECRET", "ci-test-secret")
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
@@ -86,7 +88,7 @@ async def clean_tables(create_schema):
             text(
                 "TRUNCATE TABLE users, travel_plans, places, hotels, favorites, "
                 "chat_sessions, chat_messages, safety_alerts, alert_dismissals, "
-                "fare_watches, fare_events CASCADE"
+                "safety_risk_snapshots, fare_watches, fare_events CASCADE"
             )
         )
         await session.commit()

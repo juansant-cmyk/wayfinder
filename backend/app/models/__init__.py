@@ -8,6 +8,7 @@ from app.models.travel import (
     Hotel,
     Place,
     SafetyAlert,
+    SafetyRiskSnapshot,
     TravelPlan,
 )
 from app.models.user import Base, User
@@ -23,6 +24,7 @@ __all__ = [
     "Hotel",
     "Place",
     "SafetyAlert",
+    "SafetyRiskSnapshot",
     "PlanActivity",
     "PlanDay",
     "TravelPlan",
