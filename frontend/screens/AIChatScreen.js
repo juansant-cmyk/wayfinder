@@ -2,6 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   Platform,
   Pressable,
@@ -14,6 +15,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import * as dashboardApi from "../src/api/dashboard";
+import { getToken } from "../src/auth/tokenStorage";
 import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
@@ -267,15 +270,20 @@ function MessageBubble({ message, compact = false }) {
   );
 }
 
+const WELCOME_MESSAGE_ID = "assistant-welcome";
+const WELCOME_TEXT =
+  "Tap a card or popular question to prefill the chat, then send — I'll use your active trip, weather, and favorites.";
+
 export default function AIChatScreen({ onNavigate, onBack }) {
   const { width } = useWindowDimensions();
   const inputRef = useRef(null);
   const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState([
     {
-      id: "assistant-welcome",
+      id: WELCOME_MESSAGE_ID,
       role: "assistant",
-      text: "Tap a card or popular question to prefill the chat. This screen is ready for backend wiring later.",
+      text: WELCOME_TEXT,
     },
   ]);
 
@@ -304,25 +312,79 @@ export default function AIChatScreen({ onNavigate, onBack }) {
     }, 0);
   }
 
-  function handleSend() {
+  async function handleSend() {
     const trimmed = message.trim();
 
-    if (!trimmed) {
+    if (!trimmed || sending) {
       return;
     }
 
-    console.log("AI Chat demo message:", trimmed);
+    const stamp = Date.now();
+    const userId = `user-${stamp}`;
+    const thinkingId = `thinking-${stamp}`;
 
-    setMessages((currentMessages) => [
-      ...currentMessages,
-      {
-        id: `${Date.now()}-${currentMessages.length}`,
-        role: "user",
-        text: trimmed,
-      },
-    ]);
+    setSending(true);
     setMessage("");
+    setMessages((currentMessages) => {
+      const withoutWelcome = currentMessages.filter((item) => item.id !== WELCOME_MESSAGE_ID);
+      return [
+        ...withoutWelcome,
+        { id: userId, role: "user", text: trimmed },
+        {
+          id: thinkingId,
+          role: "assistant",
+          text: "Wayfinder is thinking…",
+        },
+      ];
+    });
+
+    try {
+      const token = await getToken();
+
+      if (!token) {
+        setMessages((currentMessages) =>
+          currentMessages.map((item) =>
+            item.id === thinkingId
+              ? {
+                  ...item,
+                  id: `assistant-${stamp}`,
+                  text: "Sign in to chat with Wayfinder.",
+                }
+              : item
+          )
+        );
+        return;
+      }
+
+      const response = await dashboardApi.sendChatMessage(token, trimmed);
+      const reply =
+        typeof response?.reply === "string" && response.reply.trim()
+          ? response.reply.trim()
+          : "I didn't get a reply. Try again in a moment.";
+
+      setMessages((currentMessages) =>
+        currentMessages.map((item) =>
+          item.id === thinkingId
+            ? { ...item, id: `assistant-${stamp}`, text: reply }
+            : item
+        )
+      );
+    } catch (sendError) {
+      const text =
+        sendError instanceof Error ? sendError.message : "Request failed. Please try again.";
+      setMessages((currentMessages) =>
+        currentMessages.map((item) =>
+          item.id === thinkingId
+            ? { ...item, id: `assistant-error-${stamp}`, text }
+            : item
+        )
+      );
+    } finally {
+      setSending(false);
+    }
   }
+
+  const canSend = Boolean(message.trim()) && !sending;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -587,20 +649,26 @@ export default function AIChatScreen({ onNavigate, onBack }) {
                 placeholderTextColor="#9BA8C2"
                 style={[styles.composerInput, isPhone && styles.composerInputCompact]}
                 returnKeyType="send"
+                editable={!sending}
                 onSubmitEditing={handleSend}
               />
 
               <Pressable
                 accessibilityRole="button"
-                disabled={!message.trim()}
+                accessibilityLabel="Send message"
+                disabled={!canSend}
                 onPress={handleSend}
                 style={[
                   styles.sendButton,
                   isPhone && styles.sendButtonCompact,
-                  !message.trim() && styles.sendButtonDisabled,
+                  !canSend && styles.sendButtonDisabled,
                 ]}
               >
-                <Ionicons name="paper-plane" size={18} color="#FFFFFF" />
+                {sending ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Ionicons name="paper-plane" size={18} color="#FFFFFF" />
+                )}
               </Pressable>
             </View>
           </View>
