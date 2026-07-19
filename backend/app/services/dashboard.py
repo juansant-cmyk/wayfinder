@@ -1,5 +1,5 @@
 # Mock dashboard data — matches HomeScreen labels until external APIs are wired.
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
@@ -137,7 +137,7 @@ def get_travel_check(destination: str | None) -> TravelCheckResponse:
 
 
 def list_notifications(user_id: UUID) -> list[NotificationResponse]:
-    now = datetime.now(UTC)
+    now = datetime.now(timezone.utc)
     return [
         NotificationResponse(
             id=uuid4(),
@@ -157,10 +157,13 @@ def list_notifications(user_id: UUID) -> list[NotificationResponse]:
 
 
 def send_chat_message(user_id: UUID, message: str) -> ChatMessageResponse:
+    """Deprecated sync stub — prefer ``app.services.chat.send_chat_message`` (async)."""
     return ChatMessageResponse(
         reply=(
             "I'm Wayfinder. For now this is a mock reply — "
             f'you asked: "{message.strip()}". Try asking about destinations, hotels, or safety.'
         ),
         session_id=str(user_id),
+        provider="legacy-dashboard",
+        agent=None,
     )

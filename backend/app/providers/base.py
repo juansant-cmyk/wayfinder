@@ -183,3 +183,52 @@ class CurrentWeatherProvider(Protocol):
         lng: float | None,
     ) -> ProviderCurrentWeather:
         ...
+
+
+@dataclass(frozen=True)
+class ChatToolSpec:
+    """JSON-schema tool the orchestrator may expose to a chat model."""
+
+    name: str
+    description: str
+    parameters: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ChatMessage:
+    role: str  # system | user | assistant | tool
+    content: str
+    name: str | None = None
+    tool_call_id: str | None = None
+
+
+@dataclass(frozen=True)
+class ChatCompletion:
+    content: str
+    provider: str
+    model: str
+    tool_calls: list[dict] = field(default_factory=list)
+    raw: dict = field(default_factory=dict)
+
+
+class ChatProvider(Protocol):
+    """Primary chat / agent brain (OpenAI by default for tools + subagents)."""
+
+    name: str
+
+    async def complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        tools: list[ChatToolSpec] | None = None,
+    ) -> ChatCompletion:
+        ...
+
+
+class NarratorProvider(Protocol):
+    """Optional prose layer (e.g. Claude Sonnet) over scored context."""
+
+    name: str
+
+    async def narrate(self, system: str, user: str) -> str:
+        ...

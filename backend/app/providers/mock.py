@@ -1,6 +1,9 @@
 from dataclasses import replace
 
 from app.providers.base import (
+    ChatCompletion,
+    ChatMessage,
+    ChatToolSpec,
     ProviderAirQuality,
     ProviderCurrentWeather,
     ProviderForecastDay,
@@ -230,3 +233,39 @@ class MockWeatherProvider:
     ) -> list[ProviderSafetyAlert]:
         report = await self.current_weather(destination, lat, lng)
         return report.warnings
+
+
+class MockChatProvider:
+    """Default chat brain until CHAT_PROVIDER=openai and OPENAI_API_KEY are set."""
+
+    name = "mock"
+
+    async def complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        tools: list[ChatToolSpec] | None = None,
+    ) -> ChatCompletion:
+        user_text = next(
+            (m.content for m in reversed(messages) if m.role == "user"),
+            "",
+        ).strip()
+        asked = user_text
+        for line in user_text.splitlines():
+            if line.lower().startswith("user message:"):
+                asked = line.split(":", 1)[1].strip()
+                break
+        return ChatCompletion(
+            content=(
+                f'I\'m Wayfinder. Agent is currently not active. You asked: "{asked}".'
+            ),
+            provider=self.name,
+            model="mock",
+        )
+
+
+class MockNarratorProvider:
+    name = "mock"
+
+    async def narrate(self, system: str, user: str) -> str:
+        return user.strip() or "No narration."

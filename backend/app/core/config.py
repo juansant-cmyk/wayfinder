@@ -35,6 +35,15 @@ class Settings(BaseSettings):
     hotel_provider: str = "mock"
     use_mock_providers: bool = True
     external_request_timeout_seconds: int = 30
+    # AI chat: mock | openai (orchestrator + tool loop). Narrator: none | anthropic | openai
+    chat_provider: str = "mock"
+    openai_api_key: str = ""
+    openai_chat_model: str = "gpt-4o-mini"
+    openai_base_url: str = "https://api.openai.com/v1"
+    narrator_provider: str = "none"
+    anthropic_api_key: str = ""
+    anthropic_narrator_model: str = "claude-sonnet-4-20250514"
+    anthropic_base_url: str = "https://api.anthropic.com"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
