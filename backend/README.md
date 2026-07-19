@@ -49,6 +49,8 @@ OpenAPI docs: http://127.0.0.1:8000/docs
 python scripts/seed_test_user.py
 ```
 
+Local API startup also recreates this user automatically when `DATABASE_URL` points at localhost (so pytest no longer leaves you locked out). Pytest uses a separate DB (`wayfinder_test`) so truncate does not wipe `wayfinder`.
+
 | Email | Password |
 |-------|----------|
 | `test@wayfinder.dev` | `wayfinder1` |
@@ -140,6 +142,7 @@ Protected routes require `Authorization: Bearer <token>`.
 | Area | Routes |
 |------|--------|
 | Travel plans | `GET/POST /plans`, `GET/PATCH/DELETE /plans/{plan_id}` |
+| Plan itinerary | `POST /plans/{id}/days/{day_id}/activities`, `DELETE /plans/{id}/activities/{activity_id}` |
 | Discovery | `GET /places/popular`, `GET /places/{place_id}` |
 | Hotels | `GET /hotels/search`, `GET /hotels/{hotel_id}` |
 | Flights | `GET /flights/search` |
@@ -181,11 +184,14 @@ See [.env.example](.env.example):
 | Variable | Purpose |
 |----------|---------|
 | `DATABASE_URL` | Async SQLAlchemy URL for PostgreSQL |
-| `JWT_SECRET` | HS256 signing secret |
+| `JWT_SECRET` | HS256 signing secret (required; refuses empty / `change-me-in-production`). Generate: `python scripts/generate_jwt_secret.py` |
 | `JWT_EXPIRE_HOURS` | Access token lifetime (default `24`) |
 | `CORS_ORIGINS` | Comma-separated Expo dev origins |
 | `GOOGLE_MAPS_API_KEY` | Google Places key (maps / POI features) |
 | `HOTEL_API_KEY` | Legacy unused key |
+| `WEATHER_PROVIDER` | `mock` \| `weatherapi`; selects WeatherAPI.com when configured |
+| `WEATHER_API_KEY` | WeatherAPI.com key for live weather, forecast, AQI, and alerts |
+| `WEATHERAPI_BASE_URL` | Default `https://api.weatherapi.com/v1` |
 | `WEATHER_PROVIDER` | `mock` \| `weatherapi`; selects WeatherAPI.com when configured |
 | `WEATHER_API_KEY` | WeatherAPI.com key for live weather, forecast, AQI, and alerts |
 | `WEATHERAPI_BASE_URL` | Default `https://api.weatherapi.com/v1` |

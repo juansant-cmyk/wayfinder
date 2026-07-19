@@ -89,8 +89,54 @@ async function requestHotels(token, destination, sort, coords, market = null) {
   return apiRequest(`/hotels/search?${params}`, { token });
 }
 
-export function fetchPlans(token) {
-  return apiRequest("/plans", { token });
+export function fetchPlans(token, status = "all") {
+  const params = new URLSearchParams();
+  if (status && status !== "all") {
+    params.set("status", status);
+  } else if (status === "all") {
+    params.set("status", "all");
+  }
+  const query = params.toString();
+  return apiRequest(`/plans${query ? `?${query}` : ""}`, { token });
+}
+
+export function fetchPlan(token, planId) {
+  return apiRequest(`/plans/${planId}`, { token });
+}
+
+export function createPlan(token, body) {
+  return apiRequest("/plans", { method: "POST", token, body });
+}
+
+export function updatePlan(token, planId, body) {
+  return apiRequest(`/plans/${planId}`, { method: "PATCH", token, body });
+}
+
+export function completePlan(token, planId) {
+  return updatePlan(token, planId, { status: "completed" });
+}
+
+export function reopenPlan(token, planId) {
+  return updatePlan(token, planId, { status: "active" });
+}
+
+export function deletePlan(token, planId) {
+  return apiRequest(`/plans/${planId}`, { method: "DELETE", token });
+}
+
+export function createPlanActivity(token, planId, dayId, body) {
+  return apiRequest(`/plans/${planId}/days/${dayId}/activities`, {
+    method: "POST",
+    token,
+    body,
+  });
+}
+
+export function deletePlanActivity(token, planId, activityId) {
+  return apiRequest(`/plans/${planId}/activities/${activityId}`, {
+    method: "DELETE",
+    token,
+  });
 }
 
 export async function searchHotels(
@@ -147,8 +193,25 @@ export function fetchSafetySummary(token, destination = DEFAULT_DESTINATION) {
   return apiRequest(`/safety/summary?${withDestination(destination)}`, { token });
 }
 
-export function fetchWeather(token, destination = DEFAULT_DESTINATION) {
-  return apiRequest(`/weather/current?${withDestination(destination)}`, { token });
+export function fetchWeather(token, options = {}) {
+  const params = new URLSearchParams();
+  const destination =
+    typeof options === "string" ? options : options?.destination;
+  const lat = typeof options === "object" && options ? options.lat : null;
+  const lng = typeof options === "object" && options ? options.lng : null;
+
+  if (destination) {
+    params.set("destination", String(destination));
+  }
+  if (lat != null && lng != null) {
+    params.set("lat", String(lat));
+    params.set("lng", String(lng));
+  }
+  if (![...params.keys()].length) {
+    params.set("destination", DEFAULT_DESTINATION);
+  }
+
+  return apiRequest(`/weather/current?${params.toString()}`, { token });
 }
 
 export function sendChatMessage(token, message) {

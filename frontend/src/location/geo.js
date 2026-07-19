@@ -1,9 +1,13 @@
 import * as Location from "expo-location";
 
-import { getApiUrl } from "../api/client";
+import { getApiUrl, notifySessionExpired } from "../api/client";
+import { getToken } from "../auth/tokenStorage";
 
 const EARTH_RADIUS_KM = 6371;
 const KM_PER_MILE = 0.621371;
+
+/** Returned when /geo/* responds 401 — callers must not fall back to Expo geocoding. */
+const GEO_AUTH_REQUIRED = Symbol("GEO_AUTH_REQUIRED");
 
 /** Legacy Bali pin — only for maps fallbacks that still need a default center. */
 export const DEFAULT_LAT = -8.3405;
@@ -61,22 +65,37 @@ async function backendGeo(path) {
   if (!base) {
     return null;
   }
+
+  const token = await getToken();
+  const headers = { Accept: "application/json" };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   try {
-    const response = await fetch(`${base}${path}`, {
-      headers: { Accept: "application/json" },
-    });
+    const response = await fetch(`${base}${path}`, { headers });
+    if (response.status === 401) {
+      await notifySessionExpired();
+      return GEO_AUTH_REQUIRED;
+    }
     if (!response.ok) {
       return null;
     }
     return await response.json();
   } catch {
+    // Network / API unreachable — callers may use Expo fallback.
     return null;
   }
 }
 
 /** GPS → closest city / area label. */
 export async function reverseGeocodeLabel(lat, lng) {
-  const fromApi = await backendGeo(`/geo/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
+  const fromApi = await backendGeo(
+    `/geo/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`
+  );
+  if (fromApi === GEO_AUTH_REQUIRED) {
+    return null;
+  }
   if (fromApi?.label) {
     return fromApi.label;
   }
@@ -104,11 +123,17 @@ export async function geocodeQuery(query) {
 
   const prettyQuery = titleCasePlace(trimmed);
   const fromApi = await backendGeo(`/geo/search?q=${encodeURIComponent(trimmed)}`);
+  if (fromApi === GEO_AUTH_REQUIRED) {
+    return null;
+  }
   if (fromApi?.lat != null && fromApi?.lng != null) {
     return {
       lat: Number(fromApi.lat),
       lng: Number(fromApi.lng),
       label: fromApi.label || fromApi.city || prettyQuery,
+      city: fromApi.city || null,
+      region: fromApi.region || null,
+      country: fromApi.country || null,
       source: "search",
       query: trimmed,
     };
@@ -133,4 +158,36 @@ export async function geocodeQuery(query) {
   } catch {
     return null;
   }
+}
+
+/** Top destination suggestions for typeahead (city / country). */
+export async function suggestGeocodeQuery(query, limit = 5) {
+  const trimmed = String(query || "").trim();
+  if (trimmed.length < 2) {
+    return [];
+  }
+
+  const fromApi = await backendGeo(
+    `/geo/suggest?q=${encodeURIComponent(trimmed)}&limit=${encodeURIComponent(limit)}`
+  );
+  if (fromApi === GEO_AUTH_REQUIRED) {
+    return [];
+  }
+  if (!Array.isArray(fromApi)) {
+    return [];
+  }
+
+  return fromApi
+    .filter((item) => item?.lat != null && item?.lng != null && item?.label)
+    .slice(0, limit)
+    .map((item) => ({
+      lat: Number(item.lat),
+      lng: Number(item.lng),
+      label: item.label,
+      city: item.city || null,
+      region: item.region || null,
+      country: item.country || null,
+      provider: item.provider || null,
+      source: "suggest",
+    }));
 }

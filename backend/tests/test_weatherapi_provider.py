@@ -130,7 +130,7 @@ async def test_weatherapi_provider_calls_forecast_endpoint():
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/v1/forecast.json"
         assert request.url.params["q"] == "-8.34,115.09"
-        assert request.url.params["days"] == "3"
+        assert request.url.params["days"] == "7"
         assert request.url.params["aqi"] == "yes"
         assert request.url.params["alerts"] == "yes"
         return httpx.Response(200, json=weatherapi_payload())

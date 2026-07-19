@@ -2,6 +2,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
+    Boolean,
     Date,
     DateTime,
     Float,
@@ -36,12 +37,78 @@ class TravelPlan(Base):
     budget_min: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     budget_max: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     traveler_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    hotel_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    hotel_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    hotel_provider_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    suppress_auto_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    cover_image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+    days: Mapped[list["PlanDay"]] = relationship(
+        "PlanDay",
+        back_populates="plan",
+        cascade="all, delete-orphan",
+        order_by="PlanDay.sort_index",
+    )
+
+
+class PlanDay(Base):
+    __tablename__ = "plan_days"
+    __table_args__ = (UniqueConstraint("plan_id", "day_date", name="plan_days_plan_date_unique"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("travel_plans.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    day_date: Mapped[date] = mapped_column(Date, nullable=False)
+    sort_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    plan: Mapped["TravelPlan"] = relationship("TravelPlan", back_populates="days")
+    activities: Mapped[list["PlanActivity"]] = relationship(
+        "PlanActivity",
+        back_populates="day",
+        cascade="all, delete-orphan",
+        order_by="PlanActivity.sort_index",
+    )
+
+
+class PlanActivity(Base):
+    __tablename__ = "plan_activities"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    day_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("plan_days.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, default="custom")
+    time_label: Mapped[str] = mapped_column(String(32), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    category: Mapped[str] = mapped_column(String(40), nullable=False, default="travel")
+    tag_label: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sort_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    day: Mapped["PlanDay"] = relationship("PlanDay", back_populates="activities")
 
 
 class Place(Base):

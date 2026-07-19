@@ -10,6 +10,7 @@ from app.providers.base import (
     ProviderAirQuality,
     ProviderCurrentWeather,
     ProviderForecastDay,
+    ProviderForecastHour,
     ProviderSafetyAlert,
 )
 
@@ -126,6 +127,36 @@ def map_forecast_days(payload: dict[str, Any]) -> list[ProviderForecastDay]:
     return days
 
 
+def map_forecast_hours(payload: dict[str, Any], *, limit: int = 12) -> list[ProviderForecastHour]:
+    """Return the next ``limit`` hourly slots from today/tomorrow forecast rows."""
+    rows = ((payload.get("forecast") or {}).get("forecastday") or [])
+    localtime = str(((payload.get("location") or {}).get("localtime") or "")).strip()
+    now = _parse_datetime(localtime.replace(" ", "T") if localtime else None)
+    hours: list[ProviderForecastHour] = []
+    for day in rows:
+        for row in day.get("hour") or []:
+            time_label = str(row.get("time") or "")
+            slot = _parse_datetime(time_label.replace(" ", "T") if time_label else None)
+            if now is not None and slot is not None and slot < now:
+                continue
+            condition = row.get("condition") or {}
+            hours.append(
+                ProviderForecastHour(
+                    time=time_label,
+                    temp_c=_float(row.get("temp_c")),
+                    temp_f=_float(row.get("temp_f")),
+                    condition=condition.get("text"),
+                    icon_url=normalize_icon_url(condition.get("icon")),
+                    wind_kph=_float(row.get("wind_kph")),
+                    chance_of_rain=_int(row.get("chance_of_rain")),
+                    is_day=bool(row.get("is_day")) if row.get("is_day") is not None else None,
+                )
+            )
+            if len(hours) >= limit:
+                return hours
+    return hours
+
+
 def map_alerts(payload: dict[str, Any], destination: str, lat: float | None, lng: float | None) -> list[ProviderSafetyAlert]:
     alerts = ((payload.get("alerts") or {}).get("alert") or [])
     mapped: list[ProviderSafetyAlert] = []
@@ -167,6 +198,9 @@ def map_current_weather(payload: dict[str, Any]) -> ProviderCurrentWeather:
     lat = _float(location.get("lat"))
     lng = _float(location.get("lon"))
     forecast_days = map_forecast_days(payload)
+    forecast_hours = map_forecast_hours(payload)
+    first_day = ((payload.get("forecast") or {}).get("forecastday") or [{}])[0]
+    astro = first_day.get("astro") or {}
     forecast_summary = f"{condition.get('text') or 'Current weather'}"
     if forecast_days:
         first = forecast_days[0]
@@ -197,9 +231,12 @@ def map_current_weather(payload: dict[str, Any]) -> ProviderCurrentWeather:
         visibility_miles=_float(current.get("vis_miles")),
         cloud=_int(current.get("cloud")),
         localtime=location.get("localtime"),
+        sunrise=astro.get("sunrise"),
+        sunset=astro.get("sunset"),
         provider="weatherapi",
         air_quality=map_air_quality(current.get("air_quality")),
         forecast_days=forecast_days,
+        forecast_hours=forecast_hours,
         warnings=map_alerts(payload, destination, lat, lng),
     )
 
@@ -251,7 +288,7 @@ class WeatherApiProvider:
                 params={
                     "key": self.api_key,
                     "q": query,
-                    "days": 3,
+                    "days": 7,
                     "aqi": "yes",
                     "alerts": "yes",
                 },

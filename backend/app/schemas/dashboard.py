@@ -98,9 +98,12 @@ class WeatherResponse(BaseModel):
     visibility_miles: float | None = None
     cloud: int | None = None
     localtime: str | None = None
+    sunrise: str | None = None
+    sunset: str | None = None
     provider: str | None = None
     air_quality: dict | None = None
     forecast_days: list[dict] = Field(default_factory=list)
+    forecast_hours: list[dict] = Field(default_factory=list)
     warnings: list[dict] = Field(default_factory=list)
 
 

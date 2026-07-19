@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -31,6 +32,29 @@ class ProviderHotel:
     currency: str
     amenities: list[str]
     rating: float | None
+    metadata_json: dict = field(default_factory=dict)
+
+@dataclass(frozen=True)
+class ProviderForecastDay:
+    date: str
+    max_temp_c: float | None
+    min_temp_c: float | None
+    avg_temp_c: float | None
+    max_temp_f: float | None
+    min_temp_f: float | None
+    avg_temp_f: float | None
+    condition: str | None
+    icon_url: str | None
+    chance_of_rain: int | None
+    chance_of_snow: int | None
+    uv: float | None
+
+
+@dataclass(frozen=True)
+class ProviderFareEvent:
+    price: float
+    currency: str
+    provider: str
     metadata_json: dict = field(default_factory=dict)
 
 
@@ -66,19 +90,15 @@ class ProviderAirQuality:
 
 
 @dataclass(frozen=True)
-class ProviderForecastDay:
-    date: str
-    max_temp_c: float | None
-    min_temp_c: float | None
-    avg_temp_c: float | None
-    max_temp_f: float | None
-    min_temp_f: float | None
-    avg_temp_f: float | None
+class ProviderForecastHour:
+    time: str
+    temp_c: float | None
+    temp_f: float | None
     condition: str | None
     icon_url: str | None
+    wind_kph: float | None
     chance_of_rain: int | None
-    chance_of_snow: int | None
-    uv: float | None
+    is_day: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -103,18 +123,13 @@ class ProviderCurrentWeather:
     visibility_miles: float | None = None
     cloud: int | None = None
     localtime: str | None = None
+    sunrise: str | None = None
+    sunset: str | None = None
     provider: str = "mock"
     air_quality: ProviderAirQuality | None = None
     forecast_days: list[ProviderForecastDay] = field(default_factory=list)
+    forecast_hours: list[ProviderForecastHour] = field(default_factory=list)
     warnings: list[ProviderSafetyAlert] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class ProviderFareEvent:
-    price: float
-    currency: str
-    provider: str
-    metadata_json: dict = field(default_factory=dict)
 
 
 class PlacesProvider(Protocol):

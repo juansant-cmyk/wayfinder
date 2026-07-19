@@ -52,6 +52,51 @@ SAMPLE_HOTEL_INFO = {
 }
 
 
+def lite_api_search_response() -> dict:
+    """Example POST /hotels/rates payload (includeHotelData) shaped like LiteAPI.
+
+    Asserts the fixture matches the structure LiteApiHotelProvider.search_hotels
+    reads: top-level ``data`` rate rows + ``hotels`` content rows.
+    """
+    response = {
+        "data": [SAMPLE_RATE_ROW],
+        "hotels": [SAMPLE_HOTEL_INFO],
+        "sandbox": True,
+    }
+
+    assert isinstance(response, dict)
+    assert isinstance(response["data"], list) and response["data"]
+    assert isinstance(response["hotels"], list) and response["hotels"]
+
+    rate_row = response["data"][0]
+    assert isinstance(rate_row.get("hotelId"), str) and rate_row["hotelId"]
+    assert isinstance(rate_row.get("roomTypes"), list) and rate_row["roomTypes"]
+
+    offer = rate_row["roomTypes"][0]
+    assert isinstance(offer, dict)
+    assert offer.get("offerId") or offer.get("offerRetailRate") or offer.get("rates")
+    if offer.get("rates") is not None:
+        assert isinstance(offer["rates"], list) and offer["rates"]
+        rate = offer["rates"][0]
+        assert isinstance(rate, dict)
+
+    hotel = response["hotels"][0]
+    assert isinstance(hotel, dict)
+    assert str(hotel.get("id") or "")
+    assert hotel.get("name")
+    # Provider maps coords / photos from these hotel-content fields.
+    assert hotel.get("latitude") is not None or hotel.get("main_photo") or hotel.get("address")
+
+    return response
+
+
+def test_lite_api_search_response_shape():
+    payload = lite_api_search_response()
+    hotel = map_liteapi_search_hotel(payload["data"][0], payload["hotels"][0], nights=2)
+    assert hotel is not None
+    assert hotel.provider_hotel_id == payload["data"][0]["hotelId"]
+
+
 def test_pick_cheapest_room_type():
     cheapest = pick_cheapest_room_type([SAMPLE_ROOM_EXPENSIVE, SAMPLE_ROOM_CHEAP])
     assert cheapest is not None
@@ -148,13 +193,7 @@ async def test_liteapi_search_hotels_happy_path():
         path = request.url.path
         if request.method == "POST" and path.endswith("/hotels/rates"):
             assert request.headers.get("X-API-Key") == "test-key"
-            return httpx.Response(
-                200,
-                json={
-                    "data": [SAMPLE_RATE_ROW],
-                    "hotels": [SAMPLE_HOTEL_INFO],
-                },
-            )
+            return httpx.Response(200, json=lite_api_search_response())
         if request.method == "GET" and path.endswith("/data/hotels"):
             return httpx.Response(
                 200,

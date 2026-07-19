@@ -124,7 +124,7 @@ export function PrimaryButton({ label, onPress, disabled = false }) {
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
-      style={styles.primaryButton}
+      style={[styles.primaryButton, disabled && styles.primaryButtonDisabled]}
     >
       <Text style={styles.primaryButtonText}>{label}</Text>
     </Pressable>
@@ -307,6 +307,10 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 6 },
       },
     }),
+  },
+
+  primaryButtonDisabled: {
+    opacity: 0.55,
   },
 
   primaryButtonText: {

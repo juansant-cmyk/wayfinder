@@ -1,4 +1,4 @@
-const CONFIGURED_API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || "";
+﻿const CONFIGURED_API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, "") || "";
 const WEB_API_URL = process.env.EXPO_PUBLIC_API_URL_WEB?.replace(/\/$/, "") || "";
 
 function isPrivateLanHost(url) {
@@ -35,7 +35,7 @@ function resolveApiUrl() {
   if (typeof window !== "undefined" && typeof document !== "undefined") {
     const pageHost = window.location.hostname;
 
-    // Expo web on this PC (localhost:8081) — API is on the same machine.
+    // Expo web on this PC (localhost:8081) â€” API is on the same machine.
     if (isLocalWebDevHost(pageHost)) {
       if (WEB_API_URL) {
         return WEB_API_URL;
@@ -59,8 +59,49 @@ export function isBackendConfigured() {
   return Boolean(getApiUrl());
 }
 
+export function isApiConfigError(error) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("EXPO_PUBLIC_API_URL is not configured");
+}
+
+export function isApiUnavailableError(error) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return (
+    message.startsWith("Cannot reach the API") || message.includes("timed out")
+  );
+}
+
+export function isApiRequestFailedError(error) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.startsWith("Request failed");
+}
+
 export function setUnauthorizedHandler(handler) {
   unauthorizedHandler = handler;
+}
+
+/** Notify app shell that the session is invalid (used by geo + apiRequest). */
+export async function notifySessionExpired() {
+  if (unauthorizedHandler) {
+    await unauthorizedHandler();
+  }
+}
+
+function isRenderApi(apiUrl) {
+  try {
+    return new URL(apiUrl).hostname.endsWith(".onrender.com");
+  } catch {
+    return false;
+  }
+}
+
+function requestTimeoutMs(apiUrl) {
+  // Render free/starter cold starts often exceed 20s; keep local APIs snappy.
+  return isRenderApi(apiUrl) ? 90000 : 20000;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function parseError(response) {
@@ -93,6 +134,48 @@ async function parseError(response) {
   return `Request failed (${response.status}). Please try again.`;
 }
 
+async function fetchOnce(apiUrl, path, { method, headers, body, timeoutMs }) {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+
+  try {
+    return await fetch(`${apiUrl}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller?.signal,
+    });
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
+function unreachableMessage(apiUrl, error) {
+  const aborted = error?.name === "AbortError";
+  if (aborted) {
+    return (
+      `Request to ${apiUrl} timed out. Open ${apiUrl}/health in a browser to wake Render, ` +
+      "then try again."
+    );
+  }
+
+  const detail = error instanceof Error && error.message ? ` (${error.message})` : "";
+  const webHint =
+    typeof window !== "undefined"
+      ? " If you are on Expo web, open the app at http://localhost:8081 (not a LAN IP) " +
+        "or set Render CORS_ORIGINS to match the address bar origin."
+      : "";
+
+  return (
+    `Cannot reach the API at ${apiUrl}${detail}. Check your internet connection, ` +
+    "confirm EXPO_PUBLIC_API_URL in frontend/.env, and restart Expo (npx expo start --clear). " +
+    "If the API is on Render, the first request after idle can take up to a minute." +
+    webHint
+  );
+}
+
 export async function apiRequest(path, { method = "GET", body, token } = {}) {
   const apiUrl = getApiUrl();
 
@@ -106,20 +189,44 @@ export async function apiRequest(path, { method = "GET", body, token } = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
+  const timeoutMs = requestTimeoutMs(apiUrl);
+  const attempts = isRenderApi(apiUrl) ? 3 : 1;
   let response;
+  let lastError;
 
-  try {
-    response = await fetch(`${apiUrl}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-  } catch (error) {
-    throw new Error(
-      `Cannot reach the API at ${apiUrl}. Check your internet connection, ` +
-        "confirm EXPO_PUBLIC_API_URL in frontend/.env, and restart Expo (npx expo start --clear). " +
-        "If the API is on Render, the first request after idle can take up to a minute."
-    );
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      // Wake sleeping Render instances before the real call.
+      if (isRenderApi(apiUrl) && attempt === 1 && path !== "/health") {
+        try {
+          await fetchOnce(apiUrl, "/health", {
+            method: "GET",
+            headers: {},
+            timeoutMs,
+          });
+        } catch {
+          // Ignore wake failures; the real request may still succeed.
+        }
+      }
+
+      response = await fetchOnce(apiUrl, path, {
+        method,
+        headers,
+        body,
+        timeoutMs,
+      });
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        await sleep(2000 * attempt);
+      }
+    }
+  }
+
+  if (!response) {
+    throw new Error(unreachableMessage(apiUrl, lastError));
   }
 
   if (response.status === 401 && token && unauthorizedHandler) {
@@ -128,7 +235,10 @@ export async function apiRequest(path, { method = "GET", body, token } = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(await parseError(response));
+    const message = await parseError(response);
+    const err = new Error(message);
+    err.status = response.status;
+    throw err;
   }
 
   if (response.status === 204) {

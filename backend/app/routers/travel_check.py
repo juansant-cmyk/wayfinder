@@ -21,7 +21,9 @@ async def travel_check(
 ):
     target_destination = destination or "Bali"
     safety = dashboard_service.get_safety_summary(target_destination)
-    weather = await weather_service.current_weather(weather_provider, target_destination, None, None)
+    weather = await weather_service.current_weather(
+        weather_provider, target_destination, None, None
+    )
     return TravelCheckResponse(
         destination=safety.destination,
         safety=safety,

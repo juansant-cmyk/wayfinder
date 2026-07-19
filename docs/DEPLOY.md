@@ -24,6 +24,7 @@ Set in `frontend/.env` for production / TestFlight builds:
 
 ```env
 EXPO_PUBLIC_API_URL=https://wayfinder-e30f.onrender.com
+EXPO_PUBLIC_API_URL_WEB=https://wayfinder-e30f.onrender.com
 ```
 
 ---
@@ -46,6 +47,15 @@ EXPO_PUBLIC_API_URL=https://wayfinder-e30f.onrender.com
 1. **SQL → New query**
 2. Paste contents of [`database/supabase_init.sql`](../database/supabase_init.sql)
 3. **Run**
+
+`supabase_init.sql` includes favorites plus plan status/cover columns (`007` / `008`). On an **existing** project that was initialized earlier, also run the idempotent files in order if needed:
+
+- [`database/schema/005_favorites.sql`](../database/schema/005_favorites.sql)
+- [`database/schema/006_plan_itinerary.sql`](../database/schema/006_plan_itinerary.sql) (hotel link + plan days/activities)
+- [`database/schema/007_plan_status.sql`](../database/schema/007_plan_status.sql)
+- [`database/schema/008_plan_cover_image.sql`](../database/schema/008_plan_cover_image.sql)
+
+Missing `favorites` causes `GET /favorites` → 500. Missing `status` / `cover_image_url` breaks plan list/hydrate after those fields ship in the API.
 
 ### Connection string (for Render)
 
@@ -88,8 +98,15 @@ EXPO_PUBLIC_API_URL=https://wayfinder-e30f.onrender.com
 | `DATABASE_URL` | Supabase URI from step 1 |
 | `JWT_SECRET` | Long random string (Render can auto-generate) |
 | `JWT_EXPIRE_HOURS` | `24` |
-| `USE_MOCK_PROVIDERS` | `true` |
+| `USE_MOCK_PROVIDERS` | `true` (recommended — resilient hotel/weather fallback) |
+| `WEATHER_PROVIDER` | `weatherapi` for live weather |
+| `WEATHER_API_KEY` | WeatherAPI.com key (dashboard secret; not in git) |
+| `HOTEL_PROVIDER` | `liteapi` when demoing live hotels |
+| `LITEAPI_API_KEY` | LiteAPI key if `HOTEL_PROVIDER=liteapi` |
 | `CORS_ORIGINS` | Comma-separated origins (see below) |
+| `GOOGLE_MAPS_API_KEY` | Optional; Nominatim geo suggest works without it |
+
+Blueprint template: [`render.yaml`](../render.yaml) declares `WEATHER_PROVIDER` / `WEATHER_API_KEY` (`sync: false`). After first Blueprint sync, set `WEATHER_API_KEY` in the Render dashboard or weather stays on the mock provider.
 
 **CORS example** (set in Render **Environment** → `CORS_ORIGINS`):
 
@@ -133,9 +150,10 @@ In `frontend/.env` (or EAS build secrets):
 
 ```env
 EXPO_PUBLIC_API_URL=https://wayfinder-e30f.onrender.com
+EXPO_PUBLIC_API_URL_WEB=https://wayfinder-e30f.onrender.com
 ```
 
-**Restart Expo** or **rebuild TestFlight** after changing this.
+**Restart Expo** or **rebuild TestFlight** after changing this. For local API work later, switch back to your LAN/`127.0.0.1` URL.
 
 ---
 
@@ -177,6 +195,10 @@ Keep local `.env` files **out of git**. Use Render/Supabase dashboards for produ
 | Deploy log: `tenant/user postgres.[ref] not found` | Pooler **region/host is wrong** — re-copy the Session pooler URI from Supabase (do not guess `aws-0-us-west-1`; use your project's exact host) |
 | Render deploy exits on startup | Fixed in latest backend — DB check logs a warning but app still starts; fix `DATABASE_URL` then check `/health/db` |
 | Login works locally, not on phone | `EXPO_PUBLIC_API_URL=https://wayfinder-e30f.onrender.com` (not `localhost`) |
+| Expo shows "Cannot reach the API" to Render | Wake the service (open `/health` in a browser), wait up to ~60s, retry. Expo web also needs `CORS_ORIGINS` to include `http://localhost:8081` (and other Expo ports). Native Expo Go ignores CORS. Client timeout for `*.onrender.com` is 90s. |
+| `/favorites` returns 500 | Run [`005_favorites.sql`](../database/schema/005_favorites.sql) on Supabase |
+| Weather still shows mock / `"Your destination"` | Set `WEATHER_PROVIDER=weatherapi` and a valid `WEATHER_API_KEY` on Render, then redeploy |
+| `/geo/suggest` 404 | Deploy includes geo suggest — confirm latest `main` is live on Render |
 | Move to Fly.io later | Same FastAPI code — redeploy with new host + update app URL |
 
 ---

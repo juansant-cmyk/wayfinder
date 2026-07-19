@@ -23,6 +23,8 @@ __all__ = [
     "Hotel",
     "Place",
     "SafetyAlert",
+    "PlanActivity",
+    "PlanDay",
     "TravelPlan",
     "User",
 ]

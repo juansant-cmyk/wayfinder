@@ -198,7 +198,7 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
         }
         const label =
           city || `${Number(location.lat).toFixed(2)}, ${Number(location.lng).toFixed(2)}`;
-        setDestination(label);
+        // Leave the search bar empty on load; still search hotels for this area.
         setAppliedDestination(label);
         setSearchOrigin({
           lat: location.lat,

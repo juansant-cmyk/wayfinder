@@ -13,6 +13,9 @@ jobs:
     defaults:
       run:
         working-directory: backend
+
+    env:
+      JWT_SECRET: ci-test-secret
         
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +30,7 @@ jobs:
         run: pip install -r requirements.txt ruff
   
       - name: Lint testing
-        run: ruff check app tests
+        run: ruff check --fix app tests
   
       - name: Run unit tests
         run: pytest -m unit -v

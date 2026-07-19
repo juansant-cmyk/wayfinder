@@ -127,3 +127,144 @@ async def test_favorite_hotel_upsert_list_and_delete(client: AsyncClient):
 
     listed_after = await client.get("/favorites", headers=headers)
     assert listed_after.json() == []
+
+
+@pytest.mark.asyncio
+async def test_favorite_plan_upsert_list_and_delete(client: AsyncClient):
+    headers = await auth_headers(client, "planfav")
+    from datetime import date
+
+    plan = await client.post(
+        "/plans",
+        headers=headers,
+        json={
+            "title": "LA Weekend",
+            "destination_name": "Los Angeles, California",
+            "start_date": date(2026, 7, 12).isoformat(),
+            "end_date": date(2026, 7, 15).isoformat(),
+        },
+    )
+    assert plan.status_code == 201, plan.text
+    plan_id = plan.json()["id"]
+
+    created = await client.post(
+        "/favorites",
+        headers=headers,
+        json={
+            "item_type": "plan",
+            "provider": "wayfinder",
+            "provider_item_id": plan_id,
+            "entity_id": plan_id,
+            "snapshot": {
+                "name": "LA Weekend",
+                "subtitle": "Jul 12 - Jul 15, 2026 • 3 Nights",
+                "address": "Los Angeles, California",
+            },
+        },
+    )
+    assert created.status_code == 201, created.text
+    data = created.json()
+    assert data["item_type"] == "plan"
+    assert data["provider"] == "wayfinder"
+    assert data["provider_item_id"] == plan_id
+    assert data["title"] == "LA Weekend"
+    assert data["subtitle"] == "Jul 12 - Jul 15, 2026 • 3 Nights"
+
+    listed = await client.get("/favorites", headers=headers)
+    assert listed.status_code == 200
+    assert any(item["item_type"] == "plan" for item in listed.json())
+
+    deleted = await client.delete(
+        "/favorites",
+        params={
+            "item_type": "plan",
+            "provider": "wayfinder",
+            "provider_item_id": plan_id,
+        },
+        headers=headers,
+    )
+    assert deleted.status_code == 204
+
+    listed_after = await client.get("/favorites", headers=headers)
+    assert all(item["item_type"] != "plan" for item in listed_after.json())
+
+
+@pytest.mark.asyncio
+async def test_favorite_plan_preview_updates_when_plan_changes(client: AsyncClient):
+    headers = await auth_headers(client, "planfavlive")
+    from datetime import date
+
+    created_plan = await client.post(
+        "/plans",
+        headers=headers,
+        json={
+            "title": "Old Title",
+            "destination_name": "Los Angeles, California",
+            "start_date": date(2026, 7, 12).isoformat(),
+            "end_date": date(2026, 7, 15).isoformat(),
+        },
+    )
+    assert created_plan.status_code == 201, created_plan.text
+    plan_id = created_plan.json()["id"]
+
+    fav = await client.post(
+        "/favorites",
+        headers=headers,
+        json={
+            "item_type": "plan",
+            "provider": "wayfinder",
+            "provider_item_id": plan_id,
+            "entity_id": plan_id,
+            "snapshot": {
+                "name": "Old Title",
+                "subtitle": "Jul 12 - Jul 15, 2026 • 3 Nights",
+                "address": "Los Angeles, California",
+            },
+        },
+    )
+    assert fav.status_code == 201, fav.text
+
+    patched = await client.patch(
+        f"/plans/{plan_id}",
+        headers=headers,
+        json={
+            "title": "Seoul Adventure",
+            "destination_name": "Seoul, South Korea",
+            "start_date": date(2026, 8, 1).isoformat(),
+            "end_date": date(2026, 8, 5).isoformat(),
+        },
+    )
+    assert patched.status_code == 200, patched.text
+
+    # Force a stale stored snapshot — refresh/list must still show live plan data.
+    stale = await client.post(
+        "/favorites",
+        headers=headers,
+        json={
+            "item_type": "plan",
+            "provider": "wayfinder",
+            "provider_item_id": plan_id,
+            "entity_id": plan_id,
+            "snapshot": {
+                "name": "Old Title",
+                "subtitle": "Jul 12 - Jul 15, 2026 • 3 Nights",
+                "address": "Los Angeles, California",
+            },
+        },
+    )
+    assert stale.status_code == 201, stale.text
+
+    listed = await client.get("/favorites", headers=headers)
+    assert listed.status_code == 200
+    plan_fav = next(item for item in listed.json() if item["provider_item_id"] == plan_id)
+    assert plan_fav["title"] == "Seoul Adventure"
+    assert plan_fav["address"] == "Seoul, South Korea"
+    assert "Aug" in (plan_fav["subtitle"] or "")
+
+    # Second refresh should keep serving the repaired snapshot.
+    listed_again = await client.get("/favorites", headers=headers)
+    assert listed_again.status_code == 200
+    plan_fav_again = next(
+        item for item in listed_again.json() if item["provider_item_id"] == plan_id
+    )
+    assert plan_fav_again["title"] == "Seoul Adventure"
