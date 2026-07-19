@@ -193,6 +193,20 @@ export function fetchSafetySummary(token, destination = DEFAULT_DESTINATION) {
   return apiRequest(`/safety/summary?${withDestination(destination)}`, { token });
 }
 
+export function fetchSafetyAlerts(token, options = {}) {
+  const params = new URLSearchParams();
+  params.set("destination", options.destination || DEFAULT_DESTINATION);
+  withCoordinates(params, options);
+  return apiRequest(`/safety?${params.toString()}`, { token });
+}
+
+export function dismissSafetyAlert(token, alertId) {
+  return apiRequest(`/alerts/${encodeURIComponent(alertId)}/dismiss`, {
+    method: "POST",
+    token,
+  });
+}
+
 export function fetchWeather(token, options = {}) {
   const params = new URLSearchParams();
   const destination =
@@ -222,11 +236,28 @@ export function sendChatMessage(token, message) {
   });
 }
 
-export function fetchPopularPlaces(token, lat = DEFAULT_LAT, lng = DEFAULT_LNG, radiusKm = 5, limit = 5) {
-  return apiRequest(
-    `/places/popular?lat=${lat}&lng=${lng}&radius_km=${radiusKm}&limit=${limit}`,
-    { token }
-  );
+export function fetchPopularPlaces(
+  token,
+  lat = DEFAULT_LAT,
+  lng = DEFAULT_LNG,
+  radiusKm = 5,
+  limit = 5,
+  category = null
+) {
+  const params = new URLSearchParams({
+    lat: String(lat),
+    lng: String(lng),
+    radius_km: String(radiusKm),
+    limit: String(limit),
+  });
+  if (category && category !== "more") {
+    params.set("category", category);
+  }
+  return apiRequest(`/places/popular?${params.toString()}`, { token });
+}
+
+export function fetchPlace(token, placeId) {
+  return apiRequest(`/places/${encodeURIComponent(placeId)}`, { token });
 }
 
 export function fetchTravelCheck(token, destination = DEFAULT_DESTINATION) {

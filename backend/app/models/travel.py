@@ -221,17 +221,12 @@ class ChatMessage(Base):
 class SafetyAlert(Base):
     __tablename__ = "safety_alerts"
     __table_args__ = (
-        UniqueConstraint(
-            "source",
-            "destination",
-            "alert_type",
-            "title",
-            name="safety_alerts_source_destination_title_unique",
-        ),
+        UniqueConstraint("source", "dedupe_key", name="safety_alerts_source_dedupe_unique"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     source: Mapped[str] = mapped_column(String(50), nullable=False)
+    dedupe_key: Mapped[str] = mapped_column(String(64), nullable=False)
     destination: Mapped[str] = mapped_column(String(255), nullable=False)
     alert_type: Mapped[str] = mapped_column(String(50), nullable=False)
     severity: Mapped[str] = mapped_column(String(20), nullable=False)

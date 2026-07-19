@@ -1,8 +1,9 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Image,
   Platform,
   ScrollView,
@@ -25,6 +26,7 @@ import DimPressable from "./shared/DimPressable";
 
 const heroRobotImage = require("../assets/images/weather-hero-robot-reference.png");
 const weatherCardSceneImage = require("../assets/images/weather-card-scene-reference.png");
+const LIVE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 const WEATHER_NAV_ITEMS = [
   { label: "Home", route: "home", icon: "home-outline", activeIcon: "home" },
@@ -138,9 +140,9 @@ function getConditionIcon(condition) {
   return { family: "ion", name: "partly-sunny", color: "#FDB515" };
 }
 
-function HeaderActionButton({ iconName, onPress, showDot = false }) {
+function HeaderActionButton({ accessibilityLabel, iconName, onPress, showDot = false }) {
   return (
-    <DimPressable accessibilityRole="button" onPress={onPress} style={styles.headerActionButton}>
+    <DimPressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} onPress={onPress} style={styles.headerActionButton}>
       <Ionicons name={iconName} size={30} color="#111827" />
       {showDot ? <View style={styles.notificationDot} /> : null}
     </DimPressable>
@@ -375,6 +377,10 @@ export default function WeatherScreen({ onNavigate, onBack }) {
   const [weather, setWeather] = useState(EMPTY_WEATHER);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isStale, setIsStale] = useState(false);
+  const activeQueryRef = useRef(null);
+  const requestInFlightRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
 
   const filterActive = searchText.trim().length > 0;
   const isPhone = width < 430;
@@ -396,8 +402,11 @@ export default function WeatherScreen({ onNavigate, onBack }) {
   const weatherSummary = weather.summary;
   const conditionIcon = getConditionIcon(currentWeather.condition);
 
-  const loadWeather = useCallback(async (query) => {
-    setLoading(true);
+  const loadWeather = useCallback(async (query = activeQueryRef.current, initial = false) => {
+    if (!query || requestInFlightRef.current) return;
+    requestInFlightRef.current = true;
+    activeQueryRef.current = query;
+    if (initial) setLoading(true);
     setError("");
     try {
       const token = await getToken();
@@ -409,13 +418,16 @@ export default function WeatherScreen({ onNavigate, onBack }) {
       const payload = await dashboardApi.fetchWeather(token, query);
       const mapped = mapWeatherForScreen(payload);
       setWeather(mapped);
+      setIsStale(false);
       setSelectedLocationLabel(mapped.destination || query?.destination || FALLBACK_LOCATION.label);
       setSelectedHourlyId(mapped.hourly[0]?.id || "now");
       setExpandedDayIds([]);
       setExpandedAlertIds([]);
     } catch (err) {
       setError(err?.message || "Couldn't load weather.");
+      setIsStale(true);
     } finally {
+      requestInFlightRef.current = false;
       setLoading(false);
     }
   }, []);
@@ -456,6 +468,20 @@ export default function WeatherScreen({ onNavigate, onBack }) {
   useEffect(() => {
     loadDefaultWeather();
   }, [loadDefaultWeather]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (appStateRef.current === "active") loadWeather();
+    }, LIVE_REFRESH_INTERVAL_MS);
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      appStateRef.current = nextState;
+      if (nextState === "active") loadWeather();
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [loadWeather]);
 
   useEffect(() => {
     const trimmed = searchText.trim();
@@ -619,11 +645,18 @@ export default function WeatherScreen({ onNavigate, onBack }) {
 
                   <View style={styles.headerActions}>
                     <HeaderActionButton
+                      accessibilityLabel="Refresh weather"
+                      iconName="refresh"
+                      onPress={() => loadWeather()}
+                    />
+                    <HeaderActionButton
+                      accessibilityLabel="Notifications"
                       iconName="notifications-outline"
                       onPress={() => onNavigate?.("notifications")}
                       showDot
                     />
                     <HeaderActionButton
+                      accessibilityLabel="Profile"
                       iconName="person-circle-outline"
                       onPress={() => onNavigate?.("profile")}
                     />
@@ -638,11 +671,18 @@ export default function WeatherScreen({ onNavigate, onBack }) {
 
                   <View style={styles.headerActions}>
                     <HeaderActionButton
+                      accessibilityLabel="Refresh weather"
+                      iconName="refresh"
+                      onPress={() => loadWeather()}
+                    />
+                    <HeaderActionButton
+                      accessibilityLabel="Notifications"
                       iconName="notifications-outline"
                       onPress={() => onNavigate?.("notifications")}
                       showDot
                     />
                     <HeaderActionButton
+                      accessibilityLabel="Profile"
                       iconName="person-circle-outline"
                       onPress={() => onNavigate?.("profile")}
                     />
@@ -839,7 +879,9 @@ export default function WeatherScreen({ onNavigate, onBack }) {
 
             {error ? (
               <View style={styles.statusBanner}>
-                <Text style={styles.statusBannerText}>{error}</Text>
+                <Text style={styles.statusBannerText}>
+                  {error}{isStale && weather.destination ? " Showing the last successful update." : ""}
+                </Text>
                 <DimPressable
                   accessibilityRole="button"
                   accessibilityLabel="Retry weather load"

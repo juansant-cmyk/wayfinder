@@ -24,6 +24,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8087,http://127.0.0.1:19006"
     )
     google_maps_api_key: str = ""
+    places_provider: str = "mock"
+    google_places_base_url: str = "https://places.googleapis.com/v1"
     hotel_api_key: str = ""
     weather_api_key: str = ""
     weather_provider: str = "mock"

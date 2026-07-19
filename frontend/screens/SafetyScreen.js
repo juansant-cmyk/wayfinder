@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import {
   Image,
+  AppState,
   Platform,
   Pressable,
   ScrollView,
@@ -17,6 +18,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
+import * as dashboardApi from "../src/api/dashboard";
+import { deriveSafetyOverview, mapSafetyAlertsForScreen } from "../src/api/mappers";
+import { getToken } from "../src/auth/tokenStorage";
+import { geocodeQuery, reverseGeocodeLabel } from "../src/location/geo";
+import { useUserLocation } from "../src/location/UserLocationContext";
+
+const LIVE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 const heroRobotImage = require("../assets/images/safety/safety-shield-robot.png");
 const bannerRobotImage = require("../assets/images/itinerary-tip-bot-reference.png");
@@ -559,34 +567,6 @@ function getDestinationMatchIndex(query) {
   });
 }
 
-function getOverallDescription(destination, cityLabel, isCustomDestination) {
-  if (!isCustomDestination) {
-    return destination.overall.description;
-  }
-
-  if (destination.overall.level === "moderate") {
-    return `${cityLabel} is currently a moderate risk destination.\nMonitor local advisories and busy transit hubs,\nand follow official guidance.`;
-  }
-
-  if (destination.overall.level === "high") {
-    return `${cityLabel} is currently a high risk destination.\nLimit non-essential travel movements\nand follow official guidance closely.`;
-  }
-
-  return `${cityLabel} is currently a low risk destination.\nExercise normal safety precautions\nand follow local guidance.`;
-}
-
-function getDisplayedAlertLocation(alertIndex, cityLabel, isCustomDestination, fallbackLocation) {
-  if (!isCustomDestination) {
-    return fallbackLocation;
-  }
-
-  if (alertIndex === 0) {
-    return `Central District, ${cityLabel}`;
-  }
-
-  return `Transit Hub, ${cityLabel}`;
-}
-
 function renderIcon(iconFamily, iconName, color, size) {
   if (iconFamily === "material") {
     return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
@@ -699,7 +679,7 @@ function SafetyScale({ indicatorLeft }) {
   );
 }
 
-function AlertCard({ alert, isSelected, onPress, isPhone }) {
+function AlertCard({ alert, isSelected, onPress, onDismiss, isPhone }) {
   const tone = alertToneStyles[alert.tone];
 
   return (
@@ -736,7 +716,23 @@ function AlertCard({ alert, isSelected, onPress, isPhone }) {
           </View>
 
           <Text style={styles.alertDescription}>{alert.description}</Text>
-          {isSelected ? <Text style={styles.alertDetailText}>{alert.details}</Text> : null}
+          {isSelected ? (
+            <>
+              <Text style={styles.alertDetailText}>{alert.details}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Dismiss ${alert.title}`}
+                onPress={(event) => {
+                  event.stopPropagation?.();
+                  onDismiss();
+                }}
+                style={styles.alertDismissButton}
+              >
+                <Ionicons name="checkmark-circle-outline" size={18} color="#1F78FF" />
+                <Text style={styles.alertDismissText}>Dismiss alert</Text>
+              </Pressable>
+            </>
+          ) : null}
         </View>
 
         <Ionicons
@@ -813,6 +809,7 @@ function TipRow({ tip, isSelected, isLast, onPress }) {
 
 export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
   const { width } = useWindowDimensions();
+  const { refreshLocation } = useUserLocation();
   const isPhone = width < 560;
   const useScrollableCategories = width < 900;
   const pageMaxWidth = width >= 1180 ? 1020 : 960;
@@ -821,48 +818,108 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
   const [destinationIndex, setDestinationIndex] = useState(0);
   const [destinationInput, setDestinationInput] = useState("");
   const [appliedDestinationLabel, setAppliedDestinationLabel] = useState(initialDestination.label);
-  const [isCustomDestination, setIsCustomDestination] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(initialDestination.updatedAt);
   const [selectedAlertId, setSelectedAlertId] = useState(initialDestination.alerts[0]?.id ?? null);
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialDestination.categories[0]?.id ?? null);
   const [selectedTipId, setSelectedTipId] = useState(null);
   const [showSafetyInfo, setShowSafetyInfo] = useState(false);
-  const [pushAlertsEnabled, setPushAlertsEnabled] = useState(false);
+  const [liveAlerts, setLiveAlerts] = useState([]);
+  const [safetyLoading, setSafetyLoading] = useState(true);
+  const [safetyError, setSafetyError] = useState("");
+  const [isStale, setIsStale] = useState(false);
+  const activeQueryRef = useRef({ destination: initialDestination.label });
+  const requestInFlightRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
 
   const destination = DESTINATION_OPTIONS[destinationIndex];
   const displayDestinationLabel = appliedDestinationLabel || destination.label;
   const displayCityLabel = getCityFromLabel(displayDestinationLabel);
-  const visibleAlerts = destination.alerts.map((alert, index) => ({
-    ...alert,
-    location: getDisplayedAlertLocation(
-      index,
-      displayCityLabel,
-      isCustomDestination,
-      alert.location
-    ),
-  }));
-  const overallDescription = getOverallDescription(
-    destination,
-    displayCityLabel,
-    isCustomDestination
-  );
-  const overallStyles = getOverallStyles(destination.overall.level);
+  const visibleAlerts = liveAlerts;
+  const safetyOverview = deriveSafetyOverview(visibleAlerts, displayDestinationLabel);
+  const overallDescription = safetyOverview.description;
+  const overallStyles = getOverallStyles(safetyOverview.level);
   const categoryCardWidth = useScrollableCategories ? 154 : "18.6%";
 
-  function applyDestination(nextIndex, nextLabel, customDestination = false) {
+  const loadSafety = useCallback(async (query = activeQueryRef.current, initial = false) => {
+    if (requestInFlightRef.current) {
+      return;
+    }
+    requestInFlightRef.current = true;
+    if (initial) {
+      setSafetyLoading(true);
+    }
+    setSafetyError("");
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Sign in to load live safety alerts.");
+      }
+      const payload = await dashboardApi.fetchSafetyAlerts(token, query);
+      const mapped = mapSafetyAlertsForScreen(payload);
+      setLiveAlerts(mapped);
+      setSelectedAlertId((currentId) =>
+        mapped.some((alert) => alert.id === currentId) ? currentId : mapped[0]?.id ?? null
+      );
+      setLastUpdated(new Date());
+      setIsStale(false);
+    } catch (error) {
+      setSafetyError(error?.message || "Couldn't refresh safety alerts.");
+      setIsStale(true);
+    } finally {
+      requestInFlightRef.current = false;
+      setSafetyLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadInitialSafety() {
+      const location = await refreshLocation();
+      if (cancelled) return;
+      if (location?.lat != null && location?.lng != null) {
+        const label =
+          (await reverseGeocodeLabel(location.lat, location.lng)) || initialDestination.label;
+        if (cancelled) return;
+        activeQueryRef.current = { destination: label, lat: location.lat, lng: location.lng };
+        setAppliedDestinationLabel(label);
+      }
+      await loadSafety(activeQueryRef.current, true);
+    }
+    loadInitialSafety();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadSafety, refreshLocation]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (appStateRef.current === "active") loadSafety();
+    }, LIVE_REFRESH_INTERVAL_MS);
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      appStateRef.current = nextState;
+      if (nextState === "active") {
+        loadSafety();
+      }
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [loadSafety]);
+
+  function applyDestination(nextIndex, nextLabel) {
     const nextDestination = DESTINATION_OPTIONS[nextIndex];
 
     setDestinationIndex(nextIndex);
     setAppliedDestinationLabel(nextLabel);
-    setIsCustomDestination(customDestination);
     setLastUpdated(new Date());
-    setSelectedAlertId(nextDestination.alerts[0]?.id ?? null);
+    setSelectedAlertId(null);
     setSelectedCategoryId(nextDestination.categories[0]?.id ?? null);
     setSelectedTipId(null);
     setShowSafetyInfo(false);
   }
 
-  function handleSubmitDestination() {
+  async function handleSubmitDestination() {
     const trimmedDestination = destinationInput.trim();
 
     if (!trimmedDestination) {
@@ -874,13 +931,28 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
     if (matchedIndex >= 0) {
       const matchedDestination = DESTINATION_OPTIONS[matchedIndex];
       setDestinationInput(matchedDestination.label);
+      const geocoded = await geocodeQuery(matchedDestination.label);
       applyDestination(matchedIndex, matchedDestination.label, false);
+      activeQueryRef.current = {
+        destination: matchedDestination.label,
+        ...(geocoded ? { lat: geocoded.lat, lng: geocoded.lng } : {}),
+      };
+      await loadSafety(activeQueryRef.current, true);
       return;
     }
 
     const formattedLabel = formatDestinationLabel(trimmedDestination);
     setDestinationInput(formattedLabel);
     applyDestination(destinationIndex, formattedLabel, true);
+    const geocoded = await geocodeQuery(formattedLabel);
+    activeQueryRef.current = {
+      destination: geocoded?.label || formattedLabel,
+      ...(geocoded ? { lat: geocoded.lat, lng: geocoded.lng } : {}),
+    };
+    if (geocoded?.label) {
+      setAppliedDestinationLabel(geocoded.label);
+    }
+    await loadSafety(activeQueryRef.current, true);
   }
 
   function handleClearDestinationInput() {
@@ -888,7 +960,19 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
   }
 
   function handleRefreshTimestamp() {
-    setLastUpdated(new Date());
+    loadSafety();
+  }
+
+  async function handleDismissAlert(alertId) {
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Sign in to dismiss alerts.");
+      await dashboardApi.dismissSafetyAlert(token, alertId);
+      setLiveAlerts((alerts) => alerts.filter((alert) => alert.id !== alertId));
+      setSelectedAlertId(null);
+    } catch (error) {
+      setSafetyError(error?.message || "Couldn't dismiss this alert.");
+    }
   }
 
   return (
@@ -1008,7 +1092,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
 
                 <View style={[styles.destinationUpdatedRow, isPhone && styles.destinationUpdatedRowCompact]}>
                   <Text style={styles.destinationUpdatedText}>
-                    Last updated: {formatTimestamp(lastUpdated)}
+                    Last updated: {formatTimestamp(lastUpdated)}{isStale ? " (stale)" : ""}
                   </Text>
 
                   <Pressable
@@ -1053,14 +1137,14 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
 
                   <View style={styles.overallCopy}>
                     <Text style={[styles.overallLabel, { color: overallStyles.color }]}>
-                      {destination.overall.label}
+                      {safetyOverview.label}
                     </Text>
                     <Text style={styles.overallDescription}>{overallDescription}</Text>
                   </View>
                 </View>
 
                 <View style={styles.overallScaleBlock}>
-                  <SafetyScale indicatorLeft={destination.overall.indicatorLeft} />
+                  <SafetyScale indicatorLeft={safetyOverview.indicatorLeft} />
                 </View>
               </View>
             </View>
@@ -1069,7 +1153,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
               <View style={styles.activeAlertsTitleWrap}>
                 <Text style={styles.largeSectionTitle}>Active Alerts</Text>
                 <View style={styles.countBadge}>
-                  <Text style={styles.countBadgeText}>{destination.alerts.length}</Text>
+                  <Text style={styles.countBadgeText}>{visibleAlerts.length}</Text>
                 </View>
               </View>
 
@@ -1084,6 +1168,13 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
             </View>
 
             <View style={styles.alertsList}>
+              {safetyError ? <Text style={styles.liveStateText}>{safetyError}</Text> : null}
+              {safetyLoading && visibleAlerts.length === 0 ? (
+                <Text style={styles.liveStateText}>Loading current safety alerts...</Text>
+              ) : null}
+              {!safetyLoading && visibleAlerts.length === 0 ? (
+                <Text style={styles.liveStateText}>No active alerts for this destination.</Text>
+              ) : null}
               {visibleAlerts.map((alert) => (
                 <AlertCard
                   key={alert.id}
@@ -1092,6 +1183,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                   onPress={() =>
                     setSelectedAlertId((currentId) => (currentId === alert.id ? null : alert.id))
                   }
+                  onDismiss={() => handleDismissAlert(alert.id)}
                   isPhone={isPhone}
                 />
               ))}
@@ -1174,35 +1266,35 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                 </View>
 
                 <View style={styles.pushBannerCopy}>
-                  <Text style={styles.pushBannerTitle}>Wayfinder is always watching out for you.</Text>
+                  <Text style={styles.pushBannerTitle}>Live safety updates are active.</Text>
                   <Text style={styles.pushBannerDescription}>
-                    We monitor trusted sources 24/7 to keep you informed.
+                    Alerts refresh every five minutes while the app is open.
                   </Text>
                 </View>
               </View>
 
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Toggle push alerts"
-                onPress={() => setPushAlertsEnabled((currentValue) => !currentValue)}
+                accessibilityLabel="Refresh live safety alerts"
+                onPress={() => loadSafety()}
                 style={({ pressed }) => [
                   styles.pushBannerButton,
-                  pushAlertsEnabled && styles.pushBannerButtonEnabled,
+                  styles.pushBannerButtonEnabled,
                   pressed && styles.pushBannerButtonPressed,
                 ]}
               >
                 <Text
                   style={[
                     styles.pushBannerButtonText,
-                    pushAlertsEnabled && styles.pushBannerButtonTextEnabled,
+                    styles.pushBannerButtonTextEnabled,
                   ]}
                 >
-                  {pushAlertsEnabled ? "Push Alerts Enabled" : "Enable Push Alerts"}
+                  Refresh Alerts
                 </Text>
                 <Ionicons
-                  name={pushAlertsEnabled ? "notifications" : "notifications-outline"}
+                  name="refresh"
                   size={21}
-                  color={pushAlertsEnabled ? "#FFFFFF" : "#1F78FF"}
+                  color="#FFFFFF"
                 />
               </Pressable>
             </View>
@@ -1224,6 +1316,33 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: "#F4F8FF",
+  },
+
+  liveStateText: {
+    color: "#51607D",
+    fontSize: 15,
+    lineHeight: 22,
+    paddingVertical: 16,
+  },
+
+  alertDismissButton: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "#B9D4FF",
+    borderRadius: 7,
+    backgroundColor: "#FFFFFF",
+  },
+
+  alertDismissText: {
+    color: "#1F78FF",
+    fontSize: 13,
+    fontWeight: "700",
   },
 
   scrollView: {

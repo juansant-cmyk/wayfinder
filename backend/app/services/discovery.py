@@ -4,8 +4,11 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.travel import Place
 from app.providers.base import PlacesProvider, ProviderPlace
+from app.providers.google_places import GooglePlacesMissingKey, GooglePlacesUnavailable
+from app.providers.mock import MockPlacesProvider
 from app.schemas.travel import PlaceResponse
 from app.services.geo import haversine_km
 
@@ -69,7 +72,26 @@ async def popular_places(
     category: str | None,
     limit: int,
 ) -> list[PlaceResponse]:
-    provider_places = await provider.popular_places(lat, lng, radius_km, category, limit)
+    try:
+        provider_places = await provider.popular_places(lat, lng, radius_km, category, limit)
+    except GooglePlacesMissingKey as exc:
+        if not settings.use_mock_providers:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="GOOGLE_MAPS_API_KEY is required for Google Places",
+            ) from exc
+        provider_places = await MockPlacesProvider().popular_places(
+            lat, lng, radius_km, category, limit
+        )
+    except GooglePlacesUnavailable as exc:
+        if not settings.use_mock_providers:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Places provider unavailable",
+            ) from exc
+        provider_places = await MockPlacesProvider().popular_places(
+            lat, lng, radius_km, category, limit
+        )
     places = [await _upsert_place(db, item) for item in provider_places]
     await db.commit()
     for place in places:

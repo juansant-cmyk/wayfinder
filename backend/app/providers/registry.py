@@ -8,6 +8,7 @@ from app.providers.base import (
     TravelAdvisoryProvider,
     WeatherProvider,
 )
+from app.providers.google_places import GooglePlacesProvider
 from app.providers.liteapi import LiteApiHotelProvider
 from app.providers.mock import (
     MockFareProvider,
@@ -16,11 +17,14 @@ from app.providers.mock import (
     MockPlacesProvider,
     MockTravelAdvisoryProvider,
     MockWeatherProvider,
+    NoopTravelAdvisoryProvider,
 )
 from app.providers.weatherapi import WeatherApiProvider
 
 
 def get_places_provider() -> PlacesProvider:
+    if (settings.places_provider or "").strip().lower() == "google":
+        return GooglePlacesProvider()
     return MockPlacesProvider()
 
 
@@ -56,7 +60,9 @@ def get_current_weather_provider() -> CurrentWeatherProvider:
 
 
 def get_travel_advisory_provider() -> TravelAdvisoryProvider:
-    return MockTravelAdvisoryProvider()
+    if settings.use_mock_providers:
+        return MockTravelAdvisoryProvider()
+    return NoopTravelAdvisoryProvider()
 
 
 def get_fare_provider() -> FareProvider:

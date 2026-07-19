@@ -10,22 +10,6 @@ const NOTE_STYLES = [
   { noteBackground: "#EDF8F3", noteIconColor: "#0F9F5B" },
 ];
 
-function amenityIconName(label) {
-  const key = label.trim().toLowerCase();
-  if (key.includes("wifi") || key.includes("wi-fi")) return "wifi";
-  if (key.includes("pool")) return "water-outline";
-  if (key.includes("breakfast") || key.includes("board")) return "cafe-outline";
-  if (key.includes("gym") || key.includes("fitness")) return "barbell-outline";
-  if (key.includes("parking") || key.includes("garage")) return "car-outline";
-  if (key.includes("free cancellation") || key === "refundable") {
-    return "shield-checkmark-outline";
-  }
-  if (key.includes("non-refundable") || key.includes("non refundable")) {
-    return "close-circle-outline";
-  }
-  return "checkmark-circle-outline";
-}
-
 export function mapSafetyLevel(level) {
   const labels = {
     low: "Safe",
@@ -173,6 +157,123 @@ export function mapPlaceForDashboard(place) {
     address: place.address,
     rating: place.rating,
     distanceKm: place.distance_km ?? null,
+  };
+}
+
+function readableCategory(value) {
+  return String(value || "Place")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function distanceLabel(distanceKm) {
+  if (distanceKm == null || Number.isNaN(Number(distanceKm))) {
+    return "Nearby";
+  }
+  const distance = Number(distanceKm);
+  return distance < 1 ? `${Math.max(1, Math.round(distance * 1000))} m` : `${distance.toFixed(1)} km`;
+}
+
+export function placeFavoriteKey(provider, providerPlaceId) {
+  return `${provider}::${providerPlaceId}`;
+}
+
+export function mapPlaceForMaps(place, fallbackImage = null) {
+  const metadata = place?.metadata_json || {};
+  return {
+    id: String(place.id),
+    provider: place.provider,
+    providerPlaceId: place.provider_place_id,
+    title: place.name || "Nearby place",
+    meta: metadata.primary_type_label || readableCategory(place.category),
+    category: place.category || "place",
+    address: place.address || "Address unavailable",
+    distance: distanceLabel(place.distance_km),
+    distanceKm: place.distance_km ?? null,
+    rating: place.rating ?? null,
+    ratingCount: Number(metadata.rating_count) || 0,
+    openNow: metadata.open_now ?? null,
+    lat: Number(place.lat),
+    lng: Number(place.lng),
+    image: metadata.image_url ? { uri: metadata.image_url } : fallbackImage,
+    raw: place,
+  };
+}
+
+export function placeFavoritePayload(place) {
+  return {
+    item_type: "place",
+    provider: place.provider,
+    provider_item_id: place.providerPlaceId,
+    entity_id: place.id,
+    snapshot: {
+      name: place.title,
+      subtitle: place.meta,
+      address: place.address,
+      rating: place.rating,
+      lat: place.lat,
+      lng: place.lng,
+    },
+  };
+}
+
+export function mapFavoriteForMaps(item, fallbackImage = null) {
+  return {
+    id: String(item.entity_id || item.id),
+    favoriteId: String(item.id),
+    provider: item.provider,
+    providerPlaceId: item.provider_item_id,
+    title: item.title || "Saved place",
+    meta: item.subtitle || "Saved place",
+    address: item.address || "Address unavailable",
+    distance: "Saved",
+    rating: item.rating ?? null,
+    lat: item.lat != null ? Number(item.lat) : null,
+    lng: item.lng != null ? Number(item.lng) : null,
+    image: item.image_url ? { uri: item.image_url } : fallbackImage,
+  };
+}
+
+export function mapSafetyAlertsForScreen(payload) {
+  return (Array.isArray(payload) ? payload : []).map((alert) => {
+    const severity = String(alert.severity || "low").toLowerCase();
+    const isElevated = severity === "high" || severity === "extreme";
+    return {
+      id: String(alert.id),
+      tone: isElevated ? "danger" : "advisory",
+      severity,
+      label: alert.alert_type === "weather" ? "Weather Alert" : "Safety Advisory",
+      title: alert.headline || alert.title || alert.event || "Safety alert",
+      location: alert.areas || alert.destination || "Selected destination",
+      timestamp: formatAlertTimestamp(alert.effective || alert.starts_at || alert.created_at),
+      description: alert.desc || alert.description || "Monitor official local guidance.",
+      details: alert.instruction || alert.description || alert.desc || "",
+      expiresAt: alert.expires || alert.ends_at || null,
+      raw: alert,
+    };
+  });
+}
+
+export function deriveSafetyOverview(alerts, destination) {
+  const severities = alerts.map((alert) => alert.severity);
+  const level = severities.some((severity) => severity === "extreme" || severity === "high")
+    ? "high"
+    : severities.includes("moderate")
+      ? "moderate"
+      : "low";
+  const labels = { low: "Low Risk", moderate: "Moderate Risk", high: "High Risk" };
+  const indicator = { low: "11%", moderate: "43%", high: "84%" };
+  const city = String(destination || "This destination").split(",")[0];
+  const descriptions = {
+    low: `${city} currently has no elevated active alerts.\nExercise normal precautions and follow local guidance.`,
+    moderate: `${city} currently has active advisories.\nMonitor changing conditions and follow official guidance.`,
+    high: `${city} currently has a high-severity active alert.\nAvoid affected areas and follow official instructions closely.`,
+  };
+  return {
+    level,
+    label: labels[level],
+    indicatorLeft: indicator[level],
+    description: descriptions[level],
   };
 }
 

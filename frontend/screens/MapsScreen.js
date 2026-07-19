@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import {
+  AppState,
   Image,
   Platform,
   Pressable,
@@ -17,6 +18,21 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
+import * as dashboardApi from "../src/api/dashboard";
+import {
+  mapFavoriteForMaps,
+  mapPlaceForMaps,
+  placeFavoriteKey,
+  placeFavoritePayload,
+} from "../src/api/mappers";
+import { getToken } from "../src/auth/tokenStorage";
+import {
+  DEFAULT_LAT,
+  DEFAULT_LNG,
+  geocodeQuery,
+  reverseGeocodeLabel,
+} from "../src/location/geo";
+import { useUserLocation } from "../src/location/UserLocationContext";
 
 const heroArtworkImage = require("../assets/images/maps/maps-hero-art.png");
 const wideMapArtworkImage = require("../assets/images/maps/maps-static-map-wide.png");
@@ -31,6 +47,8 @@ const COLORS = {
 };
 
 const MOBILE_MAP_ASPECT_RATIO = 624 / 282;
+const MAP_RADIUS_KM = 5;
+const LIVE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 const MAP_ACTIONS = [
   {
@@ -207,6 +225,8 @@ const SAVED_PLACES = [
   },
 ];
 
+const MAP_PLACE_IMAGES = SAVED_PLACES.map((place) => place.image);
+
 const MAP_INTERACTIVE_AREAS = {
   wide: {
     locationSelector: { top: "4%", left: "2.5%", width: "26%", height: "24%" },
@@ -340,11 +360,11 @@ function SectionHeader({ title, subtitle = null, onPress, showViewAll = true }) 
   );
 }
 
-function ExploreCard({ item, width, isPhone = false, horizontal = false }) {
+function ExploreCard({ item, width, isPhone = false, horizontal = false, onPress }) {
   return (
     <DimPressable
       accessibilityRole="button"
-      onPress={() => {}}
+      onPress={() => onPress?.(item)}
       style={[
         styles.categoryCard,
         cardShadowStyle,
@@ -362,7 +382,7 @@ function ExploreCard({ item, width, isPhone = false, horizontal = false }) {
   );
 }
 
-function ExploreSection({ items, isPhone, cardWidth }) {
+function ExploreSection({ items, isPhone, cardWidth, onPress }) {
   if (isPhone) {
     return (
       <ScrollView
@@ -371,7 +391,7 @@ function ExploreSection({ items, isPhone, cardWidth }) {
         contentContainerStyle={styles.horizontalCardsRow}
       >
         {items.map((item) => (
-          <ExploreCard key={item.id} item={item} width={cardWidth} isPhone horizontal />
+          <ExploreCard key={item.id} item={item} width={cardWidth} isPhone horizontal onPress={onPress} />
         ))}
       </ScrollView>
     );
@@ -380,7 +400,7 @@ function ExploreSection({ items, isPhone, cardWidth }) {
   return (
     <View style={styles.catalogGrid}>
       {items.map((item) => (
-        <ExploreCard key={item.id} item={item} width={cardWidth} />
+        <ExploreCard key={item.id} item={item} width={cardWidth} onPress={onPress} />
       ))}
     </View>
   );
@@ -394,7 +414,7 @@ function SavedPlaceCard({ item, width, isSaved, onToggleSaved }) {
         <DimPressable
           accessibilityRole="button"
           accessibilityLabel={isSaved ? `Remove ${item.title} from saved` : `Save ${item.title}`}
-          onPress={() => onToggleSaved(item.id)}
+          onPress={() => onToggleSaved(item)}
           style={styles.savedPlaceHeart}
         >
           <Ionicons
@@ -443,17 +463,43 @@ function TripBanner({ onPress, isPhone }) {
   );
 }
 
-function MapInteractiveOverlay({ isPhone }) {
+function projectMarker(place, center, radiusKm) {
+  if (place?.lat == null || place?.lng == null || !center) return null;
+  const latKm = (place.lat - center.lat) * 111;
+  const lngKm = (place.lng - center.lng) * 111 * Math.cos((center.lat * Math.PI) / 180);
+  return {
+    left: `${Math.max(6, Math.min(94, 50 + (lngKm / radiusKm) * 45))}%`,
+    top: `${Math.max(8, Math.min(92, 50 - (latKm / radiusKm) * 43))}%`,
+  };
+}
+
+function MapInteractiveOverlay({ isPhone, places, center, onRecenter }) {
   const areas = isPhone ? MAP_INTERACTIVE_AREAS.mobile : MAP_INTERACTIVE_AREAS.wide;
 
   return (
     <>
-      <Pressable accessibilityRole="button" onPress={() => {}} style={[styles.mapHotspot, areas.locationSelector]} />
+      <Pressable accessibilityRole="button" onPress={onRecenter} style={[styles.mapHotspot, areas.locationSelector]} />
+      {places.map((place, index) => {
+        const position = projectMarker(place, center, MAP_RADIUS_KM);
+        return position ? (
+          <View
+            key={place.id}
+            accessibilityLabel={`${place.title}, ${place.distance}`}
+            style={[styles.liveMapMarker, position]}
+          >
+            <Ionicons
+              name="location"
+              size={index === 0 ? 31 : 26}
+              color={index === 0 ? "#FF5A4E" : "#1F78FF"}
+            />
+          </View>
+        ) : null;
+      })}
       {areas.controls.map((control) => (
         <Pressable
           key={control.id}
           accessibilityRole="button"
-          onPress={() => {}}
+          onPress={control.id === "recenter" ? onRecenter : undefined}
           style={[styles.mapHotspot, styles.mapControlHotspot, control]}
         />
       ))}
@@ -461,7 +507,7 @@ function MapInteractiveOverlay({ isPhone }) {
   );
 }
 
-function MapCard({ isPhone, height }) {
+function MapCard({ isPhone, height, places, center, onRecenter }) {
   return (
     <View style={[styles.mapCard, isPhone && styles.mapCardPhone, cardShadowStyle, { height }]}>
       <Image
@@ -469,16 +515,32 @@ function MapCard({ isPhone, height }) {
         resizeMode={isPhone ? "contain" : "cover"}
         style={[styles.mapArtworkImage, isPhone && styles.mapArtworkImagePhone]}
       />
-      <MapInteractiveOverlay isPhone={isPhone} />
+      <MapInteractiveOverlay
+        isPhone={isPhone}
+        places={places}
+        center={center}
+        onRecenter={onRecenter}
+      />
     </View>
   );
 }
 
 export default function MapsScreen({ onNavigate, onBack }) {
   const { width } = useWindowDimensions();
+  const { refreshLocation } = useUserLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedToolbarId, setSelectedToolbarId] = useState(null);
-  const [savedPlaceIds, setSavedPlaceIds] = useState(SAVED_PLACES.map((place) => place.id));
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [places, setPlaces] = useState([]);
+  const [savedPlaces, setSavedPlaces] = useState([]);
+  const [mapCenter, setMapCenter] = useState({ lat: DEFAULT_LAT, lng: DEFAULT_LNG });
+  const [locationLabel, setLocationLabel] = useState("Current area");
+  const [loading, setLoading] = useState(true);
+  const [mapError, setMapError] = useState("");
+  const [isStale, setIsStale] = useState(false);
+  const activeSearchRef = useRef({ lat: DEFAULT_LAT, lng: DEFAULT_LNG, category: null });
+  const requestInFlightRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
 
   const isPhone = width < 520;
   const isNarrow = width < 760;
@@ -520,13 +582,130 @@ export default function MapsScreen({ onNavigate, onBack }) {
     onNavigate?.("home");
   };
 
-  const handleToggleSaved = (placeId) => {
-    setSavedPlaceIds((currentSavedIds) =>
-      currentSavedIds.includes(placeId)
-        ? currentSavedIds.filter((currentId) => currentId !== placeId)
-        : [...currentSavedIds, placeId]
+  const savedPlaceKeys = new Set(
+    savedPlaces.map((place) => placeFavoriteKey(place.provider, place.providerPlaceId))
+  );
+
+  const loadFavorites = useCallback(async () => {
+    const token = await getToken();
+    if (!token) return;
+    const payload = await dashboardApi.fetchFavorites(token);
+    setSavedPlaces(
+      payload
+        .filter((item) => item.item_type === "place")
+        .map((item, index) =>
+          mapFavoriteForMaps(item, MAP_PLACE_IMAGES[index % MAP_PLACE_IMAGES.length])
+        )
     );
-  };
+  }, []);
+
+  const loadPlaces = useCallback(async (query = activeSearchRef.current, initial = false) => {
+    if (requestInFlightRef.current) return;
+    requestInFlightRef.current = true;
+    if (initial) setLoading(true);
+    setMapError("");
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Sign in to explore nearby places.");
+      const payload = await dashboardApi.fetchPopularPlaces(
+        token,
+        query.lat,
+        query.lng,
+        MAP_RADIUS_KM,
+        12,
+        query.category
+      );
+      setPlaces(
+        payload.map((place, index) =>
+          mapPlaceForMaps(place, MAP_PLACE_IMAGES[index % MAP_PLACE_IMAGES.length])
+        )
+      );
+      setMapCenter({ lat: query.lat, lng: query.lng });
+      setIsStale(false);
+    } catch (error) {
+      setMapError(error?.message || "Couldn't load nearby places.");
+      setIsStale(true);
+    } finally {
+      requestInFlightRef.current = false;
+      setLoading(false);
+    }
+  }, []);
+
+  const useCurrentLocation = useCallback(async () => {
+    const location = await refreshLocation();
+    const center = location || { lat: DEFAULT_LAT, lng: DEFAULT_LNG };
+    const label =
+      (await reverseGeocodeLabel(center.lat, center.lng)) ||
+      (location ? "Current area" : "Bali, Indonesia");
+    setLocationLabel(label);
+    activeSearchRef.current = {
+      ...center,
+      category: activeSearchRef.current.category,
+    };
+    await loadPlaces(activeSearchRef.current, true);
+  }, [loadPlaces, refreshLocation]);
+
+  useEffect(() => {
+    useCurrentLocation();
+    loadFavorites().catch(() => {});
+  }, [loadFavorites, useCurrentLocation]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (appStateRef.current === "active") loadPlaces();
+    }, LIVE_REFRESH_INTERVAL_MS);
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      appStateRef.current = nextState;
+      if (nextState === "active") {
+        loadPlaces();
+        loadFavorites().catch(() => {});
+      }
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [loadFavorites, loadPlaces]);
+
+  async function handleSearchSubmit() {
+    const query = searchQuery.trim();
+    if (!query) return;
+    const result = await geocodeQuery(query);
+    if (!result) {
+      setMapError("Location not found.");
+      return;
+    }
+    setLocationLabel(result.label);
+    activeSearchRef.current = { lat: result.lat, lng: result.lng, category: selectedCategory };
+    await loadPlaces(activeSearchRef.current, true);
+  }
+
+  async function handleCategoryPress(item) {
+    const category = selectedCategory === item.id ? null : item.id;
+    setSelectedCategory(category);
+    activeSearchRef.current = { ...activeSearchRef.current, category };
+    await loadPlaces(activeSearchRef.current, true);
+  }
+
+  async function handleToggleSaved(place) {
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Sign in to save places.");
+      const key = placeFavoriteKey(place.provider, place.providerPlaceId);
+      if (savedPlaceKeys.has(key)) {
+        await dashboardApi.removeFavorite(token, {
+          itemType: "place",
+          provider: place.provider,
+          providerItemId: place.providerPlaceId,
+        });
+      } else {
+        await dashboardApi.addFavorite(token, placeFavoritePayload(place));
+      }
+      await loadFavorites();
+    } catch (error) {
+      setMapError(error?.message || "Couldn't update saved places.");
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -607,9 +786,11 @@ export default function MapsScreen({ onNavigate, onBack }) {
                     placeholder="Search for a place, address, or destination"
                     placeholderTextColor="#8F9BB3"
                     selectionColor={COLORS.blue}
+                    returnKeyType="search"
+                    onSubmitEditing={handleSearchSubmit}
                     style={styles.searchInput}
                   />
-                  <Pressable accessibilityRole="button" onPress={() => {}} style={styles.filterButton}>
+                  <Pressable accessibilityRole="button" onPress={handleSearchSubmit} style={styles.filterButton}>
                     <Ionicons name="options-outline" size={22} color={COLORS.blue} />
                   </Pressable>
                 </View>
@@ -627,24 +808,62 @@ export default function MapsScreen({ onNavigate, onBack }) {
               </View>
             </View>
 
-            <MapCard isPhone={isPhone} height={mapHeight} />
+            <Text style={styles.mapLocationLabel}>
+              {locationLabel}{isStale ? " (showing last results)" : ""}
+            </Text>
+            {mapError ? <Text style={styles.mapStateText}>{mapError}</Text> : null}
+            <MapCard
+              isPhone={isPhone}
+              height={mapHeight}
+              places={places}
+              center={mapCenter}
+              onRecenter={useCurrentLocation}
+            />
 
             <ActionPanel isNarrow={isNarrow} />
 
             <SectionHeader title="Explore Nearby" onPress={() => {}} />
-            <ExploreSection items={EXPLORE_CATEGORIES} isPhone={isPhone} cardWidth={categoryCardWidth} />
+            <ExploreSection
+              items={EXPLORE_CATEGORIES}
+              isPhone={isPhone}
+              cardWidth={categoryCardWidth}
+              onPress={handleCategoryPress}
+            />
 
-            <SectionHeader title="Saved Places" onPress={() => {}} />
+            <SectionHeader
+              title="Nearby Places"
+              subtitle={loading ? "Refreshing nearby results..." : `${places.length} places within ${MAP_RADIUS_KM} km.`}
+              onPress={() => loadPlaces()}
+            />
             <View style={styles.savedPlacesGrid}>
-              {SAVED_PLACES.map((item) => (
+              {places.map((item) => (
                 <SavedPlaceCard
                   key={item.id}
                   item={item}
                   width={savedCardWidth}
-                  isSaved={savedPlaceIds.includes(item.id)}
+                  isSaved={savedPlaceKeys.has(placeFavoriteKey(item.provider, item.providerPlaceId))}
                   onToggleSaved={handleToggleSaved}
                 />
               ))}
+              {!loading && places.length === 0 ? (
+                <Text style={styles.mapStateText}>No nearby places found.</Text>
+              ) : null}
+            </View>
+
+            <SectionHeader title="Saved Places" onPress={() => setSelectedToolbarId("lists")} />
+            <View style={styles.savedPlacesGrid}>
+              {savedPlaces.map((item) => (
+                <SavedPlaceCard
+                  key={`${item.provider}-${item.providerPlaceId}`}
+                  item={item}
+                  width={savedCardWidth}
+                  isSaved
+                  onToggleSaved={handleToggleSaved}
+                />
+              ))}
+              {savedPlaces.length === 0 ? (
+                <Text style={styles.mapStateText}>No saved places yet.</Text>
+              ) : null}
             </View>
 
             <SectionHeader
@@ -652,7 +871,12 @@ export default function MapsScreen({ onNavigate, onBack }) {
               subtitle="Important places around your location."
               onPress={() => {}}
             />
-            <ExploreSection items={NEARBY_ESSENTIALS} isPhone={isPhone} cardWidth={essentialsCardWidth} />
+            <ExploreSection
+              items={NEARBY_ESSENTIALS}
+              isPhone={isPhone}
+              cardWidth={essentialsCardWidth}
+              onPress={handleCategoryPress}
+            />
 
             <TripBanner onPress={() => onNavigate?.("itinerary")} isPhone={isPhone} />
           </View>
@@ -673,6 +897,28 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+
+  mapLocationLabel: {
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: "700",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+
+  mapStateText: {
+    color: COLORS.subtext,
+    fontSize: 14,
+    lineHeight: 21,
+    paddingVertical: 10,
+  },
+
+  liveMapMarker: {
+    position: "absolute",
+    zIndex: 4,
+    marginLeft: -13,
+    marginTop: -25,
   },
 
   scrollView: {

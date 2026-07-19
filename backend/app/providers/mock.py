@@ -234,6 +234,11 @@ class MockTravelAdvisoryProvider:
         ]
 
 
+class NoopTravelAdvisoryProvider:
+    async def alerts(self, destination: str) -> list[ProviderSafetyAlert]:
+        return []
+
+
 class MockFareProvider:
     async def latest_price(
         self,
