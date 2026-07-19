@@ -21,7 +21,7 @@ import DimPressable from "./shared/DimPressable";
 import * as dashboardApi from "../src/api/dashboard";
 import { deriveSafetyOverview, mapSafetyAlertsForScreen } from "../src/api/mappers";
 import { getToken } from "../src/auth/tokenStorage";
-import { geocodeQuery, reverseGeocodeLabel } from "../src/location/geo";
+import { geocodeQuery, reverseGeocodeLabel, suggestGeocodeQuery } from "../src/location/geo";
 import { useUserLocation } from "../src/location/UserLocationContext";
 
 const LIVE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
@@ -817,6 +817,9 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
   const initialDestination = DESTINATION_OPTIONS[0];
   const [destinationIndex, setDestinationIndex] = useState(0);
   const [destinationInput, setDestinationInput] = useState("");
+  const [destinationSuggestions, setDestinationSuggestions] = useState([]);
+  const [destinationSuggestLoading, setDestinationSuggestLoading] = useState(false);
+  const [showDestinationSuggestions, setShowDestinationSuggestions] = useState(false);
   const [appliedDestinationLabel, setAppliedDestinationLabel] = useState(initialDestination.label);
   const [lastUpdated, setLastUpdated] = useState(initialDestination.updatedAt);
   const [selectedAlertId, setSelectedAlertId] = useState(initialDestination.alerts[0]?.id ?? null);
@@ -907,6 +910,41 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
     };
   }, [loadSafety]);
 
+  useEffect(() => {
+    const query = destinationInput.trim();
+    if (query.length < 2 || query.toLowerCase() === displayDestinationLabel.toLowerCase()) {
+      setDestinationSuggestions([]);
+      setDestinationSuggestLoading(false);
+      setShowDestinationSuggestions(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setDestinationSuggestLoading(true);
+    setShowDestinationSuggestions(true);
+    const timer = setTimeout(async () => {
+      try {
+        const results = await suggestGeocodeQuery(query, 5);
+        if (!cancelled) {
+          setDestinationSuggestions(results);
+        }
+      } catch {
+        if (!cancelled) {
+          setDestinationSuggestions([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setDestinationSuggestLoading(false);
+        }
+      }
+    }, 280);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [destinationInput, displayDestinationLabel]);
+
   function applyDestination(nextIndex, nextLabel) {
     const nextDestination = DESTINATION_OPTIONS[nextIndex];
 
@@ -926,11 +964,17 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
       return;
     }
 
+    if (destinationSuggestions.length > 0) {
+      await handleSelectDestinationSuggestion(destinationSuggestions[0]);
+      return;
+    }
+
     const matchedIndex = getDestinationMatchIndex(trimmedDestination);
 
     if (matchedIndex >= 0) {
       const matchedDestination = DESTINATION_OPTIONS[matchedIndex];
       setDestinationInput(matchedDestination.label);
+      setShowDestinationSuggestions(false);
       const geocoded = await geocodeQuery(matchedDestination.label);
       applyDestination(matchedIndex, matchedDestination.label, false);
       activeQueryRef.current = {
@@ -943,6 +987,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
 
     const formattedLabel = formatDestinationLabel(trimmedDestination);
     setDestinationInput(formattedLabel);
+    setShowDestinationSuggestions(false);
     applyDestination(destinationIndex, formattedLabel, true);
     const geocoded = await geocodeQuery(formattedLabel);
     activeQueryRef.current = {
@@ -957,6 +1002,24 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
 
   function handleClearDestinationInput() {
     setDestinationInput("");
+    setDestinationSuggestions([]);
+    setShowDestinationSuggestions(false);
+  }
+
+  async function handleSelectDestinationSuggestion(suggestion) {
+    const label = suggestion.label;
+    const matchedIndex = getDestinationMatchIndex(label);
+    const nextIndex = matchedIndex >= 0 ? matchedIndex : destinationIndex;
+    setDestinationInput(label);
+    setDestinationSuggestions([]);
+    setShowDestinationSuggestions(false);
+    applyDestination(nextIndex, label);
+    activeQueryRef.current = {
+      destination: label,
+      lat: suggestion.lat,
+      lng: suggestion.lng,
+    };
+    await loadSafety(activeQueryRef.current, true);
   }
 
   function handleRefreshTimestamp() {
@@ -1074,6 +1137,11 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                     autoCorrect={false}
                     style={styles.destinationInput}
                     onSubmitEditing={handleSubmitDestination}
+                    onFocus={() => {
+                      if (destinationSuggestions.length > 0) {
+                        setShowDestinationSuggestions(true);
+                      }
+                    }}
                   />
                   {destinationInput ? (
                     <Pressable
@@ -1089,6 +1157,31 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                     </Pressable>
                   ) : null}
                 </View>
+
+                {showDestinationSuggestions ? (
+                  <View style={styles.destinationSuggestionsList}>
+                    {destinationSuggestions.map((suggestion) => (
+                      <DimPressable
+                        key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Select ${suggestion.label}`}
+                        onPress={() => handleSelectDestinationSuggestion(suggestion)}
+                        style={styles.destinationSuggestionItem}
+                      >
+                        <Ionicons name="location-outline" size={19} color="#1F78FF" />
+                        <Text style={styles.destinationSuggestionText} numberOfLines={1}>
+                          {suggestion.label}
+                        </Text>
+                      </DimPressable>
+                    ))}
+                    {destinationSuggestLoading ? (
+                      <Text style={styles.destinationSuggestionState}>Searching locations...</Text>
+                    ) : null}
+                    {!destinationSuggestLoading && destinationSuggestions.length === 0 ? (
+                      <Text style={styles.destinationSuggestionState}>No matching locations</Text>
+                    ) : null}
+                  </View>
+                ) : null}
 
                 <View style={[styles.destinationUpdatedRow, isPhone && styles.destinationUpdatedRowCompact]}>
                   <Text style={styles.destinationUpdatedText}>
@@ -1655,6 +1748,40 @@ const styles = StyleSheet.create({
 
   destinationClearButtonPressed: {
     opacity: 0.7,
+  },
+
+  destinationSuggestionsList: {
+    marginTop: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#D7E4F7",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+
+  destinationSuggestionItem: {
+    minHeight: 46,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E5EDF8",
+  },
+
+  destinationSuggestionText: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "600",
+    color: "#223D69",
+  },
+
+  destinationSuggestionState: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: "#6B7C99",
   },
 
   destinationUpdatedRow: {
