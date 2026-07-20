@@ -1,6 +1,6 @@
 """Unit tests for chat plan resolution (no DB)."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.models.travel import TravelPlan
@@ -15,9 +15,7 @@ def _plan(*, destination: str, title: str = "Trip", updated_offset: int = 0) -> 
         destination_name=destination,
         status="active",
     )
-    plan.updated_at = datetime(2026, 1, 1, tzinfo=timezone.utc).replace(
-        day=1 + updated_offset
-    )
+    plan.updated_at = datetime(2026, 1, 1, tzinfo=UTC).replace(day=1 + updated_offset)
     return plan
 
 

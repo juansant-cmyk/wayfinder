@@ -1,5 +1,5 @@
 # Mock dashboard data — matches HomeScreen labels until external APIs are wired.
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
@@ -137,7 +137,7 @@ def get_travel_check(destination: str | None) -> TravelCheckResponse:
 
 
 def list_notifications(user_id: UUID) -> list[NotificationResponse]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return [
         NotificationResponse(
             id=uuid4(),

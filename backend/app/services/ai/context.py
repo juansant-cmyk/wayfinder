@@ -120,7 +120,9 @@ async def collect_trip_context(
                 forecast_summary=report.forecast_summary,
             )
         except Exception:
-            logger.exception("Weather collect soft-failed for user=%s dest=%s", user_id, destination)
+            logger.exception(
+                "Weather collect soft-failed for user=%s dest=%s", user_id, destination
+            )
             weather_summary = None
 
     favorite_titles: list[str] = []

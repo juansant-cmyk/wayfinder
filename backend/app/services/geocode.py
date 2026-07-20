@@ -45,7 +45,9 @@ def _flickr_cover_url(*parts: str | None) -> str:
     return f"https://loremflickr.com/800/480/{seed}?lock={lock}"
 
 
-def _label_from_parts(city: str | None, region: str | None, country: str | None, fallback: str | None = None) -> str | None:
+def _label_from_parts(
+    city: str | None, region: str | None, country: str | None, fallback: str | None = None
+) -> str | None:
     if city and region and city.lower() != region.lower():
         return f"{city}, {region}"
     return city or region or country or fallback
@@ -169,7 +171,9 @@ async def _nominatim_search(query: str, *, limit: int = 1) -> list[dict[str, Any
         # Require a city/town/region or country so free-text junk is filtered out.
         if not city and not country:
             continue
-        label = _label_from_parts(city, region, country, hit.get("display_name") or _title_case(query))
+        label = _label_from_parts(
+            city, region, country, hit.get("display_name") or _title_case(query)
+        )
         if not label:
             continue
         try:

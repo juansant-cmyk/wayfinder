@@ -64,7 +64,10 @@ class PlanDay(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     plan_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("travel_plans.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("travel_plans.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     day_date: Mapped[date] = mapped_column(Date, nullable=False)
     sort_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -89,7 +92,10 @@ class PlanActivity(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     day_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("plan_days.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("plan_days.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     kind: Mapped[str] = mapped_column(String(20), nullable=False, default="custom")
     time_label: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -112,7 +118,9 @@ class PlanActivity(Base):
 
 class Place(Base):
     __tablename__ = "places"
-    __table_args__ = (UniqueConstraint("provider", "provider_place_id", name="places_provider_place_unique"),)
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_place_id", name="places_provider_place_unique"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     provider: Mapped[str] = mapped_column(String(50), nullable=False, default="mock")
@@ -132,7 +140,9 @@ class Place(Base):
 
 class Hotel(Base):
     __tablename__ = "hotels"
-    __table_args__ = (UniqueConstraint("provider", "provider_hotel_id", name="hotels_provider_hotel_unique"),)
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_hotel_id", name="hotels_provider_hotel_unique"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     provider: Mapped[str] = mapped_column(String(50), nullable=False, default="mock")

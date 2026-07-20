@@ -87,9 +87,7 @@ async def create_activity(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    activity = await itinerary_service.create_activity(
-        db, current_user.id, plan_id, day_id, body
-    )
+    activity = await itinerary_service.create_activity(db, current_user.id, plan_id, day_id, body)
     return itinerary_service.activity_to_response(activity)
 
 

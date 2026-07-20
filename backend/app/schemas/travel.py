@@ -46,7 +46,11 @@ class TravelPlanBase(BaseModel):
     def validate_ranges(self):
         if self.start_date is not None or self.end_date is not None:
             validate_trip_date_range(self.start_date, self.end_date)
-        if self.budget_min is not None and self.budget_max is not None and self.budget_max < self.budget_min:
+        if (
+            self.budget_min is not None
+            and self.budget_max is not None
+            and self.budget_max < self.budget_min
+        ):
             raise ValueError("budget_max must be greater than or equal to budget_min")
         return self
 

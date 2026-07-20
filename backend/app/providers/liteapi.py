@@ -22,9 +22,7 @@ DEFAULT_SEARCH_LIMIT = 20
 DEFAULT_RADIUS_METERS = 8_000
 
 
-def _default_stay_dates(
-    check_in: str | None, check_out: str | None
-) -> tuple[str, str]:
+def _default_stay_dates(check_in: str | None, check_out: str | None) -> tuple[str, str]:
     if check_in and check_out:
         return check_in, check_out
     start = date.today() + timedelta(days=7)
@@ -108,7 +106,17 @@ FEATURED_AMENITY_ORDER = ("Pool", "Parking", "Gym", "Wi-Fi included")
 FEATURED_AMENITY_MATCHERS: list[tuple[str, tuple[str, ...]]] = [
     ("Pool", ("swimming pool", "outdoor pool", "indoor pool", "rooftop pool")),
     ("Parking", ("parking", "car park", "garage")),
-    ("Gym", ("gym", "fitness", "fitness centre", "fitness center", "fitness room", "fitness facilities")),
+    (
+        "Gym",
+        (
+            "gym",
+            "fitness",
+            "fitness centre",
+            "fitness center",
+            "fitness room",
+            "fitness facilities",
+        ),
+    ),
     ("Wi-Fi included", ("wifi", "wi-fi", "wireless", "internet")),
 ]
 
@@ -288,7 +296,9 @@ def map_liteapi_search_hotel(
         total_estimate=round(total, 2),
         currency=currency,
         amenities=amenities,
-        rating=_parse_float(info.get("rating") if info.get("rating") is not None else info.get("stars")),
+        rating=_parse_float(
+            info.get("rating") if info.get("rating") is not None else info.get("stars")
+        ),
         metadata_json={
             "offer_id": room_type.get("offerId"),
             "image_url": image_url,
@@ -321,7 +331,9 @@ def map_liteapi_hotel_details(payload: dict[str, Any]) -> ProviderHotel:
     parts = [part for part in (address, city, country) if part]
     full_address = ", ".join(str(part) for part in parts) if parts else None
 
-    amenities = build_card_amenities(info=data if isinstance(data, dict) else {}, room_type=None, limit=8)
+    amenities = build_card_amenities(
+        info=data if isinstance(data, dict) else {}, room_type=None, limit=8
+    )
     if not amenities:
         raw_facilities = list(data.get("hotelFacilities") or data.get("facilities") or [])
         amenities = [
@@ -345,7 +357,9 @@ def map_liteapi_hotel_details(payload: dict[str, Any]) -> ProviderHotel:
         total_estimate=0.0,
         currency="USD",
         amenities=amenities,
-        rating=_parse_float(data.get("rating") if data.get("rating") is not None else data.get("starRating")),
+        rating=_parse_float(
+            data.get("rating") if data.get("rating") is not None else data.get("starRating")
+        ),
         metadata_json={
             "image_url": image_url,
             "images": [img.get("url") for img in images[:8] if img.get("url")],
@@ -580,7 +594,9 @@ class LiteApiHotelProvider:
         hotel_ids = [str(row.get("hotelId") or "") for row in rate_rows if row.get("hotelId")]
         if hotel_ids:
             facility_ids_by_hotel = await self._hotel_facility_ids(hotel_ids)
-            featured_id_map = await self._featured_facility_id_map() if facility_ids_by_hotel else {}
+            featured_id_map = (
+                await self._featured_facility_id_map() if facility_ids_by_hotel else {}
+            )
 
             for hotel_id, facility_ids in facility_ids_by_hotel.items():
                 featured = featured_amenities_from_facility_ids(facility_ids, featured_id_map)

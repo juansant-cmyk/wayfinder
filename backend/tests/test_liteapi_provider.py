@@ -155,9 +155,10 @@ def test_extract_featured_amenities_and_cancellation():
         [492, 47, 999],
         {492: "Gym", 47: "Parking"},
     ) == ["Parking", "Gym"]
-    assert extract_cancellation_label(
-        {"rates": [{"cancellationPolicies": {"refundableTag": "NRFN"}}]}
-    ) == "Non-refundable"
+    assert (
+        extract_cancellation_label({"rates": [{"cancellationPolicies": {"refundableTag": "NRFN"}}]})
+        == "Non-refundable"
+    )
 
 
 def test_map_liteapi_hotel_details():

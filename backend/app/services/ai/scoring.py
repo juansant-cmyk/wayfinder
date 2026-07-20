@@ -24,9 +24,7 @@ def score_candidates(ctx: TripChatContext) -> list[ScoredCandidate]:
             title="Neighborhood ramen",
             score=0.82 if rainy or cold else 0.55,
             reason=(
-                "Warm bowl for wet or cold weather"
-                if rainy or cold
-                else "Popular local staple"
+                "Warm bowl for wet or cold weather" if rainy or cold else "Popular local staple"
             ),
             metadata={"destination": dest},
         ),

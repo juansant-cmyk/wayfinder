@@ -126,8 +126,7 @@ class ProviderCurrentWeather:
 class PlacesProvider(Protocol):
     async def popular_places(
         self, lat: float, lng: float, radius_km: float, category: str | None, limit: int
-    ) -> list[ProviderPlace]:
-        ...
+    ) -> list[ProviderPlace]: ...
 
 
 class HotelProvider(Protocol):
@@ -171,8 +170,7 @@ class HotelProvider(Protocol):
 class WeatherProvider(Protocol):
     async def alerts(
         self, lat: float | None, lng: float | None, destination: str
-    ) -> list[ProviderSafetyAlert]:
-        ...
+    ) -> list[ProviderSafetyAlert]: ...
 
 
 class CurrentWeatherProvider(Protocol):
@@ -181,8 +179,7 @@ class CurrentWeatherProvider(Protocol):
         destination: str | None,
         lat: float | None,
         lng: float | None,
-    ) -> ProviderCurrentWeather:
-        ...
+    ) -> ProviderCurrentWeather: ...
 
 
 @dataclass(frozen=True)
@@ -221,8 +218,7 @@ class ChatProvider(Protocol):
         messages: list[ChatMessage],
         *,
         tools: list[ChatToolSpec] | None = None,
-    ) -> ChatCompletion:
-        ...
+    ) -> ChatCompletion: ...
 
 
 class NarratorProvider(Protocol):
@@ -230,5 +226,4 @@ class NarratorProvider(Protocol):
 
     name: str
 
-    async def narrate(self, system: str, user: str) -> str:
-        ...
+    async def narrate(self, system: str, user: str) -> str: ...

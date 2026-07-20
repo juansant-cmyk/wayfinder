@@ -256,9 +256,7 @@ class MockChatProvider:
                 asked = line.split(":", 1)[1].strip()
                 break
         return ChatCompletion(
-            content=(
-                f'I\'m Wayfinder. Agent is currently not active. You asked: "{asked}".'
-            ),
+            content=(f'I\'m Wayfinder. Agent is currently not active. You asked: "{asked}".'),
             provider=self.name,
             model="mock",
         )

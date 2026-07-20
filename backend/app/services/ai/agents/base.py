@@ -11,8 +11,7 @@ class SubAgent(Protocol):
     name: str
     description: str
 
-    async def run(self, ctx: TripChatContext) -> str:
-        ...
+    async def run(self, ctx: TripChatContext) -> str: ...
 
 
 # Expandable keyword lists per agent. Order = priority (first match wins).

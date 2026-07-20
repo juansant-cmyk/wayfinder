@@ -94,8 +94,13 @@ def weatherapi_payload() -> dict:
 
 
 def test_weatherapi_icon_url_is_https():
-    assert normalize_icon_url("//cdn.weatherapi.com/icon.png") == "https://cdn.weatherapi.com/icon.png"
-    assert normalize_icon_url("http://cdn.weatherapi.com/icon.png") == "https://cdn.weatherapi.com/icon.png"
+    assert (
+        normalize_icon_url("//cdn.weatherapi.com/icon.png") == "https://cdn.weatherapi.com/icon.png"
+    )
+    assert (
+        normalize_icon_url("http://cdn.weatherapi.com/icon.png")
+        == "https://cdn.weatherapi.com/icon.png"
+    )
 
 
 def test_weatherapi_payload_maps_to_current_weather():
@@ -108,7 +113,9 @@ def test_weatherapi_payload_maps_to_current_weather():
     assert report.air_quality.us_epa_index == 1
     assert len(report.forecast_days) == 1
     assert report.forecast_days[0].chance_of_rain == 65
-    assert report.forecast_days[0].icon_url == "https://cdn.weatherapi.com/weather/64x64/day/176.png"
+    assert (
+        report.forecast_days[0].icon_url == "https://cdn.weatherapi.com/weather/64x64/day/176.png"
+    )
     assert len(report.warnings) == 1
     assert report.warnings[0].title == "Heavy Rain Warning"
     assert report.warnings[0].severity == "moderate"
