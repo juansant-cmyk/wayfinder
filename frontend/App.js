@@ -14,6 +14,8 @@ import ItineraryScreen from "./screens/ItineraryScreen";
 import FlightsScreen from "./screens/FlightsScreen";
 import MapsScreen from "./screens/MapsScreen";
 import WeatherScreen from "./screens/WeatherScreen";
+import SafetyScreen from "./screens/SafetyScreen";
+import FavoritesScreen from "./screens/FavoritesScreen";
 import LoginScreen from "./screens/LoginScreen";
 import SignupScreen from "./screens/SignupScreen";
 
@@ -502,6 +504,10 @@ export default function App() {
     screenContent = <MapsScreen onBack={navigateBack} onNavigate={handleNavigate} />;
   } else if (currentScreen === "weather") {
     screenContent = <WeatherScreen onBack={navigateBack} onNavigate={handleNavigate} />;
+  } else if (currentScreen === "safety") {
+    screenContent = <SafetyScreen onBack={navigateBack} onNavigate={handleNavigate} />;
+  } else if (currentScreen === "favorites") {
+    screenContent = <FavoritesScreen onBack={navigateBack} onNavigate={handleNavigate} />;
   } else if (FEATURE_SCREENS.has(currentScreen)) {
     screenContent = (
       <DashboardFeatureScreen
