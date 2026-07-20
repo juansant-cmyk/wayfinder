@@ -135,25 +135,17 @@ async def current_weather(
     try:
         report = await provider.current_weather(destination, lat, lng)
     except WeatherApiLocationNotFound as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Weather location not found",
-        ) from exc
+        raise HTTPException(status_code=404, detail="Weather location not found") from exc
     except WeatherApiMissingKey as exc:
-        if settings.use_mock_providers:
-            report = await MockWeatherProvider().current_weather(destination, lat, lng)
-        else:
+        if not settings.use_mock_providers:
             raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                status_code=503,
                 detail="WEATHER_API_KEY is required for WeatherAPI",
             ) from exc
+        report = await MockWeatherProvider().current_weather(destination, lat, lng)
     except WeatherApiUnavailable as exc:
-        if settings.use_mock_providers:
-            report = await MockWeatherProvider().current_weather(destination, lat, lng)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Weather provider unavailable",
-            ) from exc
+        if not settings.use_mock_providers:
+            raise HTTPException(status_code=502, detail="Weather provider unavailable") from exc
+        report = await MockWeatherProvider().current_weather(destination, lat, lng)
 
     return weather_to_response(report)

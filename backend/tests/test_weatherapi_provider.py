@@ -132,6 +132,13 @@ def test_weatherapi_air_quality_can_be_absent():
     assert map_current_weather(payload).air_quality is None
 
 
+def test_weatherapi_severe_alert_normalizes_to_high():
+    payload = weatherapi_payload()
+    payload["alerts"]["alert"][0]["severity"] = "Severe"
+
+    assert map_current_weather(payload).warnings[0].severity == "high"
+
+
 @pytest.mark.asyncio
 async def test_weatherapi_provider_calls_forecast_endpoint():
     def handler(request: httpx.Request) -> httpx.Response:

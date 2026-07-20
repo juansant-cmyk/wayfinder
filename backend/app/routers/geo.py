@@ -15,6 +15,8 @@ class GeocodeResult(BaseModel):
     city: str | None = None
     region: str | None = None
     country: str | None = None
+    country_code: str | None = None
+    country_iso: str | None = None
     lat: float
     lng: float
     provider: str | None = None
@@ -37,6 +39,8 @@ async def reverse_geocode(
         city=result.get("city"),
         region=result.get("region"),
         country=result.get("country"),
+        country_code=result.get("country_code"),
+        country_iso=result.get("country_iso"),
         lat=float(result["lat"]),
         lng=float(result["lng"]),
         provider=result.get("provider"),
@@ -59,6 +63,8 @@ async def search_geocode(
         city=result.get("city"),
         region=result.get("region"),
         country=result.get("country"),
+        country_code=result.get("country_code"),
+        country_iso=result.get("country_iso"),
         lat=float(result["lat"]),
         lng=float(result["lng"]),
         provider=result.get("provider"),
@@ -78,6 +84,8 @@ async def suggest_geocode(
             city=item.get("city"),
             region=item.get("region"),
             country=item.get("country"),
+            country_code=item.get("country_code"),
+            country_iso=item.get("country_iso"),
             lat=float(item["lat"]),
             lng=float(item["lng"]),
             provider=item.get("provider"),

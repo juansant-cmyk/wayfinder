@@ -1,6 +1,13 @@
 import pytest
 
-from app.providers.mock import MockHotelProvider, MockPlacesProvider
+from app.providers.mock import (
+    MockFareProvider,
+    MockHotelProvider,
+    MockLLMProvider,
+    MockPlacesProvider,
+    MockTravelAdvisoryProvider,
+    MockWeatherProvider,
+)
 from app.services.hotel_sort import sort_provider_hotels
 
 pytestmark = pytest.mark.unit
@@ -146,3 +153,35 @@ async def test_sort_provider_hotels_uses_price_as_tiebreaker_for_rating():
     sorted_hotels = sort_provider_hotels(hotels, "rating")
 
     assert [hotel.name for hotel in sorted_hotels] == ["B", "A"]
+
+
+@pytest.mark.asyncio
+async def test_mock_safety_providers_return_alerts():
+    weather = MockWeatherProvider()
+    advisory = MockTravelAdvisoryProvider()
+
+    weather_alerts = await weather.alerts(35.0, 139.0, "Tokyo")
+    advisory_alerts = await advisory.alerts("Tokyo")
+
+    assert weather_alerts[0].alert_type == "weather"
+    assert advisory_alerts[0].alert_type == "advisory"
+
+
+@pytest.mark.asyncio
+async def test_mock_fare_provider_returns_price_event():
+    provider = MockFareProvider()
+    event = await provider.latest_price("route", "SFO", "NRT", None, "USD")
+
+    assert event.price == 180
+    assert event.currency == "USD"
+    assert event.provider == "mock"
+
+
+@pytest.mark.asyncio
+async def test_mock_llm_provider_mentions_context_counts():
+    provider = MockLLMProvider()
+    answer = await provider.answer("Plan my day", [{"title": "Market"}], [{"title": "Tokyo"}])
+
+    assert "mock reply" in answer
+    assert "saved favorites" in answer
+    assert "active travel plans" in answer

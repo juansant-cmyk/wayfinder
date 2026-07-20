@@ -73,9 +73,13 @@ def _parse_datetime(value: str | None) -> datetime | None:
 
 def _severity(value: str | None) -> str:
     normalized = (value or "").strip().lower()
-    if normalized in {"extreme", "severe", "moderate", "minor"}:
-        return normalized
-    return normalized or "unknown"
+    if normalized == "extreme":
+        return "extreme"
+    if normalized in {"severe", "high", "danger", "critical"}:
+        return "high"
+    if normalized in {"moderate", "advisory", "warning", "watch"}:
+        return "moderate"
+    return "low"
 
 
 def weatherapi_query(destination: str | None, lat: float | None, lng: float | None) -> str:

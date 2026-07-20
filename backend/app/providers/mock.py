@@ -1,4 +1,5 @@
 from dataclasses import replace
+from uuid import UUID
 
 from app.providers.base import (
     ChatCompletion,
@@ -6,11 +7,13 @@ from app.providers.base import (
     ChatToolSpec,
     ProviderAirQuality,
     ProviderCurrentWeather,
+    ProviderFareEvent,
     ProviderForecastDay,
     ProviderForecastHour,
     ProviderHotel,
     ProviderPlace,
     ProviderSafetyAlert,
+    ProviderTravelRiskReport,
 )
 from app.services.hotel_sort import sort_provider_hotels
 
@@ -193,8 +196,6 @@ class MockWeatherProvider:
             visibility_miles=6.0,
             cloud=35,
             localtime=None,
-            sunrise="6:12 AM",
-            sunset="7:45 PM",
             provider="mock",
             air_quality=ProviderAirQuality(us_epa_index=1, gb_defra_index=1),
             forecast_days=[
@@ -211,18 +212,6 @@ class MockWeatherProvider:
                     chance_of_rain=25,
                     chance_of_snow=0,
                     uv=6.0,
-                )
-            ],
-            forecast_hours=[
-                ProviderForecastHour(
-                    time="2026-08-10 12:00",
-                    temp_c=26.0,
-                    temp_f=78.8,
-                    condition="Partly cloudy",
-                    icon_url="https://cdn.weatherapi.com/weather/64x64/day/116.png",
-                    wind_kph=12.1,
-                    chance_of_rain=20,
-                    is_day=True,
                 )
             ],
             warnings=[warning],
@@ -267,3 +256,89 @@ class MockNarratorProvider:
 
     async def narrate(self, system: str, user: str) -> str:
         return user.strip() or "No narration."
+class MockTravelAdvisoryProvider:
+    async def alerts(self, destination: str) -> list[ProviderSafetyAlert]:
+        return [
+            ProviderSafetyAlert(
+                source="mock-advisory",
+                destination=destination,
+                alert_type="advisory",
+                severity="low",
+                title=f"Standard travel precautions for {destination}",
+                description="Keep valuables secure and monitor local guidance.",
+            )
+        ]
+
+
+class NoopTravelAdvisoryProvider:
+    async def alerts(self, destination: str) -> list[ProviderSafetyAlert]:
+        return []
+
+
+class MockTravelRiskProvider:
+    async def country_report(self, country_iso: str) -> ProviderTravelRiskReport:
+        iso = (country_iso or "IDN").upper()
+        country_names = {
+            "IDN": "Indonesia",
+            "JPN": "Japan",
+            "KOR": "South Korea",
+            "PRT": "Portugal",
+        }
+        country_name = country_names.get(iso, iso)
+        alert = ProviderSafetyAlert(
+            source="travelrisk",
+            destination=country_name,
+            alert_type="advisory",
+            severity="low",
+            title=f"Country advisory for {country_name}",
+            description="Exercise normal precautions and monitor official local guidance.",
+            areas=country_name,
+            provider_alert_id=f"mock-{iso}-advisory",
+            country_iso=iso,
+        )
+        return ProviderTravelRiskReport(
+            country_iso=iso,
+            country_name=country_name,
+            risk_score=1.0,
+            advisory_level=1,
+            advisory_description="Exercise normal precautions",
+            advisory_date=None,
+            last_updated=None,
+            active_alert_count=1,
+            alerts=[alert],
+            calculation={"composite": 1.0},
+            provider="mock",
+        )
+
+
+class MockFareProvider:
+    async def latest_price(
+        self,
+        watch_type: str,
+        origin: str | None,
+        destination: str,
+        hotel_id: UUID | None,
+        currency: str,
+    ) -> ProviderFareEvent:
+        base_price = 180.0 if watch_type == "route" else 129.0
+        return ProviderFareEvent(
+            price=base_price,
+            currency=currency,
+            provider="mock",
+            metadata_json={
+                "origin": origin,
+                "destination": destination,
+                "hotel_id": str(hotel_id) if hotel_id else None,
+            },
+        )
+
+
+class MockLLMProvider:
+    async def answer(self, message: str, favorites: list[dict], plans: list[dict]) -> str:
+        context_bits = []
+        if favorites:
+            context_bits.append(f"{len(favorites)} saved favorites")
+        if plans:
+            context_bits.append(f"{len(plans)} active travel plans")
+        context = " using " + " and ".join(context_bits) if context_bits else ""
+        return f"mock reply from Wayfinder{context}: {message.strip()}"

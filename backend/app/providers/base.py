@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
+from uuid import UUID
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,29 @@ class ProviderHotel:
     rating: float | None
     metadata_json: dict = field(default_factory=dict)
 
+@dataclass(frozen=True)
+class ProviderForecastDay:
+    date: str
+    max_temp_c: float | None
+    min_temp_c: float | None
+    avg_temp_c: float | None
+    max_temp_f: float | None
+    min_temp_f: float | None
+    avg_temp_f: float | None
+    condition: str | None
+    icon_url: str | None
+    chance_of_rain: int | None
+    chance_of_snow: int | None
+    uv: float | None
+
+
+@dataclass(frozen=True)
+class ProviderFareEvent:
+    price: float
+    currency: str
+    provider: str
+    metadata_json: dict = field(default_factory=dict)
+
 
 @dataclass(frozen=True)
 class ProviderSafetyAlert:
@@ -50,6 +74,24 @@ class ProviderSafetyAlert:
     areas: str | None = None
     event: str | None = None
     instruction: str | None = None
+    provider_alert_id: str | None = None
+    country_iso: str | None = None
+    metadata_json: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ProviderTravelRiskReport:
+    country_iso: str
+    country_name: str
+    risk_score: float
+    advisory_level: int | None
+    advisory_description: str | None
+    advisory_date: datetime | None
+    last_updated: datetime | None
+    active_alert_count: int
+    alerts: list[ProviderSafetyAlert] = field(default_factory=list)
+    calculation: dict = field(default_factory=dict)
+    provider: str = "travelrisk"
 
 
 @dataclass(frozen=True)
@@ -62,22 +104,6 @@ class ProviderAirQuality:
     pm10: float | None = None
     us_epa_index: int | None = None
     gb_defra_index: int | None = None
-
-
-@dataclass(frozen=True)
-class ProviderForecastDay:
-    date: str
-    max_temp_c: float | None
-    min_temp_c: float | None
-    avg_temp_c: float | None
-    max_temp_f: float | None
-    min_temp_f: float | None
-    avg_temp_f: float | None
-    condition: str | None
-    icon_url: str | None
-    chance_of_rain: int | None
-    chance_of_snow: int | None
-    uv: float | None
 
 
 @dataclass(frozen=True)
@@ -227,3 +253,32 @@ class NarratorProvider(Protocol):
     name: str
 
     async def narrate(self, system: str, user: str) -> str: ...
+    ) -> ProviderCurrentWeather:
+        ...
+
+
+class TravelAdvisoryProvider(Protocol):
+    async def alerts(self, destination: str) -> list[ProviderSafetyAlert]:
+        ...
+
+
+class TravelRiskProvider(Protocol):
+    async def country_report(self, country_iso: str) -> ProviderTravelRiskReport:
+        ...
+
+
+class FareProvider(Protocol):
+    async def latest_price(
+        self,
+        watch_type: str,
+        origin: str | None,
+        destination: str,
+        hotel_id: UUID | None,
+        currency: str,
+    ) -> ProviderFareEvent:
+        ...
+
+
+class LLMProvider(Protocol):
+    async def answer(self, message: str, favorites: list[dict], plans: list[dict]) -> str:
+        ...

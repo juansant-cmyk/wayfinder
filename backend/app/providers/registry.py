@@ -17,10 +17,35 @@ from app.providers.mock import (
     MockWeatherProvider,
 )
 from app.providers.openai_chat import OpenAiChatProvider
+from app.providers.base import (
+    CurrentWeatherProvider,
+    FareProvider,
+    HotelProvider,
+    LLMProvider,
+    PlacesProvider,
+    TravelAdvisoryProvider,
+    TravelRiskProvider,
+    WeatherProvider,
+)
+from app.providers.google_places import GooglePlacesProvider
+from app.providers.liteapi import LiteApiHotelProvider
+from app.providers.mock import (
+    MockFareProvider,
+    MockHotelProvider,
+    MockLLMProvider,
+    MockPlacesProvider,
+    MockTravelAdvisoryProvider,
+    MockWeatherProvider,
+    NoopTravelAdvisoryProvider,
+    MockTravelRiskProvider,
+)
+from app.providers.travelrisk import TravelRiskApiProvider
 from app.providers.weatherapi import WeatherApiProvider
 
 
 def get_places_provider() -> PlacesProvider:
+    if (settings.places_provider or "").strip().lower() == "google":
+        return GooglePlacesProvider()
     return MockPlacesProvider()
 
 
@@ -41,6 +66,8 @@ def get_weather_provider() -> WeatherProvider:
     choice = (settings.weather_provider or "").strip().lower()
     if choice == "weatherapi":
         return WeatherApiProvider()
+    if settings.use_mock_providers:
+        return MockWeatherProvider()
     return MockWeatherProvider()
 
 
@@ -48,6 +75,8 @@ def get_current_weather_provider() -> CurrentWeatherProvider:
     choice = (settings.weather_provider or "").strip().lower()
     if choice == "weatherapi":
         return WeatherApiProvider()
+    if settings.use_mock_providers:
+        return MockWeatherProvider()
     return MockWeatherProvider()
 
 
@@ -88,3 +117,21 @@ def get_narrator_provider() -> NarratorProvider | None:
     if choice == "mock":
         return MockNarratorProvider()
     return None
+def get_travel_advisory_provider() -> TravelAdvisoryProvider:
+    if settings.use_mock_providers:
+        return MockTravelAdvisoryProvider()
+    return NoopTravelAdvisoryProvider()
+
+
+def get_travel_risk_provider() -> TravelRiskProvider:
+    if (settings.travel_risk_provider or "").strip().lower() == "travelrisk":
+        return TravelRiskApiProvider()
+    return MockTravelRiskProvider()
+
+
+def get_fare_provider() -> FareProvider:
+    return MockFareProvider()
+
+
+def get_llm_provider() -> LLMProvider:
+    return MockLLMProvider()
