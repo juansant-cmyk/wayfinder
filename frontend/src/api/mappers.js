@@ -176,6 +176,155 @@ export function mapPlaceForDashboard(place) {
   };
 }
 
+function readableCategory(value) {
+  return String(value || "Place")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+export function mapSafetyAlertsForScreen(payload) {
+  return (Array.isArray(payload) ? payload : []).map((alert) => {
+    const severity = String(alert.severity || "low").toLowerCase();
+    const isElevated = severity === "high" || severity === "extreme";
+    return {
+      id: String(alert.id),
+      tone: isElevated ? "danger" : "advisory",
+      severity,
+      label:
+        alert.alert_type === "weather"
+          ? "Weather Alert"
+          : `${readableCategory(alert.alert_type || "hazard")} Alert`,
+      title: alert.headline || alert.title || alert.event || "Safety alert",
+      location: alert.areas || alert.destination || "Selected destination",
+      timestamp: formatAlertTimestamp(alert.effective || alert.starts_at || alert.created_at),
+      description: alert.desc || alert.description || "Monitor official local guidance.",
+      details: alert.instruction || alert.description || alert.desc || "",
+      expiresAt: alert.expires || alert.ends_at || null,
+      raw: alert,
+    };
+  });
+}
+
+export function deriveSafetyOverview(alerts, destination) {
+  const severities = alerts.map((alert) => alert.severity);
+  const level = severities.some((severity) => severity === "extreme" || severity === "high")
+    ? "high"
+    : severities.includes("moderate")
+      ? "moderate"
+      : "low";
+  const labels = { low: "Low Risk", moderate: "Moderate Risk", high: "High Risk" };
+  const indicator = { low: "11%", moderate: "43%", high: "84%" };
+  const city = String(destination || "This destination").split(",")[0];
+  const descriptions = {
+    low: `${city} currently has no elevated active alerts.\nExercise normal precautions and follow local guidance.`,
+    moderate: `${city} currently has active advisories.\nMonitor changing conditions and follow official guidance.`,
+    high: `${city} currently has a high-severity active alert.\nAvoid affected areas and follow official instructions closely.`,
+  };
+  return {
+    level,
+    label: labels[level],
+    indicatorLeft: indicator[level],
+    description: descriptions[level],
+  };
+}
+
+const SAFETY_CATEGORY_STYLE = {
+  advisory: {
+    iconFamily: "ion",
+    iconName: "shield-checkmark",
+    iconColor: "#1F78FF",
+    iconBackground: "#EAF3FF",
+  },
+  hazards: {
+    iconFamily: "ion",
+    iconName: "warning",
+    iconColor: "#E23D35",
+    iconBackground: "#FFE8E4",
+  },
+  weather: {
+    iconFamily: "ion",
+    iconName: "partly-sunny",
+    iconColor: "#149647",
+    iconBackground: "#EAF9F0",
+  },
+  disruptions: {
+    iconFamily: "ion",
+    iconName: "train-outline",
+    iconColor: "#7D58F2",
+    iconBackground: "#F1EAFF",
+  },
+  updates: {
+    iconFamily: "ion",
+    iconName: "megaphone-outline",
+    iconColor: "#D98200",
+    iconBackground: "#FFF4DE",
+  },
+};
+
+const SAFETY_TIP_STYLE = {
+  earthquake: ["pulse", "#E23D35", "#FFE8E4"],
+  flood: ["water", "#1F78FF", "#EAF3FF"],
+  cyclone: ["thunderstorm", "#7D58F2", "#F1EAFF"],
+  wildfire: ["flame", "#F04D33", "#FFF0EC"],
+  volcano: ["warning", "#D98200", "#FFF4DE"],
+  drought: ["sunny", "#D98200", "#FFF4DE"],
+  weather: ["partly-sunny", "#1F78FF", "#EAF3FF"],
+};
+
+export function mapSafetyReportForScreen(payload) {
+  const risk = payload?.risk || {};
+  const score = Math.max(0, Math.min(5, Number(risk.score) || 0));
+  const level = ["low", "moderate", "high", "extreme"].includes(risk.level)
+    ? risk.level
+    : "low";
+  const labels = {
+    low: "Low Risk",
+    moderate: "Moderate Risk",
+    high: "High Risk",
+    extreme: "Extreme Risk",
+  };
+  const categories = (Array.isArray(payload?.categories) ? payload.categories : []).map((item) => ({
+    ...item,
+    ...(SAFETY_CATEGORY_STYLE[item.id] || SAFETY_CATEGORY_STYLE.updates),
+  }));
+  const tips = (Array.isArray(payload?.tips) ? payload.tips : []).map((tip) => {
+    const [iconName, iconColor, iconBackground] =
+      SAFETY_TIP_STYLE[tip.alert_type] || ["information-circle", "#1F78FF", "#EAF3FF"];
+    return {
+      ...tip,
+      iconFamily: "ion",
+      iconName,
+      iconColor,
+      iconBackground,
+    };
+  });
+  return {
+    destinationLabel: payload?.location?.label || "Selected destination",
+    cityLabel: payload?.location?.city || String(payload?.location?.label || "Destination").split(",")[0],
+    countryName: payload?.coverage?.country_name || "Unknown country",
+    countryIso: payload?.coverage?.country_iso || null,
+    scopeLabel: payload?.coverage?.country_name
+      ? `Country-level risk information for ${payload.coverage.country_name}`
+      : "Country-level risk information",
+    risk: {
+      score,
+      level,
+      label: `${labels[level]} (${score.toFixed(1)}/5)`,
+      indicatorLeft: `${Math.max(1, Math.min(94, (score / 5) * 94))}%`,
+      description:
+        risk.advisory_description ||
+        `Current country-level risk score: ${score.toFixed(1)} out of 5.`,
+      about:
+        "The score combines country advisory information and active disaster alerts. It is not a city crime, health, or transportation score.",
+    },
+    alerts: mapSafetyAlertsForScreen(payload?.alerts),
+    categories,
+    tips,
+    fetchedAt: payload?.fetched_at ? new Date(payload.fetched_at) : new Date(),
+    isStale: Boolean(payload?.is_stale),
+  };
+}
+
 function formatTemp(value, unit = "°") {
   if (value == null || Number.isNaN(Number(value))) {
     return "—";

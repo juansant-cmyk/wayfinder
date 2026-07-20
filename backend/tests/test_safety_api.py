@@ -1,0 +1,63 @@
+import pytest
+from httpx import AsyncClient
+
+pytestmark = pytest.mark.integration
+
+
+async def auth_headers(client: AsyncClient, prefix: str = "safety") -> dict[str, str]:
+    response = await client.post(
+        "/auth/register",
+        json={
+            "email": f"{prefix}@example.com",
+            "password": "password123",
+            "full_name": "Safety User",
+            "username": f"{prefix}user",
+        },
+    )
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.mark.asyncio
+async def test_safety_feed_can_dismiss_alerts(client: AsyncClient):
+    headers = await auth_headers(client, "safety")
+
+    safety = await client.get(
+        "/safety?destination=Lisbon&lat=38.7&lng=-9.1&country_iso=PRT",
+        headers=headers,
+    )
+    assert safety.status_code == 200
+    assert len(safety.json()) == 2
+
+    alert_id = safety.json()[0]["id"]
+    dismissed = await client.post(f"/safety/alerts/{alert_id}/dismiss", headers=headers)
+    assert dismissed.status_code == 200
+    assert dismissed.json()["status"] == "dismissed"
+
+    after = await client.get(
+        "/safety?destination=Lisbon&lat=38.7&lng=-9.1&country_iso=PRT",
+        headers=headers,
+    )
+    assert after.status_code == 200
+    assert len(after.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_safety_report_keeps_city_and_country_scope(client: AsyncClient):
+    headers = await auth_headers(client, "safetyreport")
+
+    response = await client.get(
+        "/safety/report?destination=Tokyo%2C%20Japan&lat=35.68&lng=139.76&country_iso=JPN",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["location"]["city"] == "Tokyo"
+    assert payload["coverage"] == {
+        "country_name": "Japan",
+        "country_iso": "JPN",
+        "granularity": "country",
+    }
+    assert payload["risk"]["score"] == 1.0
+    assert payload["categories"][0]["title"] == "Country Advisory"

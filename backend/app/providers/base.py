@@ -50,6 +50,24 @@ class ProviderSafetyAlert:
     areas: str | None = None
     event: str | None = None
     instruction: str | None = None
+    provider_alert_id: str | None = None
+    country_iso: str | None = None
+    metadata_json: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ProviderTravelRiskReport:
+    country_iso: str
+    country_name: str
+    risk_score: float
+    advisory_level: int | None
+    advisory_description: str | None
+    advisory_date: datetime | None
+    last_updated: datetime | None
+    active_alert_count: int
+    alerts: list[ProviderSafetyAlert] = field(default_factory=list)
+    calculation: dict = field(default_factory=dict)
+    provider: str = "travelrisk"
 
 
 @dataclass(frozen=True)
@@ -227,3 +245,8 @@ class NarratorProvider(Protocol):
     name: str
 
     async def narrate(self, system: str, user: str) -> str: ...
+
+
+class TravelRiskProvider(Protocol):
+    async def country_report(self, country_iso: str) -> ProviderTravelRiskReport:
+        ...

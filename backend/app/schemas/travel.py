@@ -170,3 +170,32 @@ class HotelResponse(BaseModel):
 def iter_trip_dates(start: date, end: date) -> list[date]:
     validate_trip_date_range(start, end)
     return [start + timedelta(days=offset) for offset in range(inclusive_day_count(start, end))]
+
+
+class SafetyFeedAlertResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    source: str
+    destination: str
+    alert_type: str
+    severity: str
+    title: str
+    description: str
+    lat: float | None
+    lng: float | None
+    starts_at: datetime | None
+    ends_at: datetime | None
+    headline: str | None = None
+    urgency: str | None = None
+    areas: str | None = None
+    event: str | None = None
+    effective: datetime | None = None
+    expires: datetime | None = None
+    desc: str | None = None
+    instruction: str | None = None
+
+
+class DismissAlertResponse(BaseModel):
+    alert_id: UUID
+    status: str = "dismissed"

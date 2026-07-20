@@ -6,6 +6,7 @@ from app.providers.base import (
     HotelProvider,
     NarratorProvider,
     PlacesProvider,
+    TravelRiskProvider,
     WeatherProvider,
 )
 from app.providers.liteapi import LiteApiHotelProvider
@@ -14,9 +15,11 @@ from app.providers.mock import (
     MockHotelProvider,
     MockNarratorProvider,
     MockPlacesProvider,
+    MockTravelRiskProvider,
     MockWeatherProvider,
 )
 from app.providers.openai_chat import OpenAiChatProvider
+from app.providers.travelrisk import TravelRiskApiProvider
 from app.providers.weatherapi import WeatherApiProvider
 
 
@@ -88,3 +91,9 @@ def get_narrator_provider() -> NarratorProvider | None:
     if choice == "mock":
         return MockNarratorProvider()
     return None
+
+
+def get_travel_risk_provider() -> TravelRiskProvider:
+    if (settings.travel_risk_provider or "").strip().lower() == "travelrisk":
+        return TravelRiskApiProvider()
+    return MockTravelRiskProvider()

@@ -11,6 +11,7 @@ from app.providers.base import (
     ProviderHotel,
     ProviderPlace,
     ProviderSafetyAlert,
+    ProviderTravelRiskReport,
 )
 from app.services.hotel_sort import sort_provider_hotels
 
@@ -267,3 +268,39 @@ class MockNarratorProvider:
 
     async def narrate(self, system: str, user: str) -> str:
         return user.strip() or "No narration."
+
+
+class MockTravelRiskProvider:
+    async def country_report(self, country_iso: str) -> ProviderTravelRiskReport:
+        iso = (country_iso or "IDN").upper()
+        country_names = {
+            "IDN": "Indonesia",
+            "JPN": "Japan",
+            "KOR": "South Korea",
+            "PRT": "Portugal",
+        }
+        country_name = country_names.get(iso, iso)
+        alert = ProviderSafetyAlert(
+            source="travelrisk",
+            destination=country_name,
+            alert_type="advisory",
+            severity="low",
+            title=f"Country advisory for {country_name}",
+            description="Exercise normal precautions and monitor official local guidance.",
+            areas=country_name,
+            provider_alert_id=f"mock-{iso}-advisory",
+            country_iso=iso,
+        )
+        return ProviderTravelRiskReport(
+            country_iso=iso,
+            country_name=country_name,
+            risk_score=1.0,
+            advisory_level=1,
+            advisory_description="Exercise normal precautions",
+            advisory_date=None,
+            last_updated=None,
+            active_alert_count=1,
+            alerts=[alert],
+            calculation={"composite": 1.0},
+            provider="mock",
+        )
