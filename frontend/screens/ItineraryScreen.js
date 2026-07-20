@@ -643,12 +643,16 @@ function TimelineItem({
   );
 }
 
-function HeroArtwork({ compact }) {
+function HeroArtwork({ compact, tiny }) {
   return (
     <Image
       source={heroArtworkImage}
       resizeMode="contain"
-      style={[styles.heroArtwork, compact && styles.heroArtworkCompact]}
+      style={[
+        styles.heroArtwork,
+        compact && styles.heroArtworkCompact,
+        tiny && styles.heroArtworkTiny,
+      ]}
     />
   );
 }
@@ -801,6 +805,7 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
   const isTablet = width >= 760;
   const isDesktop = width >= 1100;
   const isCompact = width < 460;
+  const isTiny = width < 360;
   const pageMaxWidth = isDesktop ? 968 : 952;
 
   const [trip, setTrip] = useState(initialTrip);
@@ -968,7 +973,7 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
               </View>
             ) : null}
 
-            <View style={[styles.heroSection, !isTablet && styles.heroSectionStacked]}>
+            <View style={styles.heroSection}>
               <View style={styles.heroCopyColumn}>
                 <DimPressable
                   accessibilityRole="button"
@@ -981,11 +986,13 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
 
                 <View style={styles.heroCopy}>
                   <Text
+                    numberOfLines={1}
                     style={[
                       styles.heroTitle,
                       isDesktop && styles.heroTitleDesktop,
                       isTablet && !isDesktop && styles.heroTitleTablet,
                       isCompact && styles.heroTitleCompact,
+                      isTiny && styles.heroTitleTiny,
                     ]}
                   >
                     Itinerary
@@ -996,7 +1003,7 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
                 </View>
               </View>
 
-              <HeroArtwork compact={!isTablet} />
+              <HeroArtwork compact={!isTablet} tiny={isTiny} />
             </View>
 
             <View style={[styles.tripCard, !isTablet && styles.tripCardStacked]}>
@@ -1518,8 +1525,13 @@ const styles = StyleSheet.create({
   },
 
   heroTitleCompact: {
-    fontSize: 40,
-    letterSpacing: -1.1,
+    fontSize: 34,
+    letterSpacing: -1,
+  },
+
+  heroTitleTiny: {
+    fontSize: 28,
+    letterSpacing: -0.8,
   },
 
   heroSubtitle: {
@@ -1538,16 +1550,30 @@ const styles = StyleSheet.create({
   },
 
   heroArtwork: {
+    // 500x180 is the asset's native size — cap here so it's never upscaled,
+    // and maxWidth keeps room for the heading on narrower tablets.
     width: 500,
+    maxWidth: "46%",
     height: 180,
     marginRight: -10,
+    flexShrink: 0,
   },
 
   heroArtworkCompact: {
-    width: "100%",
-    height: 150,
-    marginTop: 6,
+    // Source asset is 500x180 — never render wider than that or it upscales
+    // and pixelates. Keep it beside the heading, sized to its intrinsic ratio.
+    width: 162,
+    maxWidth: "46%",
+    height: 60,
+    marginTop: 0,
     marginRight: 0,
+    alignSelf: "center",
+  },
+
+  heroArtworkTiny: {
+    width: 120,
+    maxWidth: "38%",
+    height: 46,
   },
 
   tripCard: {

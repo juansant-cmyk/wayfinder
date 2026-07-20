@@ -14,6 +14,8 @@ import { getToken } from "../src/auth/tokenStorage";
 import ScreenLayout from "./shared/ScreenLayout";
 import { accents, colors, fonts, radius, spacing, tint } from "../theme/tokens";
 
+const chatHero = require("../assets/images/heroes/chat-hero.png");
+
 const capabilities = [
   { title: "Plan a Trip", subtitle: "Create an itinerary based on your needs", icon: "map-outline", accent: accents.blue },
   { title: "Find Hotels", subtitle: "Get hotel recommendations", icon: "bed-outline", accent: accents.terracotta },
@@ -68,7 +70,13 @@ export default function ChatScreen({ onBack }) {
   }
 
   return (
-    <ScreenLayout title="Ask Wayfinder" onBack={onBack}>
+    <ScreenLayout
+      title="AI Chat"
+      subtitle="Your smart travel assistant. Ask about trips, hotels, safety, weather, maps, or budgets."
+      hero={chatHero}
+      heroAspect={468 / 270}
+      onBack={onBack}
+    >
       {/* Intro */}
       <View style={styles.introCard}>
         <View style={styles.introHeader}>

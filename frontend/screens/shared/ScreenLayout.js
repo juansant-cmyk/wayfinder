@@ -10,10 +10,15 @@ import {
 } from "react-native";
 
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./BottomNav";
+import FeatureHeader from "./FeatureHeader";
 import { colors, fonts } from "../../theme/tokens";
 
 export default function ScreenLayout({
   title,
+  subtitle,
+  accentTail,
+  hero,
+  heroAspect,
   onBack,
   loading = false,
   error = null,
@@ -27,13 +32,15 @@ export default function ScreenLayout({
     <View style={styles.screen}>
       <StatusBar style="dark" />
 
-      <View style={styles.header}>
-        <Pressable onPress={onBack} style={styles.backButton} hitSlop={8}>
-          <Ionicons name="chevron-back" size={26} color={colors.ink} />
-        </Pressable>
-        <Text style={styles.title}>{title}</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+      {hero ? null : (
+        <View style={styles.header}>
+          <Pressable onPress={onBack} style={styles.backButton} hitSlop={8}>
+            <Ionicons name="chevron-back" size={26} color={colors.ink} />
+          </Pressable>
+          <Text style={styles.title}>{title}</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.centered}>
@@ -49,10 +56,21 @@ export default function ScreenLayout({
           style={styles.content}
           contentContainerStyle={[
             styles.contentContainer,
+            hero && styles.contentContainerHero,
             showBottomNav && styles.contentContainerWithBottomNav,
           ]}
           showsVerticalScrollIndicator={false}
         >
+          {hero ? (
+            <FeatureHeader
+              title={title}
+              subtitle={subtitle}
+              accentTail={accentTail}
+              onBack={onBack}
+              hero={hero}
+              heroAspect={heroAspect}
+            />
+          ) : null}
           {children}
         </ScrollView>
       )}
@@ -130,6 +148,10 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 20,
     paddingBottom: 32,
+  },
+
+  contentContainerHero: {
+    paddingTop: 56,
   },
 
   contentContainerWithBottomNav: {

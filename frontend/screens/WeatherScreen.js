@@ -13,6 +13,8 @@ import {
 import FeatureHeader from "./shared/FeatureHeader";
 import { colors, fonts, radius, spacing } from "../theme/tokens";
 
+const weatherHero = require("../assets/images/heroes/weather-hero.png");
+
 const LOW = "#5F7C99";
 const HIGH = colors.terracotta;
 
@@ -109,6 +111,8 @@ export default function WeatherScreen({ onBack }) {
           title="Weather"
           subtitle="Accurate forecasts to help you plan your perfect trip."
           onBack={onBack}
+          hero={weatherHero}
+          heroAspect={501 / 215}
         />
 
         {/* Search + location */}
@@ -154,9 +158,9 @@ export default function WeatherScreen({ onBack }) {
           <View style={styles.statsGrid}>
             {currentStats.map((s) => (
               <View key={s.label} style={styles.statCell}>
-                <Ionicons name={s.icon} size={16} color={colors.gold} />
-                <Text style={styles.statLabel}>{s.label}</Text>
-                <Text style={styles.statValue}>{s.value}</Text>
+                <Ionicons name={s.icon} size={15} color={colors.gold} />
+                <Text style={styles.statLabel} numberOfLines={1}>{s.label}</Text>
+                <Text style={styles.statValue} numberOfLines={1}>{s.value}</Text>
               </View>
             ))}
           </View>
@@ -303,11 +307,12 @@ const styles = StyleSheet.create({
     width: "50%",
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
+    gap: 6,
     paddingVertical: 7,
+    paddingRight: 8,
   },
-  statLabel: { flex: 1, fontFamily: fonts.sans, fontSize: 13, color: colors.onDarkMuted },
-  statValue: { fontFamily: fonts.sans, fontSize: 13, fontWeight: "600", color: colors.onDark },
+  statLabel: { flex: 1, fontFamily: fonts.sans, fontSize: 12, color: colors.onDarkMuted },
+  statValue: { fontFamily: fonts.sans, fontSize: 12, fontWeight: "600", color: colors.onDark },
 
   sectionHeader: {
     marginTop: spacing.xl,

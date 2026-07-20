@@ -19,6 +19,8 @@ import FeatureHeader from "./shared/FeatureHeader";
 import MapCanvas from "./shared/MapCanvas";
 import { colors, fonts, radius, spacing, tint } from "../theme/tokens";
 
+const mapsHero = require("../assets/images/heroes/maps-hero.png");
+
 const RADIUS_OPTIONS = [1, 5, 10, 25];
 
 export default function MapsScreen({ onBack }) {
@@ -116,8 +118,10 @@ export default function MapsScreen({ onBack }) {
       >
         <FeatureHeader
           title="Maps"
-          subtitle="Find popular places near you."
+          subtitle="Find places, get directions, and explore your destination."
           onBack={onBack}
+          hero={mapsHero}
+          heroAspect={434 / 200}
         />
 
         {/* Location + radius */}

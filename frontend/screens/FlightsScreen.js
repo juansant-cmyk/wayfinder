@@ -11,6 +11,8 @@ import {
 import FeatureHeader from "./shared/FeatureHeader";
 import { colors, fonts, radius, spacing } from "../theme/tokens";
 
+const flightsHero = require("../assets/images/heroes/flights-hero.png");
+
 const trustPoints = [
   { icon: "pricetag-outline", title: "Best Prices", subtitle: "We compare so you save more" },
   { icon: "shield-checkmark-outline", title: "No Hidden Fees", subtitle: "What you see is what you pay" },
@@ -138,6 +140,8 @@ export default function FlightsScreen({ onBack }) {
           subtitle="Find the best flights for"
           accentTail="your next adventure."
           onBack={onBack}
+          hero={flightsHero}
+          heroAspect={459 / 186}
         />
 
         {/* Search */}
