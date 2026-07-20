@@ -1,8 +1,21 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { StatusBar } from "expo-status-bar";
-import { useRef, useState } from "react";
+import { Inter_600SemiBold } from "@expo-google-fonts/inter";
 import {
+  Poppins_400Regular,
+  Poppins_400Regular_Italic,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+  useFonts,
+} from "@expo-google-fonts/poppins";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -12,105 +25,127 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+import * as dashboardApi from "../src/api/dashboard";
+import { getToken } from "../src/auth/tokenStorage";
+import MarkdownText from "../src/ui/MarkdownText";
 import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
+
+/**
+ * Poppins for AI Chat (geometric sans matching Ally’s mockups).
+ * Ally’s push (5e9781b) used the platform system UI font only — no Google Fonts.
+ * Display titles use Bold (700), not ExtraBold.
+ * Help card titles use Inter SemiBold; intro title uses Poppins Bold.
+ */
+const FONT = {
+  regular: "Poppins_400Regular",
+  italic: "Poppins_400Regular_Italic",
+  medium: "Poppins_500Medium",
+  semibold: "Poppins_600SemiBold",
+  /** Display titles / section headers — Poppins Bold. */
+  display: "Poppins_700Bold",
+  bold: "Poppins_700Bold",
+  /** Help card titles — Inter SemiBold. */
+  helpTitle: "Inter_600SemiBold",
+};
 
 const approvedTopBlockImage = require("../assets/images/ai-chat-approved-top-block.png");
 const mobileTopBlockImage = require("../assets/images/ai-chat-top-mobile-reference.png");
 const heroIllustrationImage = require("../assets/images/ai-chat-hero-art-reference.png");
 const heroTitleBotImage = require("../assets/images/ai-chat-title-bot-reference.png");
 const introBotImage = require("../assets/images/ai-chat-intro-bot-reference.png");
+const helpPlanImage = require("../assets/images/ai-chat-help-plan.png");
+const helpHotelsImage = require("../assets/images/ai-chat-help-hotels.png");
+const helpWeatherImage = require("../assets/images/ai-chat-help-weather.png");
+const helpSafetyImage = require("../assets/images/ai-chat-help-safety.png");
+const helpExploreImage = require("../assets/images/ai-chat-help-explore.png");
+const helpBudgetImage = require("../assets/images/ai-chat-help-budget.png");
+const questionRestaurantsImage = require("../assets/images/ai-chat-q-restaurants.png");
+const questionSafetyImage = require("../assets/images/ai-chat-q-safety.png");
+const questionTransitImage = require("../assets/images/ai-chat-q-transit.png");
+const questionPackingImage = require("../assets/images/ai-chat-q-packing.png");
+const questionItineraryImage = require("../assets/images/ai-chat-q-itinerary.png");
+const questionTimingImage = require("../assets/images/ai-chat-q-timing.png");
+
+// Intrinsic size of ai-chat-hero-art-reference.png (448×292).
+const HERO_ART_INTRINSIC_WIDTH = 448;
+const HERO_ART_INTRINSIC_HEIGHT = 292;
+const HERO_ART_ASPECT_RATIO = HERO_ART_INTRINSIC_WIDTH / HERO_ART_INTRINSIC_HEIGHT;
+// PNG includes a flat lavender “card lip” under the robot ground line (~y 262–291).
+const HERO_ART_CARD_LIP_PX = 30;
 
 const HELP_CARDS = [
   {
     title: "Plan a Trip",
     description: "Create an itinerary based on your needs",
     inputText: "Plan a Trip",
-    icon: "calendar-star",
-    iconFamily: "material",
-    iconBackground: "#EEEAFF",
-    iconColor: "#6454FF",
+    iconImage: helpPlanImage,
+    iconBackground: "transparent",
   },
   {
     title: "Find Hotels",
     description: "Get hotel recommendations",
     inputText: "Find Hotels",
-    icon: "bed-outline",
-    iconFamily: "ion",
-    iconBackground: "#E8F7EE",
-    iconColor: "#2EA764",
+    iconImage: helpHotelsImage,
+    iconBackground: "transparent",
   },
   {
     title: "Check Weather",
     description: "See forecasts for your destination",
     inputText: "Check Weather",
-    icon: "partly-sunny-outline",
-    iconFamily: "ion",
-    iconBackground: "#FFF2E1",
-    iconColor: "#F6A623",
+    iconImage: helpWeatherImage,
+    iconBackground: "transparent",
   },
   {
     title: "Safety Tips",
     description: "Get safety info for your destination",
     inputText: "Safety Tips",
-    icon: "shield-checkmark-outline",
-    iconFamily: "ion",
-    iconBackground: "#EAF3FF",
-    iconColor: "#3D82FF",
+    iconImage: helpSafetyImage,
+    iconBackground: "transparent",
   },
   {
     title: "Explore Places",
     description: "Discover top attractions, food, and more",
     inputText: "Explore Places",
-    icon: "map-marker-radius-outline",
-    iconFamily: "material",
-    iconBackground: "#FFE8F4",
-    iconColor: "#E35AB5",
+    iconImage: helpExploreImage,
+    iconBackground: "transparent",
   },
   {
     title: "Budget Help",
     description: "Tips to save money while traveling",
     inputText: "Budget Help",
-    icon: "cash-multiple",
-    iconFamily: "material",
-    iconBackground: "#E7F8EB",
-    iconColor: "#25A357",
+    iconImage: helpBudgetImage,
+    iconBackground: "transparent",
   },
 ];
 
 const POPULAR_QUESTIONS = [
   {
     label: "Best restaurants in Tokyo",
-    icon: "restaurant-outline",
-    iconFamily: "ion",
+    iconImage: questionRestaurantsImage,
   },
   {
     label: "Is Tokyo safe for tourists?",
-    icon: "shield-checkmark-outline",
-    iconFamily: "ion",
+    iconImage: questionSafetyImage,
   },
   {
     label: "How to get around Tokyo?",
-    icon: "train-outline",
-    iconFamily: "ion",
+    iconImage: questionTransitImage,
   },
   {
     label: "Packing list for Japan",
-    icon: "briefcase-outline",
-    iconFamily: "ion",
+    iconImage: questionPackingImage,
   },
   {
     label: "What to do in 3 days?",
-    icon: "calendar-clear-outline",
-    iconFamily: "ion",
+    iconImage: questionItineraryImage,
   },
   {
     label: "Best time to visit Japan?",
-    icon: "time-outline",
-    iconFamily: "ion",
+    iconImage: questionTimingImage,
   },
 ];
 
@@ -147,33 +182,46 @@ const CHAT_NAV_ITEMS = [
   },
 ];
 
+const SOFT_OUTLINE = "rgba(0, 0, 0, 0.06)";
+
 const cardShadowStyle = Platform.select({
   web: {
-    boxShadow: "0px 14px 28px rgba(143, 163, 191, 0.12)",
+    boxShadow: "0px 10px 22px rgba(143, 163, 191, 0.08)",
   },
   default: {
     shadowColor: "#8FA3BF",
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 5,
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
 });
 
 const chipShadowStyle = Platform.select({
   web: {
-    boxShadow: "0px 10px 20px rgba(163, 178, 204, 0.08)",
+    boxShadow: "0px 6px 14px rgba(163, 178, 204, 0.06)",
   },
   default: {
     shadowColor: "#A3B2CC",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
   },
 });
 
-function IconBadge({ icon, iconFamily, color, size = 28 }) {
+function IconBadge({ icon, iconFamily, iconImage, color, size = 28 }) {
+  if (iconImage) {
+    return (
+      <Image
+        source={iconImage}
+        style={{ width: size, height: size }}
+        resizeMode="contain"
+        accessibilityIgnoresInvertColors
+      />
+    );
+  }
+
   if (iconFamily === "material") {
     return <MaterialCommunityIcons name={icon} size={size} color={color} />;
   }
@@ -181,30 +229,43 @@ function IconBadge({ icon, iconFamily, color, size = 28 }) {
   return <Ionicons name={icon} size={size} color={color} />;
 }
 
-function HelpCard({ item, width, onPress, compact = false }) {
+function HelpCard({ item, width, onPress, compact = false, style }) {
+  const iconSize = compact ? 26 : 64;
+  const hasImageIcon = Boolean(item.iconImage);
+
   return (
     <DimPressable
       onPress={onPress}
-      style={[styles.helpCard, compact && styles.helpCardCompact, cardShadowStyle, { width }]}
+      style={[styles.helpCard, compact && styles.helpCardCompact, cardShadowStyle, { width }, style]}
     >
       <View
         style={[
           styles.helpCardIconWrap,
           compact && styles.helpCardIconWrapCompact,
-          { backgroundColor: item.iconBackground },
+          {
+            backgroundColor: hasImageIcon
+              ? "transparent"
+              : item.iconBackground || "transparent",
+          },
+          hasImageIcon && styles.helpCardIconWrapImage,
         ]}
       >
         <IconBadge
           icon={item.icon}
           iconFamily={item.iconFamily}
+          iconImage={item.iconImage}
           color={item.iconColor}
-          size={compact ? 24 : 28}
+          size={hasImageIcon ? iconSize : compact ? 16 : 28}
         />
       </View>
-      <Text style={[styles.helpCardTitle, compact && styles.helpCardTitleCompact]}>
+      <Text
+        numberOfLines={compact ? 1 : undefined}
+        style={[styles.helpCardTitle, compact && styles.helpCardTitleCompact]}
+      >
         {item.title}
       </Text>
       <Text
+        numberOfLines={compact ? 2 : undefined}
         style={[styles.helpCardDescription, compact && styles.helpCardDescriptionCompact]}
       >
         {item.description}
@@ -213,7 +274,9 @@ function HelpCard({ item, width, onPress, compact = false }) {
   );
 }
 
-function PopularQuestionChip({ item, width, onPress, compact = false, singleColumn = false }) {
+function PopularQuestionChip({ item, width, onPress, compact = false }) {
+  const iconSize = compact ? 17 : 22;
+
   return (
     <DimPressable
       onPress={onPress}
@@ -227,11 +290,13 @@ function PopularQuestionChip({ item, width, onPress, compact = false, singleColu
       <IconBadge
         icon={item.icon}
         iconFamily={item.iconFamily}
+        iconImage={item.iconImage}
         color="#6C63FF"
-        size={compact ? 18 : 20}
+        size={iconSize}
       />
       <Text
-        numberOfLines={singleColumn ? 2 : 1}
+        numberOfLines={compact ? 2 : 1}
+        ellipsizeMode="tail"
         style={[styles.questionChipLabel, compact && styles.questionChipLabelCompact]}
       >
         {item.label}
@@ -242,6 +307,11 @@ function PopularQuestionChip({ item, width, onPress, compact = false, singleColu
 
 function MessageBubble({ message, compact = false }) {
   const isUser = message.role === "user";
+  const textStyle = [
+    styles.messageText,
+    compact && styles.messageTextCompact,
+    isUser ? styles.userMessageText : styles.assistantMessageText,
+  ];
 
   return (
     <View
@@ -254,87 +324,340 @@ function MessageBubble({ message, compact = false }) {
       <Text style={[styles.messageMeta, isUser ? styles.userMeta : styles.assistantMeta]}>
         {isUser ? "You" : "Wayfinder"}
       </Text>
-      <Text
-        style={[
-          styles.messageText,
-          compact && styles.messageTextCompact,
-          isUser ? styles.userMessageText : styles.assistantMessageText,
-        ]}
-      >
-        {message.text}
-      </Text>
+      {isUser ? (
+        <Text style={textStyle}>{message.text}</Text>
+      ) : (
+        <MarkdownText
+          text={message.text}
+          style={textStyle}
+          boldStyle={{ fontFamily: FONT.bold }}
+          italicStyle={{ fontFamily: FONT.italic }}
+        />
+      )}
     </View>
   );
 }
 
+const WELCOME_MESSAGE_ID = "assistant-welcome";
+const WELCOME_TEXT =
+  "Tap a card or popular question and I'll answer using your active trip, weather, and favorites.";
+
+/** Compact on-page transcript height; expand overlay uses ~85% of the viewport. */
+const COMPACT_CHAT_MAX_HEIGHT = 220;
+const EXPANDED_VIEWPORT_RATIO = 0.85;
+
+function MessageList({ messages, compact, listRef, style }) {
+  return (
+    <ScrollView
+      ref={listRef}
+      style={style}
+      contentContainerStyle={styles.messageListContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator
+      onContentSizeChange={() => {
+        listRef?.current?.scrollToEnd?.({ animated: true });
+      }}
+    >
+      {messages.map((item) => (
+        <MessageBubble key={item.id} message={item} compact={compact} />
+      ))}
+    </ScrollView>
+  );
+}
+
 export default function AIChatScreen({ onNavigate, onBack }) {
-  const { width } = useWindowDimensions();
+  const [fontsLoaded] = useFonts({
+    Inter_600SemiBold,
+    Poppins_400Regular,
+    Poppins_400Regular_Italic,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+  });
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const inputRef = useRef(null);
+  const pageScrollRef = useRef(null);
+  const compactListRef = useRef(null);
+  const expandedListRef = useRef(null);
   const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [expandedOpen, setExpandedOpen] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [messages, setMessages] = useState([
     {
-      id: "assistant-welcome",
+      id: WELCOME_MESSAGE_ID,
       role: "assistant",
-      text: "Tap a card or popular question to prefill the chat. This screen is ready for backend wiring later.",
+      text: WELCOME_TEXT,
     },
   ]);
 
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const isPhone = width < 430;
   const isNarrowPhone = width < 390;
+  const isShortPhone = isPhone && height < 740;
   const useStructuredPhoneTop = isPhone;
   const useMobileTopBlock = !useStructuredPhoneTop && width < 520;
-  const pageHorizontalPadding = 18;
+  const pageHorizontalPadding = isPhone ? 14 : 18;
   const pageBottomPadding = BOTTOM_NAV_CONTENT_PADDING;
-  const cardGap = isPhone ? 12 : 16;
-  const questionGap = isPhone ? 10 : 12;
-  const columns = width >= 920 ? 3 : 2;
-  const questionColumns = width >= 860 ? 3 : width >= 620 ? 2 : 1;
+  const cardGap = isPhone ? (isShortPhone ? 5 : 6) : 16;
+  const questionGap = isPhone ? (isShortPhone ? 4 : 5) : 12;
+  // Phone: help cards stay 3-col; popular question chips use 2-col for wider labels.
+  const columns = isPhone || width >= 920 ? 3 : 2;
+  const questionColumns = isPhone ? 2 : width >= 860 ? 3 : 2;
   const availableContentWidth = Math.max(width - pageHorizontalPadding * 2, 280);
   const pageWidth = Math.min(availableContentWidth, 1120);
-  const mobileHeroImageHeight = Math.round((availableContentWidth * 292) / 448);
+  // Base size, then ~1.3× so art grows without pushing the intro card down.
+  const mobileHeroArtBaseWidth = Math.round(
+    Math.min(availableContentWidth * (isShortPhone ? 0.34 : 0.38), isShortPhone ? 112 : 132)
+  );
+  const mobileHeroArtWidth = Math.round(
+    Math.min(
+      mobileHeroArtBaseWidth * 1.3,
+      isShortPhone ? 145 : 172
+    )
+  );
+  // Match the PNG aspect so resizeMode="contain" has no vertical letterboxing.
+  const mobileHeroArtHeight = Math.round(
+    (mobileHeroArtWidth * HERO_ART_INTRINSIC_HEIGHT) / HERO_ART_INTRINSIC_WIDTH
+  );
+  const mobileHeroArtBaseHeight = Math.round(
+    (mobileHeroArtBaseWidth * HERO_ART_INTRINSIC_HEIGHT) / HERO_ART_INTRINSIC_WIDTH
+  );
+  // Grow art upward: shrink top offset by the height delta so the art bottom (and intro) stay put.
+  const mobileHeroArtOffset = Math.max(
+    0,
+    28 - (mobileHeroArtHeight - mobileHeroArtBaseHeight)
+  );
+  // Light tuck under the PNG lip only — keep the card low so it meets the art feet cleanly.
+  const mobileIntroCardSeat = Math.min(
+    2,
+    Math.max(
+      0,
+      Math.round((mobileHeroArtHeight * HERO_ART_CARD_LIP_PX) / HERO_ART_INTRINSIC_HEIGHT)
+    )
+  );
+  // Mild push so absolute description clears the art; keep seat intact.
+  // Use base height so larger art does not push absolute copy (or content below) down.
+  const mobileHeroCopyPadTop = Math.max(
+    8,
+    Math.round(mobileHeroArtBaseHeight * 0.1)
+  );
   const helpCardWidth = (pageWidth - (columns - 1) * cardGap) / columns;
   const questionChipWidth = (pageWidth - (questionColumns - 1) * questionGap) / questionColumns;
   const topBlockSource = useMobileTopBlock ? mobileTopBlockImage : approvedTopBlockImage;
   const topBlockAspectRatio = useMobileTopBlock ? 853 / 510 : 1308 / 820;
+  // Same aspect ratio as the device, scaled to ~85% of the viewport.
+  const expandedWidth = Math.round(width * EXPANDED_VIEWPORT_RATIO);
+  const expandedHeight = Math.round(height * EXPANDED_VIEWPORT_RATIO);
+  const userTurnCount = messages.filter((item) => item.role === "user").length;
+  // Landing mockup has no transcript; show the card once the user starts chatting.
+  const showConversationCard = userTurnCount >= 1;
+  const helpCardCompactStyle = isShortPhone
+    ? { height: 78, minHeight: 78, paddingVertical: 4 }
+    : null;
 
-  function focusComposerWithText(nextMessage) {
-    setMessage(nextMessage);
-    setTimeout(() => {
-      inputRef.current?.focus?.();
-    }, 0);
+  function scrollToComposerRegion() {
+    requestAnimationFrame(() => {
+      pageScrollRef.current?.scrollToEnd?.({ animated: true });
+      compactListRef.current?.scrollToEnd?.({ animated: true });
+      expandedListRef.current?.scrollToEnd?.({ animated: true });
+    });
   }
 
-  function handleSend() {
-    const trimmed = message.trim();
+  function openExpanded() {
+    setExpandedOpen(true);
+  }
 
-    if (!trimmed) {
+  function closeExpanded() {
+    setExpandedOpen(false);
+    setKeyboardVisible(false);
+  }
+
+  /** Expand overlay when the user taps the composer so typing stays visible. */
+  function openExpandedOnComposerFocus() {
+    if (expandedOpen) {
+      return;
+    }
+    openExpanded();
+    // Compact composer unmounts when the overlay opens; restore focus on the expanded input.
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        inputRef.current?.focus?.();
+      }, 0);
+    });
+  }
+
+  async function handleSend(overrideText) {
+    const trimmed = (typeof overrideText === "string" ? overrideText : message).trim();
+
+    if (!trimmed || sending) {
       return;
     }
 
-    console.log("AI Chat demo message:", trimmed);
+    const stamp = Date.now();
+    const userId = `user-${stamp}`;
+    const thinkingId = `thinking-${stamp}`;
 
-    setMessages((currentMessages) => [
-      ...currentMessages,
-      {
-        id: `${Date.now()}-${currentMessages.length}`,
-        role: "user",
-        text: trimmed,
-      },
-    ]);
+    inputRef.current?.blur?.();
+    setSending(true);
     setMessage("");
+    setMessages((currentMessages) => {
+      const withoutWelcome = currentMessages.filter((item) => item.id !== WELCOME_MESSAGE_ID);
+      return [
+        ...withoutWelcome,
+        { id: userId, role: "user", text: trimmed },
+        {
+          id: thinkingId,
+          role: "assistant",
+          text: "Wayfinder is thinking…",
+        },
+      ];
+    });
+    // Landing hides the transcript until the first turn; surface it in the overlay.
+    if (userTurnCount === 0) {
+      setExpandedOpen(true);
+    }
+
+    scrollToComposerRegion();
+
+    try {
+      const token = await getToken();
+
+      if (!token) {
+        setMessages((currentMessages) =>
+          currentMessages.map((item) =>
+            item.id === thinkingId
+              ? {
+                  ...item,
+                  id: `assistant-${stamp}`,
+                  text: "Sign in to chat with Wayfinder.",
+                }
+              : item
+          )
+        );
+        return;
+      }
+
+      const response = await dashboardApi.sendChatMessage(token, trimmed);
+      const reply =
+        typeof response?.reply === "string" && response.reply.trim()
+          ? response.reply.trim()
+          : "I didn't get a reply. Try again in a moment.";
+
+      setMessages((currentMessages) =>
+        currentMessages.map((item) =>
+          item.id === thinkingId
+            ? { ...item, id: `assistant-${stamp}`, text: reply }
+            : item
+        )
+      );
+    } catch (sendError) {
+      const text =
+        sendError instanceof Error ? sendError.message : "Request failed. Please try again.";
+      setMessages((currentMessages) =>
+        currentMessages.map((item) =>
+          item.id === thinkingId
+            ? { ...item, id: `assistant-error-${stamp}`, text }
+            : item
+        )
+      );
+    } finally {
+      setSending(false);
+      scrollToComposerRegion();
+    }
+  }
+
+  function sendPresetPrompt(nextMessage) {
+    const text = typeof nextMessage === "string" ? nextMessage.trim() : "";
+    if (!text || sending) {
+      return;
+    }
+
+    // Preset taps should show the transcript, not just queue text in the composer.
+    if (!expandedOpen) {
+      openExpanded();
+    }
+    void handleSend(text);
+  }
+
+  const canSend = Boolean(message.trim()) && !sending;
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#F9FBFE" }}>
+        <ActivityIndicator size="large" color="#5B59FF" />
+      </View>
+    );
+  }
+
+  function renderComposer(extraShellStyle) {
+    return (
+      <View
+        style={[
+          styles.composerShell,
+          isPhone && styles.composerShellCompact,
+          cardShadowStyle,
+          extraShellStyle,
+        ]}
+      >
+        <TextInput
+          ref={inputRef}
+          value={message}
+          onChangeText={setMessage}
+          placeholder="Ask me anything about your trip..."
+          placeholderTextColor="#9BA8C2"
+          style={[styles.composerInput, isPhone && styles.composerInputCompact]}
+          returnKeyType="send"
+          editable={!sending}
+          onFocus={openExpandedOnComposerFocus}
+          onSubmitEditing={handleSend}
+        />
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Send message"
+          disabled={!canSend}
+          onPress={handleSend}
+          style={[
+            styles.sendButton,
+            isPhone && styles.sendButtonCompact,
+            !canSend && styles.sendButtonDisabled,
+          ]}
+        >
+          {sending ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Ionicons name="paper-plane" size={18} color="#FFFFFF" />
+          )}
+        </Pressable>
+      </View>
+    );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    // Keep top inset only — BottomNav is absolute to the viewport bottom (like Home).
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar style="dark" />
 
       <View style={styles.screen}>
         <ScrollView
+          ref={pageScrollRef}
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent,
             {
-              paddingTop: 18,
+              paddingTop: isPhone ? 6 : 18,
               paddingHorizontal: pageHorizontalPadding,
               paddingBottom: pageBottomPadding,
             },
@@ -344,140 +667,181 @@ export default function AIChatScreen({ onNavigate, onBack }) {
         >
           <View style={styles.page}>
             <View style={styles.headerRow}>
-              <DimPressable
-                accessibilityRole="button"
-                accessibilityLabel="Go back"
-                onPress={onBack || (() => onNavigate?.("home"))}
-                style={styles.roundHeaderButton}
-              >
-                <Ionicons name="arrow-back" size={28} color="#14253E" />
-              </DimPressable>
+              {isPhone ? (
+                <View style={styles.brandSlotPhone}>
+                  <WayfinderBrand
+                    containerStyle={styles.headerBrandRowPhone}
+                    textStyle={styles.headerBrandTextPhone}
+                  />
+                </View>
+              ) : (
+                <>
+                  <DimPressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
+                    onPress={onBack || (() => onNavigate?.("home"))}
+                    style={styles.roundHeaderButton}
+                  >
+                    <Ionicons name="arrow-back" size={28} color="#14253E" />
+                  </DimPressable>
 
-              <View style={styles.brandSlot}>
-                <WayfinderBrand
-                  containerStyle={styles.headerBrandRow}
-                  textStyle={styles.headerBrandText}
-                />
-              </View>
+                  <View style={styles.brandSlot}>
+                    <WayfinderBrand
+                      containerStyle={styles.headerBrandRow}
+                      textStyle={styles.headerBrandText}
+                    />
+                  </View>
+                </>
+              )}
 
               <View style={styles.headerActions}>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Notifications"
                   onPress={() => onNavigate?.("notifications")}
-                  style={styles.headerActionButton}
+                  style={[styles.headerActionButton, isPhone && styles.headerActionButtonPhone]}
                 >
-                  <Ionicons name="notifications-outline" size={28} color="#111827" />
-                  <View style={styles.notificationDot} />
+                  <Ionicons
+                    name="notifications-outline"
+                    size={isPhone ? 24 : 28}
+                    color="#111827"
+                  />
+                  <View
+                    style={[styles.notificationDot, isPhone && styles.notificationDotPhone]}
+                  />
                 </Pressable>
 
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Profile"
                   onPress={() => onNavigate?.("profile")}
-                  style={styles.headerActionButton}
+                  style={[styles.headerActionButton, isPhone && styles.headerActionButtonPhone]}
                 >
-                  <Ionicons name="person-circle-outline" size={33} color="#111827" />
+                  <Ionicons
+                    name="person-circle-outline"
+                    size={isPhone ? 28 : 33}
+                    color="#111827"
+                  />
                 </Pressable>
               </View>
             </View>
 
             {useStructuredPhoneTop ? (
               <View style={styles.mobileTopSection}>
-                <View style={styles.mobileHeroCopy}>
-                  <View style={styles.mobileHeroTitleRow}>
+                <View style={styles.mobileHeroStage}>
+                  <View
+                    style={[
+                      styles.mobileHeroCopy,
+                      {
+                        right: mobileHeroArtWidth + 6,
+                        paddingTop: mobileHeroCopyPadTop,
+                      },
+                    ]}
+                  >
+                    <View style={styles.mobileHeroTitleRow}>
+                      <Text
+                        style={[
+                          styles.mobileHeroTitle,
+                          isNarrowPhone && styles.mobileHeroTitleNarrow,
+                        ]}
+                      >
+                        AI Chat
+                      </Text>
+                      <Image
+                        source={heroTitleBotImage}
+                        resizeMode="contain"
+                        style={[
+                          styles.mobileHeroTitleBot,
+                          isNarrowPhone && styles.mobileHeroTitleBotNarrow,
+                        ]}
+                      />
+                    </View>
                     <Text
                       style={[
-                        styles.mobileHeroTitle,
-                        isNarrowPhone && styles.mobileHeroTitleNarrow,
+                        styles.mobileHeroAccent,
+                        isNarrowPhone && styles.mobileHeroAccentNarrow,
                       ]}
                     >
-                      AI Chat
+                      Your smart travel assistant.
                     </Text>
-                    <Image
-                      source={heroTitleBotImage}
-                      resizeMode="contain"
+                    <Text
                       style={[
-                        styles.mobileHeroTitleBot,
-                        isNarrowPhone && styles.mobileHeroTitleBotNarrow,
+                        styles.mobileHeroDescription,
+                        isNarrowPhone && styles.mobileHeroDescriptionNarrow,
                       ]}
+                    >
+                      Ask about trips, hotels, safety, weather, maps, or budgets.
+                    </Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.mobileHeroArtWrap,
+                      {
+                        width: mobileHeroArtWidth,
+                        aspectRatio: HERO_ART_ASPECT_RATIO,
+                        // Push seated art+intro below the absolute description copy.
+                        marginTop: mobileHeroArtOffset,
+                      },
+                    ]}
+                  >
+                    <Image
+                      source={heroIllustrationImage}
+                      resizeMode="contain"
+                      style={styles.mobileHeroArt}
                     />
                   </View>
-                  <Text
+
+                  <View
                     style={[
-                      styles.mobileHeroAccent,
-                      isNarrowPhone && styles.mobileHeroAccentNarrow,
+                      styles.mobileIntroCard,
+                      cardShadowStyle,
+                      // Cover the PNG’s baked card lip so the ground line meets this card.
+                      { marginTop: -mobileIntroCardSeat },
                     ]}
                   >
-                    Your smart travel assistant.
-                  </Text>
-                  <Text
-                    style={[
-                      styles.mobileHeroDescription,
-                      isNarrowPhone && styles.mobileHeroDescriptionNarrow,
-                    ]}
-                  >
-                    Ask about trips, hotels, safety, weather, maps, or budgets.
-                  </Text>
-                </View>
-
-                <View
-                  style={[
-                    styles.mobileHeroArtWrap,
-                    {
-                      height: mobileHeroImageHeight,
-                    },
-                  ]}
-                >
-                  <Image
-                    source={heroIllustrationImage}
-                    resizeMode="contain"
-                    style={styles.mobileHeroArt}
-                  />
-                </View>
-
-                <View style={[styles.mobileIntroCard, cardShadowStyle]}>
-                  <Image
-                    source={introBotImage}
-                    resizeMode="cover"
-                    style={[
-                      styles.mobileIntroBot,
-                      isNarrowPhone && styles.mobileIntroBotNarrow,
-                    ]}
-                  />
-                  <View style={styles.mobileIntroCopy}>
-                    <Text
+                    <Image
+                      source={introBotImage}
+                      resizeMode="cover"
                       style={[
-                        styles.mobileIntroTitle,
-                        isNarrowPhone && styles.mobileIntroTitleNarrow,
+                        styles.mobileIntroBot,
+                        isNarrowPhone && styles.mobileIntroBotNarrow,
                       ]}
-                    >
-                      Hi, I&apos;m Wayfinder! 👋
-                    </Text>
-                    <Text
-                      style={[
-                        styles.mobileIntroDescription,
-                        isNarrowPhone && styles.mobileIntroDescriptionNarrow,
-                      ]}
-                    >
-                      I can help you plan your trip, find recommendations, and answer any
-                      travel questions.
-                    </Text>
-                    <Text
-                      style={[
-                        styles.mobileIntroQuestion,
-                        isNarrowPhone && styles.mobileIntroQuestionNarrow,
-                      ]}
-                    >
-                      What would you like to know today?
-                    </Text>
+                    />
+                    <View style={styles.mobileIntroCopy}>
+                      <Text
+                        style={[
+                          styles.mobileIntroTitle,
+                          isNarrowPhone && styles.mobileIntroTitleNarrow,
+                        ]}
+                      >
+                        Hi, I&apos;m Wayfinder! 👋
+                      </Text>
+                      <Text
+                        style={[
+                          styles.mobileIntroDescription,
+                          isNarrowPhone && styles.mobileIntroDescriptionNarrow,
+                        ]}
+                      >
+                        I can help you plan your trip, find recommendations, and answer any
+                        travel questions.
+                      </Text>
+                      <Text
+                        style={[
+                          styles.mobileIntroQuestion,
+                          isNarrowPhone && styles.mobileIntroQuestionNarrow,
+                        ]}
+                      >
+                        What would you like to know today?
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="sparkles"
+                      size={isNarrowPhone ? 16 : 18}
+                      color="#7B71FF"
+                      style={styles.mobileIntroSparkles}
+                    />
                   </View>
-                  <Ionicons
-                    name="sparkles"
-                    size={isNarrowPhone ? 24 : 28}
-                    color="#7B71FF"
-                    style={styles.mobileIntroSparkles}
-                  />
                 </View>
               </View>
             ) : (
@@ -497,14 +861,15 @@ export default function AIChatScreen({ onNavigate, onBack }) {
             <Text style={[styles.sectionTitle, isPhone && styles.sectionTitleCompact]}>
               Things I can help you with
             </Text>
-            <View style={[styles.helpGrid, { gap: cardGap }]}>
+            <View style={[styles.helpGrid, isPhone && styles.helpGridCompact, { gap: cardGap }]}>
               {HELP_CARDS.map((item) => (
                 <HelpCard
                   key={item.title}
                   item={item}
                   width={helpCardWidth}
                   compact={isPhone}
-                  onPress={() => focusComposerWithText(item.inputText)}
+                  style={helpCardCompactStyle}
+                  onPress={() => sendPresetPrompt(item.inputText)}
                 />
               ))}
             </View>
@@ -513,20 +878,26 @@ export default function AIChatScreen({ onNavigate, onBack }) {
               style={[
                 styles.sectionTitle,
                 styles.popularSectionTitle,
+                isPhone && styles.sectionTitleCompact,
                 isPhone && styles.popularSectionTitleCompact,
               ]}
             >
               Popular questions
             </Text>
-            <View style={[styles.questionsGrid, { gap: questionGap }]}>
+            <View
+              style={[
+                styles.questionsGrid,
+                isPhone && styles.questionsGridCompact,
+                { gap: questionGap },
+              ]}
+            >
               {POPULAR_QUESTIONS.map((item) => (
                 <PopularQuestionChip
                   key={item.label}
                   item={item}
                   width={questionChipWidth}
                   compact={isPhone}
-                  singleColumn={questionColumns === 1}
-                  onPress={() => focusComposerWithText(item.label)}
+                  onPress={() => sendPresetPrompt(item.label)}
                 />
               ))}
             </View>
@@ -542,6 +913,7 @@ export default function AIChatScreen({ onNavigate, onBack }) {
                   styles.startConversationBadge,
                   isPhone && styles.startConversationBadgeCompact,
                 ]}
+                accessibilityLabel="Start a conversation"
               >
                 <Ionicons name="chatbubbles-outline" size={40} color="#8B81FF" />
               </View>
@@ -564,47 +936,113 @@ export default function AIChatScreen({ onNavigate, onBack }) {
               </Text>
             </View>
 
-            {messages.length ? (
-              <View style={[styles.messagesSection, isPhone && styles.messagesSectionCompact]}>
-                {messages.map((item) => (
-                  <MessageBubble key={item.id} message={item} compact={isPhone} />
-                ))}
+            {showConversationCard ? (
+              <View
+                style={[
+                  styles.chatCard,
+                  isPhone && styles.chatCardCompact,
+                  cardShadowStyle,
+                ]}
+              >
+                <View style={styles.chatCardHeader}>
+                  <Text style={styles.chatCardTitle}>Conversation</Text>
+                  <View style={styles.chatCardHeaderActions}>
+                    {userTurnCount >= 1 ? (
+                      <Text style={styles.chatCardHint}>Scroll for history</Text>
+                    ) : null}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Expand conversation"
+                      onPress={openExpanded}
+                      hitSlop={10}
+                      style={styles.expandIconButton}
+                    >
+                      <Ionicons name="expand-outline" size={20} color="#3D4F73" />
+                    </Pressable>
+                  </View>
+                </View>
+                <MessageList
+                  messages={messages}
+                  compact={isPhone}
+                  listRef={compactListRef}
+                  style={styles.compactMessageList}
+                />
               </View>
             ) : null}
 
-            <View
-              style={[
-                styles.composerShell,
-                isPhone && styles.composerShellCompact,
-                cardShadowStyle,
-              ]}
-            >
-              <TextInput
-                ref={inputRef}
-                value={message}
-                onChangeText={setMessage}
-                placeholder="Ask me anything about your trip..."
-                placeholderTextColor="#9BA8C2"
-                style={[styles.composerInput, isPhone && styles.composerInputCompact]}
-                returnKeyType="send"
-                onSubmitEditing={handleSend}
-              />
-
-              <Pressable
-                accessibilityRole="button"
-                disabled={!message.trim()}
-                onPress={handleSend}
-                style={[
-                  styles.sendButton,
-                  isPhone && styles.sendButtonCompact,
-                  !message.trim() && styles.sendButtonDisabled,
-                ]}
-              >
-                <Ionicons name="paper-plane" size={18} color="#FFFFFF" />
-              </Pressable>
-            </View>
+            {!expandedOpen ? renderComposer() : null}
           </View>
         </ScrollView>
+
+        <Modal
+          visible={expandedOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={closeExpanded}
+        >
+          <KeyboardAvoidingView
+            style={[
+              styles.expandRoot,
+              // Sit the panel on the keyboard top instead of centering above a gap.
+              keyboardVisible && styles.expandRootKeyboardOpen,
+            ]}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            // Full-screen Modal — a top inset offset leaves a visible gap above the keyboard.
+            keyboardVerticalOffset={0}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss expanded chat"
+              style={styles.expandBackdrop}
+              onPress={closeExpanded}
+            />
+            <View
+              style={[
+                styles.expandPanel,
+                cardShadowStyle,
+                {
+                  width: expandedWidth,
+                  height: expandedHeight,
+                  // Shrink with the avoiding view so the composer stays above the keyboard.
+                  maxHeight: "100%",
+                  flexShrink: 1,
+                  // Keep panel padding; the visible keyboard gap is the sibling spacer below.
+                  paddingBottom: 12,
+                },
+              ]}
+            >
+              <View style={styles.expandHeader}>
+                <Text style={styles.expandTitle}>Wayfinder</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Close expanded chat"
+                  onPress={closeExpanded}
+                  hitSlop={12}
+                >
+                  <Ionicons name="contract-outline" size={22} color="#243459" />
+                </Pressable>
+              </View>
+              <MessageList
+                messages={messages}
+                compact={isPhone}
+                listRef={expandedListRef}
+                style={styles.expandMessageList}
+              />
+              <View
+                style={{
+                  // Safe-area only when keyboard is closed; keyboard gap is the spacer below.
+                  paddingBottom: keyboardVisible ? 0 : insets.bottom,
+                }}
+              >
+                {renderComposer(styles.expandComposer)}
+              </View>
+            </View>
+            {/* Sibling under the panel (inside KAV): real air above the keyboard with flex-end. */}
+            {keyboardVisible ? (
+              <View style={styles.expandKeyboardGap} />
+            ) : null}
+          </KeyboardAvoidingView>
+        </Modal>
 
         <BottomNav
           activeLabel="AI Chat"
@@ -619,16 +1057,16 @@ export default function AIChatScreen({ onNavigate, onBack }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F5F8FF",
+    backgroundColor: "#F9FBFE",
   },
   screen: {
     flex: 1,
-    backgroundColor: "#F5F8FF",
+    backgroundColor: "#F9FBFE",
   },
 
   scrollView: {
     flex: 1,
-    backgroundColor: "#F5F8FF",
+    backgroundColor: "#F9FBFE",
   },
 
   scrollContent: {
@@ -665,6 +1103,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 10,
+    transform: [{ translateY: -5 }],
+  },
+
+  brandSlotPhone: {
+    flex: 1,
+    alignItems: "flex-start",
+    justifyContent: "center",
+    transform: [{ translateY: -5 }],
   },
 
   headerBrandRow: {
@@ -672,13 +1118,23 @@ const styles = StyleSheet.create({
     marginRight: 0,
   },
 
+  headerBrandRowPhone: {
+    alignSelf: "flex-start",
+    marginRight: 0,
+  },
+
   headerBrandText: {
     fontSize: 26,
+  },
+
+  headerBrandTextPhone: {
+    fontSize: 22,
   },
 
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
+    transform: [{ translateY: -5 }],
   },
 
   headerActionButton: {
@@ -690,6 +1146,12 @@ const styles = StyleSheet.create({
     position: "relative",
   },
 
+  headerActionButtonPhone: {
+    width: 40,
+    height: 40,
+    marginLeft: 2,
+  },
+
   notificationDot: {
     position: "absolute",
     top: 8,
@@ -698,6 +1160,14 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: "#FF7A32",
+  },
+
+  notificationDotPhone: {
+    top: 6,
+    right: 6,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
   },
 
   topBlockWrap: {
@@ -718,37 +1188,50 @@ const styles = StyleSheet.create({
   },
 
   mobileTopSection: {
-    marginTop: 4,
+    marginTop: 10,
+  },
+
+  mobileHeroStage: {
+    position: "relative",
+    width: "100%",
   },
 
   mobileHeroCopy: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    zIndex: 2,
     paddingTop: 8,
+    paddingBottom: 0,
+    paddingRight: 2,
   },
 
   mobileHeroTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    flexWrap: "wrap",
+    flexWrap: "nowrap",
   },
 
   mobileHeroTitle: {
     flexShrink: 1,
-    fontSize: 42,
-    lineHeight: 46,
-    fontWeight: "800",
-    letterSpacing: -1.8,
+    fontSize: 30,
+    lineHeight: 36,
+    paddingTop: 2,
+    paddingBottom: 2,
+    fontFamily: FONT.display,
+    letterSpacing: -1.2,
     color: "#12214B",
   },
 
   mobileHeroTitleNarrow: {
-    fontSize: 38,
-    lineHeight: 42,
+    fontSize: 26,
+    lineHeight: 32,
   },
 
   mobileHeroTitleBot: {
-    width: 34,
-    height: 34,
-    marginLeft: 6,
+    width: 32,
+    height: 32,
+    marginLeft: 10,
   },
 
   mobileHeroTitleBotNarrow: {
@@ -757,36 +1240,39 @@ const styles = StyleSheet.create({
   },
 
   mobileHeroAccent: {
-    marginTop: 14,
-    fontSize: 18,
-    lineHeight: 24,
-    fontWeight: "700",
+    marginTop: 3,
+    fontSize: 13,
+    lineHeight: 17,
+    fontFamily: FONT.medium,
     color: "#5B59FF",
   },
 
   mobileHeroAccentNarrow: {
-    marginTop: 12,
-    fontSize: 17,
-    lineHeight: 23,
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 15,
   },
 
   mobileHeroDescription: {
-    marginTop: 10,
-    fontSize: 15,
-    lineHeight: 24,
-    color: "#243459",
+    marginTop: 1,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: FONT.regular,
+    color: "#5D6F95",
   },
 
   mobileHeroDescriptionNarrow: {
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 10,
+    lineHeight: 13,
   },
 
   mobileHeroArtWrap: {
-    width: "100%",
-    marginTop: 6,
+    alignSelf: "flex-end",
+    flexShrink: 0,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    marginBottom: 0,
+    zIndex: 1,
   },
 
   mobileHeroArt: {
@@ -795,88 +1281,101 @@ const styles = StyleSheet.create({
   },
 
   mobileIntroCard: {
-    marginTop: 8,
-    borderRadius: 22,
+    marginTop: 0,
+    zIndex: 2,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(208, 220, 247, 0.88)",
-    backgroundColor: "rgba(249, 251, 255, 0.96)",
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    borderColor: SOFT_OUTLINE,
+    backgroundColor: "rgba(232, 238, 245, 0.48)",
+    paddingHorizontal: 10,
+    paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
   },
 
   mobileIntroBot: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
   },
 
   mobileIntroBotNarrow: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
   },
 
   mobileIntroCopy: {
     flex: 1,
     flexShrink: 1,
-    paddingLeft: 12,
-    paddingRight: 8,
+    paddingLeft: 14,
+    paddingRight: 2,
   },
 
   mobileIntroTitle: {
-    fontSize: 19,
-    lineHeight: 24,
-    fontWeight: "800",
+    fontSize: 14,
+    lineHeight: 20,
+    paddingTop: 1,
+    paddingBottom: 1,
+    fontFamily: FONT.bold,
     color: "#12214B",
   },
 
   mobileIntroTitleNarrow: {
-    fontSize: 18,
-    lineHeight: 23,
+    fontSize: 13,
+    lineHeight: 18,
   },
 
   mobileIntroDescription: {
     marginTop: 8,
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: FONT.regular,
     color: "#243459",
   },
 
   mobileIntroDescriptionNarrow: {
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 11,
+    lineHeight: 13,
   },
 
   mobileIntroQuestion: {
-    marginTop: 8,
-    fontSize: 15,
-    lineHeight: 21,
-    fontWeight: "700",
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: FONT.semibold,
     color: "#5B59FF",
   },
 
   mobileIntroQuestionNarrow: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 11,
+    lineHeight: 13,
   },
 
   mobileIntroSparkles: {
-    marginRight: 2,
+    marginRight: 0,
+    alignSelf: "flex-end",
+    marginBottom: 0,
   },
 
   sectionTitle: {
     marginTop: 22,
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: 16,
+    lineHeight: 22,
+    paddingTop: 1,
+    paddingBottom: 1,
+    fontFamily: FONT.display,
     color: "#18264A",
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
   },
 
   sectionTitleCompact: {
-    marginTop: 18,
-    fontSize: 17,
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 20,
+    paddingTop: 1,
+    paddingBottom: 1,
+    fontFamily: FONT.display,
   },
 
   popularSectionTitle: {
@@ -884,13 +1383,17 @@ const styles = StyleSheet.create({
   },
 
   popularSectionTitleCompact: {
-    marginTop: 22,
+    marginTop: 10,
   },
 
   helpGrid: {
-    marginTop: 14,
+    marginTop: 10,
     flexDirection: "row",
     flexWrap: "wrap",
+  },
+
+  helpGridCompact: {
+    marginTop: 6,
   },
 
   helpCard: {
@@ -900,60 +1403,71 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "rgba(145, 170, 219, 0.14)",
+    borderColor: SOFT_OUTLINE,
     alignItems: "center",
   },
 
   helpCardCompact: {
-    height: 150,
-    minHeight: 150,
-    borderRadius: 20,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    height: 86,
+    minHeight: 86,
+    borderRadius: 12,
+    paddingVertical: 5,
+    paddingHorizontal: 4,
     justifyContent: "flex-start",
   },
 
   helpCardIconWrap: {
     width: 64,
     height: 64,
-    borderRadius: 22,
+    borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
 
   helpCardIconWrapCompact: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+  },
+
+  /** Soft circle is baked into the PNG — avoid double tint wrap. */
+  helpCardIconWrapImage: {
+    backgroundColor: "transparent",
   },
 
   helpCardTitle: {
     marginTop: 16,
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: 15,
+    lineHeight: 20,
+    paddingTop: 1,
+    paddingBottom: 1,
+    fontFamily: FONT.helpTitle,
     color: "#18264A",
     textAlign: "center",
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
   },
 
   helpCardTitleCompact: {
-    marginTop: 6,
-    fontSize: 16,
-    lineHeight: 20,
+    marginTop: 3,
+    fontSize: 11,
+    lineHeight: 12,
+    letterSpacing: -0.15,
   },
 
   helpCardDescription: {
-    marginTop: 10,
-    fontSize: 16,
-    lineHeight: 27,
+    marginTop: 14,
+    fontSize: 14,
+    lineHeight: 22,
+    fontFamily: FONT.regular,
     color: "#334467",
     textAlign: "center",
   },
 
   helpCardDescriptionCompact: {
     marginTop: 4,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 9,
+    lineHeight: 11,
   },
 
   questionsGrid: {
@@ -962,34 +1476,45 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
 
+  questionsGridCompact: {
+    marginTop: 6,
+  },
+
   questionChip: {
-    minHeight: 54,
+    minHeight: 48,
     borderRadius: 27,
     borderWidth: 1,
-    borderColor: "#D9DDFF",
+    borderColor: SOFT_OUTLINE,
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
+    paddingVertical: 10,
     flexDirection: "row",
+    flexWrap: "nowrap",
     alignItems: "center",
     gap: 10,
   },
 
   questionChipCompact: {
-    minHeight: 46,
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    gap: 8,
+    minHeight: 42,
+    borderRadius: 14,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    gap: 4,
   },
 
   questionChipLabel: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: "600",
+    flexShrink: 1,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: FONT.medium,
     color: "#5F58FF",
   },
 
   questionChipLabelCompact: {
-    fontSize: 14,
+    fontSize: 10,
+    lineHeight: 13,
+    fontFamily: FONT.medium,
   },
 
   startConversationSection: {
@@ -997,10 +1522,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "center",
     maxWidth: 460,
+    width: "100%",
   },
 
   startConversationSectionCompact: {
-    marginTop: 32,
+    marginTop: 12,
     maxWidth: 360,
   },
 
@@ -1025,9 +1551,13 @@ const styles = StyleSheet.create({
   startConversationTitle: {
     marginTop: 18,
     fontSize: 20,
-    fontWeight: "800",
+    lineHeight: 26,
+    paddingTop: 1,
+    paddingBottom: 1,
+    fontFamily: FONT.display,
     color: "#17244A",
     letterSpacing: -0.4,
+    textAlign: "center",
   },
 
   startConversationTitleCompact: {
@@ -1036,27 +1566,138 @@ const styles = StyleSheet.create({
   },
 
   startConversationDescription: {
-    marginTop: 10,
+    marginTop: 8,
     fontSize: 17,
-    lineHeight: 29,
+    lineHeight: 26,
+    fontFamily: FONT.regular,
     color: "#243459",
     textAlign: "center",
   },
 
   startConversationDescriptionCompact: {
-    marginTop: 8,
-    fontSize: 15,
-    lineHeight: 24,
+    marginTop: 3,
+    fontSize: 11,
+    lineHeight: 15,
   },
 
-  messagesSection: {
+  chatCard: {
     marginTop: 28,
-    gap: 12,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: SOFT_OUTLINE,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 10,
+    overflow: "hidden",
   },
 
-  messagesSectionCompact: {
-    marginTop: 20,
+  chatCardCompact: {
+    marginTop: 12,
+    borderRadius: 22,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+  },
+
+  chatCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+
+  chatCardHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
+  },
+
+  chatCardTitle: {
+    fontSize: 15,
+    fontFamily: FONT.bold,
+    color: "#14253E",
+  },
+
+  chatCardHint: {
+    fontSize: 12,
+    fontFamily: FONT.semibold,
+    color: "#7B8AA8",
+  },
+
+  expandIconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EEF2FB",
+  },
+
+  compactMessageList: {
+    maxHeight: COMPACT_CHAT_MAX_HEIGHT,
+  },
+
+  messageListContent: {
+    gap: 10,
+    paddingBottom: 8,
+  },
+
+  expandRoot: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  expandRootKeyboardOpen: {
+    justifyContent: "flex-end",
+  },
+
+  // Sits between expand panel bottom and keyboard (sibling of panel inside KAV).
+  expandKeyboardGap: {
+    height: 14,
+    width: "100%",
+  },
+
+  expandBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(15, 23, 42, 0.35)",
+  },
+
+  expandPanel: {
+    zIndex: 2,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: SOFT_OUTLINE,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 12,
+    overflow: "hidden",
+  },
+
+  expandHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+
+  expandTitle: {
+    fontSize: 17,
+    fontFamily: FONT.bold,
+    color: "#14253E",
+  },
+
+  expandMessageList: {
+    flex: 1,
+    minHeight: 120,
+  },
+
+  expandComposer: {
+    marginTop: 10,
+    marginBottom: 0,
   },
 
   messageBubble: {
@@ -1087,7 +1728,7 @@ const styles = StyleSheet.create({
 
   messageMeta: {
     fontSize: 12,
-    fontWeight: "700",
+    fontFamily: FONT.bold,
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
@@ -1104,6 +1745,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 16,
     lineHeight: 26,
+    fontFamily: FONT.regular,
   },
 
   messageTextCompact: {
@@ -1129,23 +1771,24 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "rgba(145, 170, 219, 0.12)",
+    borderColor: SOFT_OUTLINE,
     flexDirection: "row",
     alignItems: "center",
   },
 
   composerShellCompact: {
-    marginTop: 18,
-    minHeight: 74,
-    borderRadius: 22,
-    paddingLeft: 18,
-    paddingRight: 12,
-    paddingVertical: 10,
+    marginTop: 12,
+    minHeight: 64,
+    borderRadius: 20,
+    paddingLeft: 16,
+    paddingRight: 10,
+    paddingVertical: 8,
   },
 
   composerInput: {
     flex: 1,
     fontSize: 18,
+    fontFamily: FONT.regular,
     color: "#22324E",
     paddingVertical: 10,
     paddingRight: 12,

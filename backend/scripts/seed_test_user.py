@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Create or refresh the local dev test user."""
+
 import asyncio
 import sys
 from pathlib import Path

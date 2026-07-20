@@ -46,7 +46,9 @@ def plan_favorite_snapshot(plan: TravelPlan) -> dict:
     }
 
 
-def favorite_to_response(row: Favorite, *, snapshot_override: dict | None = None) -> FavoriteItemResponse:
+def favorite_to_response(
+    row: Favorite, *, snapshot_override: dict | None = None
+) -> FavoriteItemResponse:
     snap = snapshot_override if snapshot_override is not None else (row.snapshot or {})
     return FavoriteItemResponse(
         id=row.id,
@@ -70,9 +72,7 @@ def favorite_to_response(row: Favorite, *, snapshot_override: dict | None = None
 
 async def list_favorites(db: AsyncSession, user_id: UUID) -> list[FavoriteItemResponse]:
     result = await db.execute(
-        select(Favorite)
-        .where(Favorite.user_id == user_id)
-        .order_by(Favorite.saved_at.desc())
+        select(Favorite).where(Favorite.user_id == user_id).order_by(Favorite.saved_at.desc())
     )
     rows = list(result.scalars().all())
 
@@ -154,9 +154,7 @@ async def upsert_favorite(
     return favorite_to_response(row)
 
 
-async def sync_plan_favorite_snapshot(
-    db: AsyncSession, user_id: UUID, plan: TravelPlan
-) -> None:
+async def sync_plan_favorite_snapshot(db: AsyncSession, user_id: UUID, plan: TravelPlan) -> None:
     """Keep stored plan-favorite snapshot aligned after itinerary edits."""
     snapshot = plan_favorite_snapshot(plan)
     await db.execute(

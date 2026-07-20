@@ -50,7 +50,9 @@ async def list_plans(
     status_filter: str = "all",
 ) -> list[TravelPlan]:
     result = await db.execute(
-        select(TravelPlan).where(TravelPlan.user_id == user_id).order_by(TravelPlan.updated_at.desc())
+        select(TravelPlan)
+        .where(TravelPlan.user_id == user_id)
+        .order_by(TravelPlan.updated_at.desc())
     )
     plans = list(result.scalars().all())
     await apply_auto_complete(db, plans)
@@ -78,7 +80,9 @@ async def create_plan(db: AsyncSession, user_id: UUID, body: TravelPlanCreate) -
     try:
         validate_trip_date_range(body.start_date, body.end_date)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
 
     payload = body.model_dump()
     if payload.get("hotel_name"):
@@ -136,7 +140,11 @@ async def update_plan(
     status_change = changes.pop("status", None)
 
     for field, value in changes.items():
-        if isinstance(value, str) and field in {"hotel_name", "hotel_provider", "hotel_provider_id"}:
+        if isinstance(value, str) and field in {
+            "hotel_name",
+            "hotel_provider",
+            "hotel_provider_id",
+        }:
             value = value.strip() or None
         setattr(plan, field, value)
 
@@ -147,7 +155,11 @@ async def update_plan(
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
             ) from exc
-    if plan.budget_min is not None and plan.budget_max is not None and plan.budget_max < plan.budget_min:
+    if (
+        plan.budget_min is not None
+        and plan.budget_max is not None
+        and plan.budget_max < plan.budget_min
+    ):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="budget_max must be greater than or equal to budget_min",

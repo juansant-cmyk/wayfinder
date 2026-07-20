@@ -107,7 +107,7 @@ def map_air_quality(raw: dict[str, Any] | None) -> ProviderAirQuality | None:
 
 
 def map_forecast_days(payload: dict[str, Any]) -> list[ProviderForecastDay]:
-    rows = ((payload.get("forecast") or {}).get("forecastday") or [])
+    rows = (payload.get("forecast") or {}).get("forecastday") or []
     days: list[ProviderForecastDay] = []
     for row in rows:
         day = row.get("day") or {}
@@ -133,8 +133,8 @@ def map_forecast_days(payload: dict[str, Any]) -> list[ProviderForecastDay]:
 
 def map_forecast_hours(payload: dict[str, Any], *, limit: int = 12) -> list[ProviderForecastHour]:
     """Return the next ``limit`` hourly slots from today/tomorrow forecast rows."""
-    rows = ((payload.get("forecast") or {}).get("forecastday") or [])
-    localtime = str(((payload.get("location") or {}).get("localtime") or "")).strip()
+    rows = (payload.get("forecast") or {}).get("forecastday") or []
+    localtime = str((payload.get("location") or {}).get("localtime") or "").strip()
     now = _parse_datetime(localtime.replace(" ", "T") if localtime else None)
     hours: list[ProviderForecastHour] = []
     for day in rows:
@@ -161,8 +161,10 @@ def map_forecast_hours(payload: dict[str, Any], *, limit: int = 12) -> list[Prov
     return hours
 
 
-def map_alerts(payload: dict[str, Any], destination: str, lat: float | None, lng: float | None) -> list[ProviderSafetyAlert]:
-    alerts = ((payload.get("alerts") or {}).get("alert") or [])
+def map_alerts(
+    payload: dict[str, Any], destination: str, lat: float | None, lng: float | None
+) -> list[ProviderSafetyAlert]:
+    alerts = (payload.get("alerts") or {}).get("alert") or []
     mapped: list[ProviderSafetyAlert] = []
     for alert in alerts:
         headline = str(alert.get("headline") or alert.get("event") or "Weather alert")
@@ -196,9 +198,14 @@ def map_current_weather(payload: dict[str, Any]) -> ProviderCurrentWeather:
     location = payload.get("location") or {}
     current = payload.get("current") or {}
     condition = current.get("condition") or {}
-    destination = ", ".join(
-        part for part in (location.get("name"), location.get("region"), location.get("country")) if part
-    ) or "Selected location"
+    destination = (
+        ", ".join(
+            part
+            for part in (location.get("name"), location.get("region"), location.get("country"))
+            if part
+        )
+        or "Selected location"
+    )
     lat = _float(location.get("lat"))
     lng = _float(location.get("lon"))
     forecast_days = map_forecast_days(payload)
@@ -255,11 +262,15 @@ class WeatherApiProvider:
         timeout_seconds: float | None = None,
     ) -> None:
         self.api_key = api_key if api_key is not None else settings.weather_api_key
-        self.base_url = (base_url or settings.weatherapi_base_url or WEATHERAPI_BASE_URL).rstrip("/")
+        self.base_url = (base_url or settings.weatherapi_base_url or WEATHERAPI_BASE_URL).rstrip(
+            "/"
+        )
         self._client = client
         self._owns_client = client is None
         self.timeout_seconds = (
-            timeout_seconds if timeout_seconds is not None else settings.external_request_timeout_seconds
+            timeout_seconds
+            if timeout_seconds is not None
+            else settings.external_request_timeout_seconds
         )
 
     async def _get_client(self) -> httpx.AsyncClient:

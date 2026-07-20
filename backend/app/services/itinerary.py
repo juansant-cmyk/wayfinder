@@ -25,7 +25,6 @@ from app.schemas.travel import (
     inclusive_day_count,
     iter_trip_dates,
     night_count,
-    validate_trip_date_range,
 )
 from app.services import geocode as geocode_service
 
@@ -108,9 +107,7 @@ def plan_to_detail(plan: TravelPlan) -> TravelPlanDetailResponse:
     )
 
 
-async def load_plan_with_schedule(
-    db: AsyncSession, user_id: UUID, plan_id: UUID
-) -> TravelPlan:
+async def load_plan_with_schedule(db: AsyncSession, user_id: UUID, plan_id: UUID) -> TravelPlan:
     result = await db.execute(
         select(TravelPlan)
         .where(TravelPlan.id == plan_id, TravelPlan.user_id == user_id)
@@ -233,7 +230,9 @@ async def rebuild_plan_days(db: AsyncSession, plan: TravelPlan) -> None:
     try:
         dates = iter_trip_dates(plan.start_date, plan.end_date)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
 
     await _ensure_schedule_loaded(db, plan)
     existing_by_date = {day.day_date: day for day in list(plan.days)}
@@ -308,6 +307,8 @@ async def refresh_plan_cover_from_destination(plan: TravelPlan) -> None:
         lat=plan.center_lat,
         lng=plan.center_lng,
     )
+
+
 async def create_activity(
     db: AsyncSession,
     user_id: UUID,
@@ -347,7 +348,9 @@ async def create_activity(
     return activity
 
 
-async def delete_activity(db: AsyncSession, user_id: UUID, plan_id: UUID, activity_id: UUID) -> None:
+async def delete_activity(
+    db: AsyncSession, user_id: UUID, plan_id: UUID, activity_id: UUID
+) -> None:
     plan = await load_plan_with_schedule(db, user_id, plan_id)
     target: PlanActivity | None = None
     for day in plan.days:

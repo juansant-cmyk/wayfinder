@@ -114,6 +114,8 @@ class ChatMessageRequest(BaseModel):
 class ChatMessageResponse(BaseModel):
     reply: str
     session_id: str
+    provider: str | None = None
+    agent: str | None = None
 
 
 class NotificationResponse(BaseModel):

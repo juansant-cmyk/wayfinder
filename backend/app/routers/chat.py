@@ -27,6 +27,8 @@ async def send_message(
     body: ChatMessageRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await chat_service.send_chat_message(db, current_user.id, body.message)
     provider: Annotated[LLMProvider, Depends(get_llm_provider)],
 ):
     session, assistant_message = await chat_service.send_one_shot_message(

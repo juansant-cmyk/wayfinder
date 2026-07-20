@@ -30,6 +30,16 @@ services:
         value: "weatherapi"
       - key: WEATHER_API_KEY
         sync: false
+      - key: CHAT_PROVIDER
+        value: "mock"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_CHAT_MODEL
+        value: "gpt-4o-mini"
+      - key: NARRATOR_PROVIDER
+        value: "none"
+      - key: ANTHROPIC_API_KEY
+        sync: false
       - key: TRAVEL_RISK_PROVIDER
         value: "travelrisk"
       - key: TRAVEL_RISK_API_KEY

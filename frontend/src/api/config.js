@@ -1,4 +1,4 @@
-﻿export const API_CONFIG_ERROR_MESSAGE =
+export const API_CONFIG_ERROR_MESSAGE =
   "Backend URL is missing. Set EXPO_PUBLIC_API_URL in frontend/.env";
 
 export const API_UNAVAILABLE_MESSAGE =

@@ -70,7 +70,9 @@ async def test_quick_tools_endpoints(client: AsyncClient):
         json={"message": "What should I do in Bali?"},
     )
     assert chat.status_code == 200
-    assert "mock reply" in chat.json()["reply"]
+    chat_payload = chat.json()
+    assert chat_payload["reply"].strip()
+    assert chat_payload["provider"] == "mock"
 
     places = await client.get("/places/popular?lat=40&lng=-74&radius_km=5", headers=headers)
     assert places.status_code == 200
