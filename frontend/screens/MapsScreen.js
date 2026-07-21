@@ -443,19 +443,19 @@ function MapOverlayControls({ onRecenter, onExpand }) {
     <>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Expand map"
-        onPress={onExpand}
-        style={styles.mapExpandButton}
-      >
-        <Ionicons name="expand-outline" size={22} color={COLORS.blue} />
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
         accessibilityLabel="Recenter map on your location"
         onPress={onRecenter}
         style={styles.mapRecenterButton}
       >
         <Ionicons name="locate-outline" size={22} color={COLORS.blue} />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Expand map"
+        onPress={onExpand}
+        style={styles.mapExpandButton}
+      >
+        <Ionicons name="expand-outline" size={22} color={COLORS.blue} />
       </Pressable>
     </>
   );
@@ -1141,8 +1141,8 @@ const styles = StyleSheet.create({
 
   mapExpandButton: {
     position: "absolute",
-    bottom: 14,
-    left: 14,
+    top: 66,
+    right: 14,
     width: 44,
     height: 44,
     borderRadius: 22,
