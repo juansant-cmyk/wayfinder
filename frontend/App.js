@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import {
@@ -120,10 +121,9 @@ const FEATURE_SCREENS = new Set([
 ]);
 
 const BOTTOM_NAV_TAB_SCREENS = new Set([
+  "home",
   "itinerary",
-  "flights",
   "favorites",
-  "safety",
   "maps",
   "profile",
 ]);
@@ -380,6 +380,13 @@ export default function App() {
 
     try {
       const data = await login(normalizedIdentity, trimmedPassword);
+      if (!data?.access_token || !data?.user) {
+        return {
+          ok: false,
+          message: SIGN_IN_GENERIC_MESSAGE,
+        };
+      }
+
       const mappedUser = mapApiUser(data.user);
       await Promise.all([saveToken(data.access_token), saveSessionUser(mappedUser)]);
       setCurrentUser(mappedUser);
@@ -391,11 +398,13 @@ export default function App() {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to sign in.";
+      const status = error?.status;
 
       if (isApiUnavailableError(error)) {
         return {
           ok: false,
-          message: API_UNAVAILABLE_MESSAGE,
+          // Prefer the detailed client message (includes API URL / CORS hints).
+          message: message || API_UNAVAILABLE_MESSAGE,
         };
       }
 
@@ -406,16 +415,17 @@ export default function App() {
         };
       }
 
-      if (error?.status === 401 && message === "Invalid email or password") {
+      if (status === 401 || message === "Invalid email or password") {
         return {
           ok: false,
+          message: "Invalid email or password",
           fieldErrors: {
-            password: message,
+            password: "Invalid email or password",
           },
         };
       }
 
-      if (error?.status === 422) {
+      if (status === 422) {
         const identityError = error?.fieldErrors?.identity || "";
         const passwordError = error?.fieldErrors?.password || "";
 
@@ -425,11 +435,11 @@ export default function App() {
             identity: identityError,
             password: passwordError,
           },
-          message: identityError || passwordError ? "" : SIGN_IN_GENERIC_MESSAGE,
+          message: identityError || passwordError || SIGN_IN_GENERIC_MESSAGE,
         };
       }
 
-      if (error?.status >= 500 || isApiRequestFailedError(error)) {
+      if (status >= 500 || isApiRequestFailedError(error)) {
         return {
           ok: false,
           message: SIGN_IN_GENERIC_MESSAGE,
@@ -438,7 +448,7 @@ export default function App() {
 
       return {
         ok: false,
-        message,
+        message: message || SIGN_IN_GENERIC_MESSAGE,
       };
     }
   };
@@ -525,7 +535,7 @@ export default function App() {
       if (isApiUnavailableError(error)) {
         return {
           ok: false,
-          message: API_UNAVAILABLE_MESSAGE,
+          message: message || API_UNAVAILABLE_MESSAGE,
         };
       }
 
@@ -680,8 +690,10 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <UserLocationProvider>{screenContent}</UserLocationProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <UserLocationProvider>{screenContent}</UserLocationProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

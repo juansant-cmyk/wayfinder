@@ -25,7 +25,6 @@ from app.schemas.travel import (
     inclusive_day_count,
     iter_trip_dates,
     night_count,
-    validate_trip_date_range,
 )
 from app.services import geocode as geocode_service
 
@@ -108,9 +107,7 @@ def plan_to_detail(plan: TravelPlan) -> TravelPlanDetailResponse:
     )
 
 
-async def load_plan_with_schedule(
-    db: AsyncSession, user_id: UUID, plan_id: UUID
-) -> TravelPlan:
+async def load_plan_with_schedule(db: AsyncSession, user_id: UUID, plan_id: UUID) -> TravelPlan:
     result = await db.execute(
         select(TravelPlan)
         .where(TravelPlan.id == plan_id, TravelPlan.user_id == user_id)
@@ -233,7 +230,9 @@ async def rebuild_plan_days(db: AsyncSession, plan: TravelPlan) -> None:
     try:
         dates = iter_trip_dates(plan.start_date, plan.end_date)
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
 
     await _ensure_schedule_loaded(db, plan)
     existing_by_date = {day.day_date: day for day in list(plan.days)}
@@ -257,13 +256,57 @@ async def rebuild_plan_days(db: AsyncSession, plan: TravelPlan) -> None:
 
 
 async def ensure_plan_center(plan: TravelPlan) -> None:
-    if plan.center_lat is not None and plan.center_lng is not None:
+    needs_cover = _cover_needs_refresh(plan.cover_image_url)
+    if plan.center_lat is not None and plan.center_lng is not None and not needs_cover:
         return
     resolved = await geocode_service.search_geocode(plan.destination_name)
     if not resolved:
+        if needs_cover:
+            plan.cover_image_url = geocode_service._flickr_cover_url(
+                plan.destination_name, None, None
+            )
         return
-    plan.center_lat = resolved.get("lat")
-    plan.center_lng = resolved.get("lng")
+    if plan.center_lat is None:
+        plan.center_lat = resolved.get("lat")
+    if plan.center_lng is None:
+        plan.center_lng = resolved.get("lng")
+    if needs_cover and plan.center_lat is not None and plan.center_lng is not None:
+        plan.cover_image_url = await geocode_service.destination_cover_image(
+            label=str(resolved.get("label") or plan.destination_name),
+            city=resolved.get("city"),
+            country=resolved.get("country"),
+            lat=float(plan.center_lat),
+            lng=float(plan.center_lng),
+        )
+
+
+def _cover_needs_refresh(url: str | None) -> bool:
+    if not url:
+        return True
+    lower = url.lower()
+    dead_markers = (
+        "staticmap.openstreetmap.de",
+        ".svg",
+        "flag_of_",
+    )
+    return any(marker in lower for marker in dead_markers)
+
+
+async def refresh_plan_cover_from_destination(plan: TravelPlan) -> None:
+    """Force re-resolve center + cover when destination_name changes."""
+    resolved = await geocode_service.search_geocode(plan.destination_name)
+    if not resolved or resolved.get("lat") is None or resolved.get("lng") is None:
+        plan.cover_image_url = geocode_service._flickr_cover_url(plan.destination_name, None, None)
+        return
+    plan.center_lat = float(resolved["lat"])
+    plan.center_lng = float(resolved["lng"])
+    plan.cover_image_url = await geocode_service.destination_cover_image(
+        label=str(resolved.get("label") or plan.destination_name),
+        city=resolved.get("city"),
+        country=resolved.get("country"),
+        lat=plan.center_lat,
+        lng=plan.center_lng,
+    )
 
 
 async def create_activity(
@@ -305,7 +348,9 @@ async def create_activity(
     return activity
 
 
-async def delete_activity(db: AsyncSession, user_id: UUID, plan_id: UUID, activity_id: UUID) -> None:
+async def delete_activity(
+    db: AsyncSession, user_id: UUID, plan_id: UUID, activity_id: UUID
+) -> None:
     plan = await load_plan_with_schedule(db, user_id, plan_id)
     target: PlanActivity | None = None
     for day in plan.days:

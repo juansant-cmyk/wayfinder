@@ -40,12 +40,17 @@ class TravelPlanBase(BaseModel):
     hotel_name: str | None = Field(default=None, max_length=255)
     hotel_provider: str | None = Field(default=None, max_length=50)
     hotel_provider_id: str | None = Field(default=None, max_length=255)
+    cover_image_url: str | None = Field(default=None, max_length=1000)
 
     @model_validator(mode="after")
     def validate_ranges(self):
         if self.start_date is not None or self.end_date is not None:
             validate_trip_date_range(self.start_date, self.end_date)
-        if self.budget_min is not None and self.budget_max is not None and self.budget_max < self.budget_min:
+        if (
+            self.budget_min is not None
+            and self.budget_max is not None
+            and self.budget_max < self.budget_min
+        ):
             raise ValueError("budget_max must be greater than or equal to budget_min")
         return self
 
@@ -69,6 +74,8 @@ class TravelPlanUpdate(BaseModel):
     hotel_name: str | None = Field(default=None, max_length=255)
     hotel_provider: str | None = Field(default=None, max_length=50)
     hotel_provider_id: str | None = Field(default=None, max_length=255)
+    cover_image_url: str | None = Field(default=None, max_length=1000)
+    status: str | None = Field(default=None, pattern="^(active|completed)$")
 
 
 class PlanActivityResponse(BaseModel):
@@ -104,6 +111,8 @@ class TravelPlanResponse(TravelPlanBase):
 
     id: UUID
     user_id: UUID
+    status: str = "active"
+    completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
     nights: int | None = None
@@ -161,3 +170,32 @@ class HotelResponse(BaseModel):
 def iter_trip_dates(start: date, end: date) -> list[date]:
     validate_trip_date_range(start, end)
     return [start + timedelta(days=offset) for offset in range(inclusive_day_count(start, end))]
+
+
+class SafetyFeedAlertResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    source: str
+    destination: str
+    alert_type: str
+    severity: str
+    title: str
+    description: str
+    lat: float | None
+    lng: float | None
+    starts_at: datetime | None
+    ends_at: datetime | None
+    headline: str | None = None
+    urgency: str | None = None
+    areas: str | None = None
+    event: str | None = None
+    effective: datetime | None = None
+    expires: datetime | None = None
+    desc: str | None = None
+    instruction: str | None = None
+
+
+class DismissAlertResponse(BaseModel):
+    alert_id: UUID
+    status: str = "dismissed"

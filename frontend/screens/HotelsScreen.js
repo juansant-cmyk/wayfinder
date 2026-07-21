@@ -24,7 +24,7 @@ import {
 import { getToken } from "../src/auth/tokenStorage";
 import { geocodeQuery, reverseGeocodeLabel } from "../src/location/geo";
 import { useUserLocation } from "../src/location/UserLocationContext";
-import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
+import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 import { WayfinderBrand } from "./AuthShared";
 
@@ -114,6 +114,8 @@ function SortPill({ option, isSelected, onPress, compact = false }) {
 }
 
 export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, params = {} }) {
+  const insets = useSafeAreaInsets();
+  const bottomNavPadding = getBottomNavContentPadding(insets);
   const { width: windowWidth } = useWindowDimensions();
   const compact = windowWidth < 700;
   const { location, status, isUsingDeviceLocation, refreshLocation } = useUserLocation();
@@ -423,7 +425,11 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollContent, compact && styles.scrollContentCompact]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          compact && styles.scrollContentCompact,
+          { paddingBottom: bottomNavPadding },
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -911,7 +917,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: 62,
     paddingHorizontal: 18,
-    paddingBottom: BOTTOM_NAV_CONTENT_PADDING,
     alignItems: "center",
     overflow: "visible",
   },

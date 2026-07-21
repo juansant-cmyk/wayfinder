@@ -25,7 +25,13 @@ export default function LoginScreen({
   const [submitting, setSubmitting] = useState(false);
 
   const handleLogin = async () => {
+    if (submitting) {
+      return;
+    }
+
     setSubmitting(true);
+    setStatusMessage("");
+    setErrors({});
 
     try {
       const result = await onLogin?.({
@@ -40,8 +46,19 @@ export default function LoginScreen({
         return;
       }
 
-      setErrors(result?.fieldErrors || {});
-      setStatusMessage(result?.message || "");
+      if (!result) {
+        setStatusMessage("Sign-in did not complete. Check that the app is connected to the API.");
+        return;
+      }
+
+      const nextErrors = result.fieldErrors || {};
+      setErrors(nextErrors);
+
+      const fieldMessage = [nextErrors.identity, nextErrors.password].filter(Boolean).join(" ");
+      setStatusMessage(result.message || fieldMessage || "Unable to sign in. Please try again.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to sign in. Please try again.";
+      setStatusMessage(message);
     } finally {
       setSubmitting(false);
     }
@@ -112,7 +129,11 @@ export default function LoginScreen({
           </Pressable>
         </View>
 
-        <PrimaryButton label={submitting ? "Signing in..." : "Log In"} onPress={handleLogin} />
+        <PrimaryButton
+          label={submitting ? "Signing in..." : "Log In"}
+          onPress={handleLogin}
+          disabled={submitting}
+        />
 
         {statusMessage ? <Text style={styles.statusMessage}>{statusMessage}</Text> : null}
       </View>
@@ -204,7 +225,8 @@ const styles = StyleSheet.create({
     marginTop: 14,
     fontSize: 14,
     lineHeight: 20,
-    color: authColors.body,
+    color: "#C53A36",
+    textAlign: "center",
   },
 
   errorText: {

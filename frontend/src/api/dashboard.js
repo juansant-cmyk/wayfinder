@@ -89,8 +89,15 @@ async function requestHotels(token, destination, sort, coords, market = null) {
   return apiRequest(`/hotels/search?${params}`, { token });
 }
 
-export function fetchPlans(token) {
-  return apiRequest("/plans", { token });
+export function fetchPlans(token, status = "all") {
+  const params = new URLSearchParams();
+  if (status && status !== "all") {
+    params.set("status", status);
+  } else if (status === "all") {
+    params.set("status", "all");
+  }
+  const query = params.toString();
+  return apiRequest(`/plans${query ? `?${query}` : ""}`, { token });
 }
 
 export function fetchPlan(token, planId) {
@@ -103,6 +110,14 @@ export function createPlan(token, body) {
 
 export function updatePlan(token, planId, body) {
   return apiRequest(`/plans/${planId}`, { method: "PATCH", token, body });
+}
+
+export function completePlan(token, planId) {
+  return updatePlan(token, planId, { status: "completed" });
+}
+
+export function reopenPlan(token, planId) {
+  return updatePlan(token, planId, { status: "active" });
 }
 
 export function deletePlan(token, planId) {
@@ -178,8 +193,49 @@ export function fetchSafetySummary(token, destination = DEFAULT_DESTINATION) {
   return apiRequest(`/safety/summary?${withDestination(destination)}`, { token });
 }
 
-export function fetchWeather(token, destination = DEFAULT_DESTINATION) {
-  return apiRequest(`/weather/current?${withDestination(destination)}`, { token });
+export function fetchSafetyAlerts(token, options = {}) {
+  const params = new URLSearchParams();
+  params.set("destination", options.destination || DEFAULT_DESTINATION);
+  withCoordinates(params, options);
+  return apiRequest(`/safety?${params.toString()}`, { token });
+}
+
+export function fetchSafetyReport(token, options = {}) {
+  const params = new URLSearchParams();
+  params.set("destination", options.destination || DEFAULT_DESTINATION);
+  withCoordinates(params, options);
+  if (options.countryIso) {
+    params.set("country_iso", String(options.countryIso).toUpperCase());
+  }
+  return apiRequest(`/safety/report?${params.toString()}`, { token });
+}
+
+export function dismissSafetyAlert(token, alertId) {
+  return apiRequest(`/safety/alerts/${encodeURIComponent(alertId)}/dismiss`, {
+    method: "POST",
+    token,
+  });
+}
+
+export function fetchWeather(token, options = {}) {
+  const params = new URLSearchParams();
+  const destination =
+    typeof options === "string" ? options : options?.destination;
+  const lat = typeof options === "object" && options ? options.lat : null;
+  const lng = typeof options === "object" && options ? options.lng : null;
+
+  if (destination) {
+    params.set("destination", String(destination));
+  }
+  if (lat != null && lng != null) {
+    params.set("lat", String(lat));
+    params.set("lng", String(lng));
+  }
+  if (![...params.keys()].length) {
+    params.set("destination", DEFAULT_DESTINATION);
+  }
+
+  return apiRequest(`/weather/current?${params.toString()}`, { token });
 }
 
 export function sendChatMessage(token, message) {

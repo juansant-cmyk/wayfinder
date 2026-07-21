@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import {
   Image,
+  AppState,
   Platform,
   Pressable,
   ScrollView,
@@ -12,32 +13,21 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { WayfinderBrand } from "./AuthShared";
-import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
+import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
+import * as dashboardApi from "../src/api/dashboard";
+import { mapSafetyReportForScreen } from "../src/api/mappers";
+import { getToken } from "../src/auth/tokenStorage";
+import { geocodeQuery, reverseGeocodeQuery, suggestGeocodeQuery } from "../src/location/geo";
+import { useUserLocation } from "../src/location/UserLocationContext";
+
+const LIVE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 const heroRobotImage = require("../assets/images/safety/safety-shield-robot.png");
 const bannerRobotImage = require("../assets/images/itinerary-tip-bot-reference.png");
-
-const SAFETY_NAV_ITEMS = [
-  { label: "Home", route: "home", icon: "home-outline", activeIcon: "home" },
-  {
-    label: "Itinerary",
-    route: "itinerary",
-    icon: "calendar-clear-outline",
-    activeIcon: "calendar-clear",
-  },
-  { label: "Flights", route: "flights", icon: "airplane-outline", activeIcon: "airplane" },
-  {
-    label: "Safety",
-    route: "safety",
-    icon: "shield-checkmark-outline",
-    activeIcon: "shield-checkmark",
-  },
-  { label: "Profile", route: "profile", icon: "person-outline", activeIcon: "person" },
-];
 
 const MONTH_NAMES = [
   "January",
@@ -77,387 +67,6 @@ const SKYLINE_BUILDINGS = [
   { left: "63%", width: 42, height: 68 },
   { left: "72%", width: 64, height: 118 },
   { left: "85%", width: 40, height: 76 },
-];
-
-const DESTINATION_OPTIONS = [
-  {
-    id: "tokyo",
-    label: "Tokyo, Japan",
-    cityLabel: "Tokyo",
-    aliases: ["tokyo", "japan", "tokyo japan"],
-    updatedAt: new Date(2025, 4, 10, 9, 30),
-    overall: {
-      level: "low",
-      label: "Low Risk",
-      description:
-        "Tokyo is currently a low risk destination.\nExercise normal safety precautions\nand follow local guidance.",
-      indicatorLeft: "11%",
-      about:
-        "Low risk destinations still call for everyday precautions, but broad disruptions or major advisories are not currently expected.",
-    },
-    alerts: [
-      {
-        id: "tokyo-public-event",
-        tone: "danger",
-        label: "Safety Alert",
-        title: "Large Public Event",
-        location: "Shibuya, Tokyo",
-        timestamp: "May 10, 2025 \u2022 8:45 AM",
-        description:
-          "Large event expected May 11. Expect increased\ncrowds, traffic restrictions, and possible delays.",
-        details:
-          "Crowd control measures are expected around Shibuya Crossing, station exits, and nearby arterial streets.",
-      },
-      {
-        id: "tokyo-pickpocketing",
-        tone: "advisory",
-        label: "Safety Advisory",
-        title: "Pickpocketing Reported",
-        location: "Shinjuku, Tokyo",
-        timestamp: "May 10, 2025 \u2022 7:15 AM",
-        description:
-          "Recent reports of pickpocketing in shopping\nareas and train stations. Keep belongings secure.",
-        details:
-          "Use zipped outer layers, keep phones out of back pockets, and stay especially alert on packed trains.",
-      },
-    ],
-    categories: [
-      {
-        id: "crime",
-        title: "Crime & Security",
-        status: "Low Risk",
-        iconFamily: "ion",
-        iconName: "shield-checkmark",
-        iconColor: "#1F78FF",
-        iconBackground: "#EAF3FF",
-      },
-      {
-        id: "health",
-        title: "Health",
-        status: "Low Risk",
-        iconFamily: "material",
-        iconName: "medical-bag",
-        iconColor: "#149647",
-        iconBackground: "#EAF9F0",
-      },
-      {
-        id: "transportation",
-        title: "Transportation",
-        status: "Low Risk",
-        iconFamily: "ion",
-        iconName: "train-outline",
-        iconColor: "#7D58F2",
-        iconBackground: "#F1EAFF",
-      },
-      {
-        id: "laws",
-        title: "Local Laws",
-        status: "Low Risk",
-        iconFamily: "material",
-        iconName: "bank-outline",
-        iconColor: "#F59E0B",
-        iconBackground: "#FFF5DE",
-      },
-      {
-        id: "updates",
-        title: "Local Updates",
-        status: "1 Active",
-        iconFamily: "ion",
-        iconName: "megaphone-outline",
-        iconColor: "#8B5CF6",
-        iconBackground: "#F3EEFF",
-      },
-    ],
-    tips: [
-      {
-        id: "belongings",
-        title: "Secure your belongings",
-        description:
-          "Keep bags zipped and wallets in front pockets, especially in crowded areas.",
-        detail:
-          "Cross-body bags and zipped outer pockets work best on busy rail lines and during events.",
-        iconFamily: "ion",
-        iconName: "lock-closed",
-        iconColor: "#1F78FF",
-        iconBackground: "#EAF3FF",
-      },
-      {
-        id: "awareness",
-        title: "Stay aware of your surroundings",
-        description:
-          "Be mindful in busy places and avoid distractions while walking.",
-        detail:
-          "Pause inside a shop or station concourse if you need to check directions or your phone.",
-        iconFamily: "ion",
-        iconName: "location",
-        iconColor: "#149647",
-        iconBackground: "#EAF9F0",
-      },
-      {
-        id: "contacts",
-        title: "Important Contacts",
-        description:
-          "Police: 110  \u2022  Ambulance/Fire: 119  \u2022  Tourist Hotline: 03-3201-3331",
-        detail: "Save these numbers before you head out so they are available even without service.",
-        iconFamily: "ion",
-        iconName: "call",
-        iconColor: "#7D58F2",
-        iconBackground: "#F1EAFF",
-      },
-    ],
-  },
-  {
-    id: "seoul",
-    label: "Seoul, South Korea",
-    cityLabel: "Seoul",
-    aliases: ["seoul", "south korea", "seoul south korea", "korea"],
-    updatedAt: new Date(2025, 4, 10, 8, 55),
-    overall: {
-      level: "moderate",
-      label: "Moderate Risk",
-      description:
-        "Seoul is currently a moderate risk destination.\nMonitor demonstrations and busy transit hubs,\nespecially during peak evening hours.",
-      indicatorLeft: "43%",
-      about:
-        "Moderate risk destinations are generally manageable, but current conditions call for extra awareness around specific neighborhoods or disruptions.",
-    },
-    alerts: [
-      {
-        id: "seoul-demonstration",
-        tone: "danger",
-        label: "Safety Alert",
-        title: "Large Demonstration Planned",
-        location: "Gwanghwamun, Seoul",
-        timestamp: "May 10, 2025 \u2022 8:20 AM",
-        description:
-          "Large demonstration expected downtown this evening.\nExpect road closures and intermittent transit delays.",
-        details:
-          "Avoid central protest corridors after 5 PM and allow extra time if you need to pass through Jongno District.",
-      },
-      {
-        id: "seoul-subway",
-        tone: "advisory",
-        label: "Safety Advisory",
-        title: "Transit Crowding Reported",
-        location: "Line 2, Seoul",
-        timestamp: "May 10, 2025 \u2022 7:40 AM",
-        description:
-          "Peak-hour congestion has led to platform crowding\nand longer wait times at major transfer stations.",
-        details:
-          "Plan alternate transfers when possible and keep valuables secured while boarding during rush hour.",
-      },
-    ],
-    categories: [
-      {
-        id: "crime",
-        title: "Crime & Security",
-        status: "Low Risk",
-        iconFamily: "ion",
-        iconName: "shield-checkmark",
-        iconColor: "#1F78FF",
-        iconBackground: "#EAF3FF",
-      },
-      {
-        id: "health",
-        title: "Health",
-        status: "Low Risk",
-        iconFamily: "material",
-        iconName: "medical-bag",
-        iconColor: "#149647",
-        iconBackground: "#EAF9F0",
-      },
-      {
-        id: "transportation",
-        title: "Transportation",
-        status: "Moderate",
-        iconFamily: "ion",
-        iconName: "train-outline",
-        iconColor: "#7D58F2",
-        iconBackground: "#F1EAFF",
-      },
-      {
-        id: "laws",
-        title: "Local Laws",
-        status: "Low Risk",
-        iconFamily: "material",
-        iconName: "bank-outline",
-        iconColor: "#F59E0B",
-        iconBackground: "#FFF5DE",
-      },
-      {
-        id: "updates",
-        title: "Local Updates",
-        status: "2 Active",
-        iconFamily: "ion",
-        iconName: "megaphone-outline",
-        iconColor: "#8B5CF6",
-        iconBackground: "#F3EEFF",
-      },
-    ],
-    tips: [
-      {
-        id: "belongings",
-        title: "Keep valuables close",
-        description:
-          "Use zipped bags and keep your phone secure in crowded stations and shopping areas.",
-        detail:
-          "Move backpacks to your front on packed subway cars and be cautious on escalators near exits.",
-        iconFamily: "ion",
-        iconName: "lock-closed",
-        iconColor: "#1F78FF",
-        iconBackground: "#EAF3FF",
-      },
-      {
-        id: "awareness",
-        title: "Track local notices",
-        description:
-          "Watch for metro announcements, road closures, and district advisories before heading out.",
-        detail:
-          "A quick check before you leave can help you avoid demonstration routes and delays.",
-        iconFamily: "ion",
-        iconName: "location",
-        iconColor: "#149647",
-        iconBackground: "#EAF9F0",
-      },
-      {
-        id: "contacts",
-        title: "Important Contacts",
-        description:
-          "Police: 112  \u2022  Ambulance/Fire: 119  \u2022  Tourist Hotline: 1330",
-        detail: "Keep the Korea Travel Hotline handy for translation help and regional guidance.",
-        iconFamily: "ion",
-        iconName: "call",
-        iconColor: "#7D58F2",
-        iconBackground: "#F1EAFF",
-      },
-    ],
-  },
-  {
-    id: "lisbon",
-    label: "Lisbon, Portugal",
-    cityLabel: "Lisbon",
-    aliases: ["lisbon", "portugal", "lisbon portugal"],
-    updatedAt: new Date(2025, 4, 10, 7, 50),
-    overall: {
-      level: "low",
-      label: "Low Risk",
-      description:
-        "Lisbon is currently a low risk destination.\nStay alert on trams and at major viewpoints,\nand follow standard city travel precautions.",
-      indicatorLeft: "18%",
-      about:
-        "Low risk destinations may still have targeted nuisance crime or transport issues, but conditions remain broadly stable for travelers.",
-    },
-    alerts: [
-      {
-        id: "lisbon-viewpoint",
-        tone: "danger",
-        label: "Safety Alert",
-        title: "Crowding Near Viewpoints",
-        location: "Alfama, Lisbon",
-        timestamp: "May 10, 2025 \u2022 8:05 AM",
-        description:
-          "Heavy visitor traffic expected near popular miradouros.\nWatch for bag snatching in photo-heavy areas.",
-        details:
-          "Visit earlier in the day when possible and keep straps close when stopping for photos.",
-      },
-      {
-        id: "lisbon-tram",
-        tone: "advisory",
-        label: "Safety Advisory",
-        title: "Pickpocketing Advisory",
-        location: "Tram 28, Lisbon",
-        timestamp: "May 10, 2025 \u2022 7:10 AM",
-        description:
-          "Recent reports of pickpocketing on historic trams\nand in dense queue areas near boarding points.",
-        details:
-          "Keep backpacks closed, avoid wallets in rear pockets, and stand clear of crowded doorways.",
-      },
-    ],
-    categories: [
-      {
-        id: "crime",
-        title: "Crime & Security",
-        status: "Low Risk",
-        iconFamily: "ion",
-        iconName: "shield-checkmark",
-        iconColor: "#1F78FF",
-        iconBackground: "#EAF3FF",
-      },
-      {
-        id: "health",
-        title: "Health",
-        status: "Low Risk",
-        iconFamily: "material",
-        iconName: "medical-bag",
-        iconColor: "#149647",
-        iconBackground: "#EAF9F0",
-      },
-      {
-        id: "transportation",
-        title: "Transportation",
-        status: "Low Risk",
-        iconFamily: "ion",
-        iconName: "train-outline",
-        iconColor: "#7D58F2",
-        iconBackground: "#F1EAFF",
-      },
-      {
-        id: "laws",
-        title: "Local Laws",
-        status: "Low Risk",
-        iconFamily: "material",
-        iconName: "bank-outline",
-        iconColor: "#F59E0B",
-        iconBackground: "#FFF5DE",
-      },
-      {
-        id: "updates",
-        title: "Local Updates",
-        status: "1 Active",
-        iconFamily: "ion",
-        iconName: "megaphone-outline",
-        iconColor: "#8B5CF6",
-        iconBackground: "#F3EEFF",
-      },
-    ],
-    tips: [
-      {
-        id: "belongings",
-        title: "Secure your belongings",
-        description:
-          "Keep valuables close on trams, funiculars, and at crowded viewpoints.",
-        detail:
-          "Small cross-body bags work especially well when boarding packed public transit.",
-        iconFamily: "ion",
-        iconName: "lock-closed",
-        iconColor: "#1F78FF",
-        iconBackground: "#EAF3FF",
-      },
-      {
-        id: "awareness",
-        title: "Watch your footing",
-        description:
-          "Wear stable shoes and move carefully on steep hills, stairs, and slick stone streets.",
-        detail:
-          "A little extra care goes a long way around tram tracks and polished stone walkways.",
-        iconFamily: "ion",
-        iconName: "location",
-        iconColor: "#149647",
-        iconBackground: "#EAF9F0",
-      },
-      {
-        id: "contacts",
-        title: "Important Contacts",
-        description:
-          "Police: 112  \u2022  Medical Emergency: 112  \u2022  Tourism Support: 808-781-212",
-        detail: "Save the national emergency number once and you will have both police and medical help covered.",
-        iconFamily: "ion",
-        iconName: "call",
-        iconColor: "#7D58F2",
-        iconBackground: "#F1EAFF",
-      },
-    ],
-  },
 ];
 
 const alertToneStyles = {
@@ -514,10 +123,6 @@ function formatTimestamp(date) {
   return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} \u2022 ${hours12}:${minutes} ${meridiem}`;
 }
 
-function normalizeDestinationValue(value) {
-  return value.trim().toLowerCase();
-}
-
 function titleCaseWords(value) {
   return value
     .trim()
@@ -539,54 +144,6 @@ function getCityFromLabel(label) {
   return label.split(",")[0]?.trim() || label.trim();
 }
 
-function getDestinationMatchIndex(query) {
-  const normalizedQuery = normalizeDestinationValue(query);
-
-  if (!normalizedQuery) {
-    return -1;
-  }
-
-  return DESTINATION_OPTIONS.findIndex((option) => {
-    const candidates = [option.label, ...(option.aliases || [])];
-    return candidates.some((candidate) => {
-      const normalizedCandidate = normalizeDestinationValue(candidate);
-      return (
-        normalizedCandidate === normalizedQuery ||
-        normalizedCandidate.includes(normalizedQuery) ||
-        normalizedQuery.includes(normalizedCandidate)
-      );
-    });
-  });
-}
-
-function getOverallDescription(destination, cityLabel, isCustomDestination) {
-  if (!isCustomDestination) {
-    return destination.overall.description;
-  }
-
-  if (destination.overall.level === "moderate") {
-    return `${cityLabel} is currently a moderate risk destination.\nMonitor local advisories and busy transit hubs,\nand follow official guidance.`;
-  }
-
-  if (destination.overall.level === "high") {
-    return `${cityLabel} is currently a high risk destination.\nLimit non-essential travel movements\nand follow official guidance closely.`;
-  }
-
-  return `${cityLabel} is currently a low risk destination.\nExercise normal safety precautions\nand follow local guidance.`;
-}
-
-function getDisplayedAlertLocation(alertIndex, cityLabel, isCustomDestination, fallbackLocation) {
-  if (!isCustomDestination) {
-    return fallbackLocation;
-  }
-
-  if (alertIndex === 0) {
-    return `Central District, ${cityLabel}`;
-  }
-
-  return `Transit Hub, ${cityLabel}`;
-}
-
 function renderIcon(iconFamily, iconName, color, size) {
   if (iconFamily === "material") {
     return <MaterialCommunityIcons name={iconName} size={size} color={color} />;
@@ -605,7 +162,7 @@ function getOverallStyles(level) {
     };
   }
 
-  if (level === "high") {
+  if (level === "high" || level === "extreme") {
     return {
       color: "#E23D35",
       softBackground: "#FFE8E4",
@@ -623,6 +180,9 @@ function getOverallStyles(level) {
 }
 
 function getCategoryStatusColor(status) {
+  if (status.toLowerCase().includes("extreme") || status.toLowerCase().includes("high")) {
+    return "#E23D35";
+  }
   if (status.toLowerCase().includes("active")) {
     return "#F04D33";
   }
@@ -699,7 +259,7 @@ function SafetyScale({ indicatorLeft }) {
   );
 }
 
-function AlertCard({ alert, isSelected, onPress, isPhone }) {
+function AlertCard({ alert, isSelected, onPress, onDismiss, isPhone }) {
   const tone = alertToneStyles[alert.tone];
 
   return (
@@ -736,7 +296,23 @@ function AlertCard({ alert, isSelected, onPress, isPhone }) {
           </View>
 
           <Text style={styles.alertDescription}>{alert.description}</Text>
-          {isSelected ? <Text style={styles.alertDetailText}>{alert.details}</Text> : null}
+          {isSelected ? (
+            <>
+              <Text style={styles.alertDetailText}>{alert.details}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Dismiss ${alert.title}`}
+                onPress={(event) => {
+                  event.stopPropagation?.();
+                  onDismiss();
+                }}
+                style={styles.alertDismissButton}
+              >
+                <Ionicons name="checkmark-circle-outline" size={18} color="#1F78FF" />
+                <Text style={styles.alertDismissText}>Dismiss alert</Text>
+              </Pressable>
+            </>
+          ) : null}
         </View>
 
         <Ionicons
@@ -772,6 +348,9 @@ function CategoryCard({ item, isSelected, onPress, width }) {
       <Text style={[styles.categoryStatus, { color: getCategoryStatusColor(item.status) }]}>
         {item.status}
       </Text>
+      {isSelected ? (
+        <Text style={styles.categoryDescription}>{item.description}</Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -797,7 +376,12 @@ function TipRow({ tip, isSelected, isLast, onPress }) {
         <View style={styles.tipCopy}>
           <Text style={styles.tipTitle}>{tip.title}</Text>
           <Text style={styles.tipDescription}>{tip.description}</Text>
-          {isSelected ? <Text style={styles.tipDetail}>{tip.detail}</Text> : null}
+          {isSelected ? (
+            <>
+              <Text style={styles.tipDetail}>{tip.detail}</Text>
+              <Text style={styles.tipSource}>{tip.source}</Text>
+            </>
+          ) : null}
         </View>
 
         <Ionicons
@@ -812,93 +396,267 @@ function TipRow({ tip, isSelected, isLast, onPress }) {
 }
 
 export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
+  const insets = useSafeAreaInsets();
+  const bottomNavPadding = getBottomNavContentPadding(insets);
   const { width } = useWindowDimensions();
+  const { refreshLocation } = useUserLocation();
   const isPhone = width < 560;
   const useScrollableCategories = width < 900;
   const pageMaxWidth = width >= 1180 ? 1020 : 960;
 
-  const initialDestination = DESTINATION_OPTIONS[0];
-  const [destinationIndex, setDestinationIndex] = useState(0);
+  const initialDestinationLabel = "Bali, Indonesia";
   const [destinationInput, setDestinationInput] = useState("");
-  const [appliedDestinationLabel, setAppliedDestinationLabel] = useState(initialDestination.label);
-  const [isCustomDestination, setIsCustomDestination] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(initialDestination.updatedAt);
-  const [selectedAlertId, setSelectedAlertId] = useState(initialDestination.alerts[0]?.id ?? null);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(initialDestination.categories[0]?.id ?? null);
+  const [destinationSuggestions, setDestinationSuggestions] = useState([]);
+  const [destinationSuggestLoading, setDestinationSuggestLoading] = useState(false);
+  const [showDestinationSuggestions, setShowDestinationSuggestions] = useState(false);
+  const [appliedDestinationLabel, setAppliedDestinationLabel] = useState(initialDestinationLabel);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [selectedAlertId, setSelectedAlertId] = useState(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [selectedTipId, setSelectedTipId] = useState(null);
   const [showSafetyInfo, setShowSafetyInfo] = useState(false);
-  const [pushAlertsEnabled, setPushAlertsEnabled] = useState(false);
+  const [liveAlerts, setLiveAlerts] = useState([]);
+  const [liveReport, setLiveReport] = useState(null);
+  const [safetyLoading, setSafetyLoading] = useState(true);
+  const [safetyError, setSafetyError] = useState("");
+  const [isStale, setIsStale] = useState(false);
+  const activeQueryRef = useRef({ destination: initialDestinationLabel, countryIso: "IDN" });
+  const requestInFlightRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
+  const mountedRef = useRef(true);
 
-  const destination = DESTINATION_OPTIONS[destinationIndex];
-  const displayDestinationLabel = appliedDestinationLabel || destination.label;
+  const destination = {
+    overall: liveReport?.risk || {
+      level: "low",
+      label: "Loading risk",
+      indicatorLeft: "1%",
+      description: "Loading current country-level safety information.",
+      about:
+        "Risk information is country-level and does not represent a city crime, health, or transportation score.",
+    },
+    categories: liveReport?.categories || [],
+    tips: liveReport?.tips || [],
+  };
+  const displayDestinationLabel = liveReport?.destinationLabel || appliedDestinationLabel;
   const displayCityLabel = getCityFromLabel(displayDestinationLabel);
-  const visibleAlerts = destination.alerts.map((alert, index) => ({
-    ...alert,
-    location: getDisplayedAlertLocation(
-      index,
-      displayCityLabel,
-      isCustomDestination,
-      alert.location
-    ),
-  }));
-  const overallDescription = getOverallDescription(
-    destination,
-    displayCityLabel,
-    isCustomDestination
-  );
-  const overallStyles = getOverallStyles(destination.overall.level);
+  const visibleAlerts = liveAlerts;
+  const safetyOverview = destination.overall;
+  const overallDescription = safetyOverview.description;
+  const overallStyles = getOverallStyles(safetyOverview.level);
   const categoryCardWidth = useScrollableCategories ? 154 : "18.6%";
 
-  function applyDestination(nextIndex, nextLabel, customDestination = false) {
-    const nextDestination = DESTINATION_OPTIONS[nextIndex];
+  const loadSafety = useCallback(async (query = activeQueryRef.current, initial = false) => {
+    if (requestInFlightRef.current) {
+      return;
+    }
+    requestInFlightRef.current = true;
+    if (initial) {
+      setSafetyLoading(true);
+    }
+    setSafetyError("");
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("Sign in to load live safety alerts.");
+      }
+      const payload = await dashboardApi.fetchSafetyReport(token, query);
+      const mappedReport = mapSafetyReportForScreen(payload);
+      if (!mountedRef.current) return;
+      const mapped = mappedReport.alerts;
+      activeQueryRef.current = {
+        ...query,
+        destination: mappedReport.destinationLabel,
+        ...(mappedReport.countryIso ? { countryIso: mappedReport.countryIso } : {}),
+      };
+      setLiveReport(mappedReport);
+      setLiveAlerts(mapped);
+      setAppliedDestinationLabel(mappedReport.destinationLabel);
+      setSelectedCategoryId((currentId) =>
+        mappedReport.categories.some((item) => item.id === currentId)
+          ? currentId
+          : mappedReport.categories[0]?.id ?? null
+      );
+      setSelectedAlertId((currentId) =>
+        mapped.some((alert) => alert.id === currentId) ? currentId : mapped[0]?.id ?? null
+      );
+      setLastUpdated(mappedReport.fetchedAt);
+      setIsStale(mappedReport.isStale);
+    } catch (error) {
+      if (!mountedRef.current) return;
+      setSafetyError(error?.message || "Couldn't refresh safety alerts.");
+      setIsStale(true);
+    } finally {
+      requestInFlightRef.current = false;
+      if (mountedRef.current) setSafetyLoading(false);
+    }
+  }, []);
 
-    setDestinationIndex(nextIndex);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadInitialSafety() {
+      const location = await refreshLocation();
+      if (cancelled) return;
+      if (location?.lat != null && location?.lng != null) {
+        const resolved = await reverseGeocodeQuery(location.lat, location.lng);
+        const label = resolved?.label || initialDestinationLabel;
+        if (cancelled) return;
+        activeQueryRef.current = {
+          destination: label,
+          lat: location.lat,
+          lng: location.lng,
+          ...(resolved?.countryIso ? { countryIso: resolved.countryIso } : {}),
+        };
+        setAppliedDestinationLabel(label);
+      }
+      await loadSafety(activeQueryRef.current, true);
+    }
+    loadInitialSafety();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadSafety, refreshLocation]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (appStateRef.current === "active") loadSafety();
+    }, LIVE_REFRESH_INTERVAL_MS);
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      appStateRef.current = nextState;
+      if (nextState === "active") {
+        loadSafety();
+      }
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [loadSafety]);
+
+  useEffect(() => {
+    const query = destinationInput.trim();
+    if (query.length < 2 || query.toLowerCase() === displayDestinationLabel.toLowerCase()) {
+      setDestinationSuggestions([]);
+      setDestinationSuggestLoading(false);
+      setShowDestinationSuggestions(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setDestinationSuggestLoading(true);
+    setShowDestinationSuggestions(true);
+    const timer = setTimeout(async () => {
+      try {
+        const results = await suggestGeocodeQuery(query, 5);
+        if (!cancelled) {
+          setDestinationSuggestions(results);
+        }
+      } catch {
+        if (!cancelled) {
+          setDestinationSuggestions([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setDestinationSuggestLoading(false);
+        }
+      }
+    }, 280);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [destinationInput, displayDestinationLabel]);
+
+  function applyDestination(nextLabel) {
     setAppliedDestinationLabel(nextLabel);
-    setIsCustomDestination(customDestination);
     setLastUpdated(new Date());
-    setSelectedAlertId(nextDestination.alerts[0]?.id ?? null);
-    setSelectedCategoryId(nextDestination.categories[0]?.id ?? null);
+    setSelectedAlertId(null);
+    setSelectedCategoryId(null);
     setSelectedTipId(null);
     setShowSafetyInfo(false);
   }
 
-  function handleSubmitDestination() {
+  async function handleSubmitDestination() {
     const trimmedDestination = destinationInput.trim();
 
     if (!trimmedDestination) {
       return;
     }
 
-    const matchedIndex = getDestinationMatchIndex(trimmedDestination);
-
-    if (matchedIndex >= 0) {
-      const matchedDestination = DESTINATION_OPTIONS[matchedIndex];
-      setDestinationInput(matchedDestination.label);
-      applyDestination(matchedIndex, matchedDestination.label, false);
+    if (destinationSuggestions.length > 0) {
+      await handleSelectDestinationSuggestion(destinationSuggestions[0]);
       return;
     }
 
     const formattedLabel = formatDestinationLabel(trimmedDestination);
     setDestinationInput(formattedLabel);
-    applyDestination(destinationIndex, formattedLabel, true);
+    setShowDestinationSuggestions(false);
+    applyDestination(formattedLabel);
+    const geocoded = await geocodeQuery(formattedLabel);
+    activeQueryRef.current = {
+      destination: geocoded?.label || formattedLabel,
+      ...(geocoded ? { lat: geocoded.lat, lng: geocoded.lng } : {}),
+      ...(geocoded?.countryIso ? { countryIso: geocoded.countryIso } : {}),
+    };
+    if (geocoded?.label) {
+      setAppliedDestinationLabel(geocoded.label);
+    }
+    await loadSafety(activeQueryRef.current, true);
   }
 
   function handleClearDestinationInput() {
     setDestinationInput("");
+    setDestinationSuggestions([]);
+    setShowDestinationSuggestions(false);
+  }
+
+  async function handleSelectDestinationSuggestion(suggestion) {
+    const label = suggestion.label;
+    setDestinationInput(label);
+    setDestinationSuggestions([]);
+    setShowDestinationSuggestions(false);
+    applyDestination(label);
+    activeQueryRef.current = {
+      destination: label,
+      lat: suggestion.lat,
+      lng: suggestion.lng,
+      ...(suggestion.countryIso ? { countryIso: suggestion.countryIso } : {}),
+    };
+    await loadSafety(activeQueryRef.current, true);
   }
 
   function handleRefreshTimestamp() {
-    setLastUpdated(new Date());
+    loadSafety();
+  }
+
+  async function handleDismissAlert(alertId) {
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Sign in to dismiss alerts.");
+      await dashboardApi.dismissSafetyAlert(token, alertId);
+      setLiveAlerts((alerts) => alerts.filter((alert) => alert.id !== alertId));
+      setSelectedAlertId(null);
+      await loadSafety();
+    } catch (error) {
+      setSafetyError(error?.message || "Couldn't dismiss this alert.");
+    }
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar style="dark" />
 
       <View style={styles.screen}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={[styles.scrollContent, styles.scrollContentWithBottomNav]}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavPadding }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -990,6 +748,11 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                     autoCorrect={false}
                     style={styles.destinationInput}
                     onSubmitEditing={handleSubmitDestination}
+                    onFocus={() => {
+                      if (destinationSuggestions.length > 0) {
+                        setShowDestinationSuggestions(true);
+                      }
+                    }}
                   />
                   {destinationInput ? (
                     <Pressable
@@ -1006,9 +769,38 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                   ) : null}
                 </View>
 
+                {showDestinationSuggestions ? (
+                  <View style={styles.destinationSuggestionsList}>
+                    {destinationSuggestions.map((suggestion) => (
+                      <DimPressable
+                        key={`${suggestion.label}-${suggestion.lat}-${suggestion.lng}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Select ${suggestion.label}`}
+                        onPress={() => handleSelectDestinationSuggestion(suggestion)}
+                        style={styles.destinationSuggestionItem}
+                      >
+                        <Ionicons name="location-outline" size={19} color="#1F78FF" />
+                        <Text style={styles.destinationSuggestionText} numberOfLines={1}>
+                          {suggestion.label}
+                        </Text>
+                      </DimPressable>
+                    ))}
+                    {destinationSuggestLoading ? (
+                      <Text style={styles.destinationSuggestionState}>Searching locations...</Text>
+                    ) : null}
+                    {!destinationSuggestLoading && destinationSuggestions.length === 0 ? (
+                      <Text style={styles.destinationSuggestionState}>No matching locations</Text>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                <Text style={styles.destinationScopeText}>
+                  {liveReport?.scopeLabel || "Country-level risk information"}
+                </Text>
+
                 <View style={[styles.destinationUpdatedRow, isPhone && styles.destinationUpdatedRowCompact]}>
                   <Text style={styles.destinationUpdatedText}>
-                    Last updated: {formatTimestamp(lastUpdated)}
+                    Last updated: {formatTimestamp(lastUpdated)}{isStale ? " (stale)" : ""}
                   </Text>
 
                   <Pressable
@@ -1053,14 +845,14 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
 
                   <View style={styles.overallCopy}>
                     <Text style={[styles.overallLabel, { color: overallStyles.color }]}>
-                      {destination.overall.label}
+                      {safetyOverview.label}
                     </Text>
                     <Text style={styles.overallDescription}>{overallDescription}</Text>
                   </View>
                 </View>
 
                 <View style={styles.overallScaleBlock}>
-                  <SafetyScale indicatorLeft={destination.overall.indicatorLeft} />
+                  <SafetyScale indicatorLeft={safetyOverview.indicatorLeft} />
                 </View>
               </View>
             </View>
@@ -1069,7 +861,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
               <View style={styles.activeAlertsTitleWrap}>
                 <Text style={styles.largeSectionTitle}>Active Alerts</Text>
                 <View style={styles.countBadge}>
-                  <Text style={styles.countBadgeText}>{destination.alerts.length}</Text>
+                  <Text style={styles.countBadgeText}>{visibleAlerts.length}</Text>
                 </View>
               </View>
 
@@ -1084,6 +876,13 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
             </View>
 
             <View style={styles.alertsList}>
+              {safetyError ? <Text style={styles.liveStateText}>{safetyError}</Text> : null}
+              {safetyLoading && visibleAlerts.length === 0 ? (
+                <Text style={styles.liveStateText}>Loading current safety report...</Text>
+              ) : null}
+              {!safetyLoading && visibleAlerts.length === 0 ? (
+                <Text style={styles.liveStateText}>No active country or weather alerts were reported.</Text>
+              ) : null}
               {visibleAlerts.map((alert) => (
                 <AlertCard
                   key={alert.id}
@@ -1092,6 +891,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                   onPress={() =>
                     setSelectedAlertId((currentId) => (currentId === alert.id ? null : alert.id))
                   }
+                  onDismiss={() => handleDismissAlert(alert.id)}
                   isPhone={isPhone}
                 />
               ))}
@@ -1143,13 +943,15 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
             )}
 
             <View style={styles.sectionTopRow}>
-              <Text style={styles.largeSectionTitle}>Safety Tips for {displayCityLabel}</Text>
+              <Text style={styles.largeSectionTitle}>
+                General Preparedness Guidance for {displayCityLabel}
+              </Text>
               <Pressable
                 accessibilityRole="button"
                 onPress={() => setSelectedTipId(null)}
                 style={({ pressed }) => [styles.sectionLinkButton, pressed && styles.linkPressed]}
               >
-                <Text style={styles.sectionLinkText}>View all tips</Text>
+                <Text style={styles.sectionLinkText}>View all guidance</Text>
               </Pressable>
             </View>
 
@@ -1174,42 +976,42 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                 </View>
 
                 <View style={styles.pushBannerCopy}>
-                  <Text style={styles.pushBannerTitle}>Wayfinder is always watching out for you.</Text>
+                  <Text style={styles.pushBannerTitle}>Live safety updates are active.</Text>
                   <Text style={styles.pushBannerDescription}>
-                    We monitor trusted sources 24/7 to keep you informed.
+                    Alerts refresh every five minutes while the app is open.
                   </Text>
                 </View>
               </View>
 
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Toggle push alerts"
-                onPress={() => setPushAlertsEnabled((currentValue) => !currentValue)}
+                accessibilityLabel="Refresh live safety alerts"
+                onPress={() => loadSafety()}
                 style={({ pressed }) => [
                   styles.pushBannerButton,
-                  pushAlertsEnabled && styles.pushBannerButtonEnabled,
+                  styles.pushBannerButtonEnabled,
                   pressed && styles.pushBannerButtonPressed,
                 ]}
               >
                 <Text
                   style={[
                     styles.pushBannerButtonText,
-                    pushAlertsEnabled && styles.pushBannerButtonTextEnabled,
+                    styles.pushBannerButtonTextEnabled,
                   ]}
                 >
-                  {pushAlertsEnabled ? "Push Alerts Enabled" : "Enable Push Alerts"}
+                  Refresh Alerts
                 </Text>
                 <Ionicons
-                  name={pushAlertsEnabled ? "notifications" : "notifications-outline"}
+                  name="refresh"
                   size={21}
-                  color={pushAlertsEnabled ? "#FFFFFF" : "#1F78FF"}
+                  color="#FFFFFF"
                 />
               </Pressable>
             </View>
           </View>
         </ScrollView>
 
-        <BottomNav activeLabel="Safety" items={SAFETY_NAV_ITEMS} onNavigate={onNavigate} />
+        <BottomNav activeLabel={null} onNavigate={onNavigate} />
       </View>
     </SafeAreaView>
   );
@@ -1226,6 +1028,33 @@ const styles = StyleSheet.create({
     backgroundColor: "#F4F8FF",
   },
 
+  liveStateText: {
+    color: "#51607D",
+    fontSize: 15,
+    lineHeight: 22,
+    paddingVertical: 16,
+  },
+
+  alertDismissButton: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "#B9D4FF",
+    borderRadius: 7,
+    backgroundColor: "#FFFFFF",
+  },
+
+  alertDismissText: {
+    color: "#1F78FF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
   scrollView: {
     flex: 1,
     backgroundColor: "#F4F8FF",
@@ -1235,10 +1064,6 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingHorizontal: 18,
     alignItems: "center",
-  },
-
-  scrollContentWithBottomNav: {
-    paddingBottom: BOTTOM_NAV_CONTENT_PADDING + 28,
   },
 
   pageInner: {
@@ -1538,12 +1363,54 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
 
+  destinationSuggestionsList: {
+    marginTop: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#D7E4F7",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+  },
+
+  destinationSuggestionItem: {
+    minHeight: 46,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E5EDF8",
+  },
+
+  destinationSuggestionText: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "600",
+    color: "#223D69",
+  },
+
+  destinationSuggestionState: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: "#6B7C99",
+  },
+
   destinationUpdatedRow: {
     marginTop: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 14,
+  },
+
+  destinationScopeText: {
+    marginTop: 12,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.94)",
   },
 
   destinationUpdatedRowCompact: {
@@ -1947,6 +1814,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
+  categoryDescription: {
+    marginTop: 10,
+    textAlign: "center",
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#51637E",
+  },
+
   tipsCard: {
     marginTop: 2,
     borderRadius: 24,
@@ -2011,6 +1886,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     color: "#587093",
+  },
+
+  tipSource: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#6B7C99",
   },
 
   tipChevron: {

@@ -1,8 +1,9 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Linking,
   Modal,
@@ -15,14 +16,25 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import * as dashboardApi from "../src/api/dashboard";
+import {
+  PLAN_FAVORITE_ITEM_TYPE,
+  PLAN_FAVORITE_PROVIDER,
+  favoriteKeyFromItem,
+  planFavoriteKey,
+  planFavoritePayload,
+} from "../src/api/mappers";
 import { getToken } from "../src/auth/tokenStorage";
 import { formatDateRange, formatNights, mapPlanDetail } from "../src/itinerary/mapPlan";
+import DestinationSuggestField, {
+  INVALID_MESSAGE as INVALID_DESTINATION_MESSAGE,
+} from "../src/itinerary/DestinationSuggestField";
+import TripSwitcherSheet from "../src/itinerary/TripSwitcherSheet";
 import { useUserLocation } from "../src/location/UserLocationContext";
 import { WayfinderBrand } from "./AuthShared";
-import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
+import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 
 const heroArtworkImage = require("../assets/images/itinerary-hero-reference.png");
@@ -43,8 +55,19 @@ const DEMO_TRIP = {
   dayCount: 4,
 };
 
-const activityCategories = {
-  cafe: {
+function buildTag(label, backgroundColor, textColor) {
+  return {
+    label,
+    iconName: "sparkles",
+    backgroundColor,
+    textColor,
+  };
+}
+
+const activityCategories = [
+  {
+    key: "cafe",
+    label: "Cafe",
     iconLibrary: "ionicons",
     iconName: "cafe-outline",
     iconBackground: "#2066F5",
@@ -52,7 +75,9 @@ const activityCategories = {
     tagBackgroundColor: "#EAF2FF",
     tagTextColor: "#245BE2",
   },
-  photo: {
+  {
+    key: "photo",
+    label: "Photo Spot",
     iconLibrary: "ionicons",
     iconName: "camera-outline",
     iconBackground: "#FF6D1F",
@@ -60,7 +85,9 @@ const activityCategories = {
     tagBackgroundColor: "#FFF1E4",
     tagTextColor: "#E87424",
   },
-  food: {
+  {
+    key: "food",
+    label: "Food",
     iconLibrary: "ionicons",
     iconName: "restaurant-outline",
     iconBackground: "#30B45C",
@@ -68,7 +95,9 @@ const activityCategories = {
     tagBackgroundColor: "#EAF9F0",
     tagTextColor: "#16974B",
   },
-  museum: {
+  {
+    key: "culture",
+    label: "Culture",
     iconLibrary: "material",
     iconName: "bank-outline",
     iconBackground: "#7A56EC",
@@ -76,7 +105,9 @@ const activityCategories = {
     tagBackgroundColor: "#F1EBFF",
     tagTextColor: "#6A48D7",
   },
-  sunset: {
+  {
+    key: "sunset",
+    label: "Scenic",
     iconLibrary: "ionicons",
     iconName: "sunny-outline",
     iconBackground: "#EA4A90",
@@ -84,15 +115,9 @@ const activityCategories = {
     tagBackgroundColor: "#FFE8F1",
     tagTextColor: "#E1477E",
   },
-  dinner: {
-    iconLibrary: "ionicons",
-    iconName: "wine-outline",
-    iconBackground: "#FDB92B",
-    markerColor: "#FDB92B",
-    tagBackgroundColor: "#FFF4D6",
-    tagTextColor: "#D28B03",
-  },
-  travel: {
+  {
+    key: "travel",
+    label: "Travel",
     iconLibrary: "ionicons",
     iconName: "airplane-outline",
     iconBackground: "#1F78FF",
@@ -100,73 +125,104 @@ const activityCategories = {
     tagBackgroundColor: "#EAF2FF",
     tagTextColor: "#245BE2",
   },
-};
+];
 
-const initialDays = [
+const categoryByKey = Object.fromEntries(
+  activityCategories.map((category) => [category.key, category])
+);
+
+const itineraryTips = [
+  "Consider using rideshare or public transit to avoid parking and traffic.",
+  "The Getty Center is easiest with a timed ticket and a little extra arrival time.",
+  "Griffith Observatory gets busier close to sunset, so arriving early helps.",
+];
+
+/** Local-only demo days — never persisted to the API. */
+const DEMO_DAYS = [
   {
     id: "day1",
     label: "Day 1",
     shortDate: "Jul 12",
     fullDate: "Saturday, Jul 12",
-    weather: {
-      iconName: "sunny",
-      label: "Sunny",
-      temperature: "78°F",
-    },
+    weather: { icon: "sunny", label: "Sunny", temperature: "78°F" },
     activities: [
       {
-        id: "breakfast",
+        id: "day1-breakfast",
+        kind: "seed",
         time: "9:00 AM",
         title: "Breakfast at Urth Caffé",
         location: "Santa Monica",
         distance: "2.1 mi",
-        category: "cafe",
-        tag: "Recommended by Wayfinder",
+        markerColor: "#2066F5",
+        iconLibrary: "ionicons",
+        iconName: "cafe-outline",
+        iconBackground: "#2066F5",
+        tag: buildTag("Recommended by Wayfinder", "#EAF2FF", "#245BE2"),
       },
       {
-        id: "pier",
+        id: "day1-pier",
+        kind: "seed",
         time: "11:00 AM",
         title: "Santa Monica Pier",
         location: "Santa Monica",
         distance: "2.4 mi",
-        category: "photo",
-        tag: "Photo spot",
+        markerColor: "#FF6D1F",
+        iconLibrary: "ionicons",
+        iconName: "camera-outline",
+        iconBackground: "#FF6D1F",
+        tag: buildTag("Photo spot", "#FFF1E4", "#E87424"),
       },
       {
-        id: "lunch",
+        id: "day1-lunch",
+        kind: "seed",
         time: "1:30 PM",
         title: "Lunch at The Albright",
         location: "Santa Monica",
         distance: "0.8 mi",
-        category: "food",
-        tag: "",
+        markerColor: "#30B45C",
+        iconLibrary: "ionicons",
+        iconName: "restaurant-outline",
+        iconBackground: "#30B45C",
+        tag: null,
       },
       {
-        id: "getty",
+        id: "day1-getty",
+        kind: "seed",
         time: "3:30 PM",
         title: "The Getty Center",
         location: "Brentwood",
         distance: "6.3 mi",
-        category: "museum",
-        tag: "Reserve tickets online",
+        markerColor: "#7A56EC",
+        iconLibrary: "material",
+        iconName: "bank-outline",
+        iconBackground: "#7A56EC",
+        tag: buildTag("Reserve tickets online", "#F1EBFF", "#6A48D7"),
       },
       {
-        id: "griffith",
+        id: "day1-griffith",
+        kind: "seed",
         time: "7:00 PM",
         title: "Sunset at Griffith Observatory",
         location: "Los Feliz",
         distance: "7.9 mi",
-        category: "sunset",
-        tag: "Best sunset in LA",
+        markerColor: "#EA4A90",
+        iconLibrary: "ionicons",
+        iconName: "sunny-outline",
+        iconBackground: "#EA4A90",
+        tag: buildTag("Best sunset in LA", "#FFE8F1", "#E1477E"),
       },
       {
-        id: "dinner",
+        id: "day1-dinner",
+        kind: "seed",
         time: "9:00 PM",
         title: "Dinner in Downtown LA",
         location: "Downtown LA",
         distance: "5.2 mi",
-        category: "dinner",
-        tag: "",
+        markerColor: "#FDB92B",
+        iconLibrary: "ionicons",
+        iconName: "wine-outline",
+        iconBackground: "#FDB92B",
+        tag: null,
       },
     ],
   },
@@ -175,38 +231,46 @@ const initialDays = [
     label: "Day 2",
     shortDate: "Jul 13",
     fullDate: "Sunday, Jul 13",
-    weather: {
-      iconName: "partly-sunny",
-      label: "Warm",
-      temperature: "80°F",
-    },
+    weather: { icon: "partly-sunny", label: "Warm", temperature: "80°F" },
     activities: [
       {
-        id: "venice-coffee",
+        id: "day2-coffee",
+        kind: "seed",
         time: "8:30 AM",
         title: "Coffee in Venice",
         location: "Venice Beach",
         distance: "3.4 mi",
-        category: "cafe",
-        tag: "",
+        markerColor: "#2066F5",
+        iconLibrary: "ionicons",
+        iconName: "cafe-outline",
+        iconBackground: "#2066F5",
+        tag: null,
       },
       {
-        id: "venice-walk",
+        id: "day2-canals",
+        kind: "seed",
         time: "10:00 AM",
         title: "Venice Canals Walk",
         location: "Venice",
         distance: "0.6 mi",
-        category: "travel",
-        tag: "Slow morning",
+        markerColor: "#1F78FF",
+        iconLibrary: "ionicons",
+        iconName: "airplane-outline",
+        iconBackground: "#1F78FF",
+        tag: buildTag("Slow morning", "#EAF2FF", "#245BE2"),
       },
       {
-        id: "abbot-kinney",
+        id: "day2-lunch",
+        kind: "seed",
         time: "1:00 PM",
         title: "Lunch on Abbot Kinney",
         location: "Venice",
         distance: "1.2 mi",
-        category: "food",
-        tag: "",
+        markerColor: "#30B45C",
+        iconLibrary: "ionicons",
+        iconName: "restaurant-outline",
+        iconBackground: "#30B45C",
+        tag: null,
       },
     ],
   },
@@ -215,29 +279,33 @@ const initialDays = [
     label: "Day 3",
     shortDate: "Jul 14",
     fullDate: "Monday, Jul 14",
-    weather: {
-      iconName: "sunny",
-      label: "Clear",
-      temperature: "76°F",
-    },
+    weather: { icon: "sunny", label: "Clear", temperature: "76°F" },
     activities: [
       {
-        id: "runyon",
+        id: "day3-hike",
+        kind: "seed",
         time: "7:30 AM",
         title: "Runyon Canyon Hike",
         location: "Hollywood Hills",
         distance: "4.8 mi",
-        category: "travel",
-        tag: "Morning views",
+        markerColor: "#1F78FF",
+        iconLibrary: "ionicons",
+        iconName: "airplane-outline",
+        iconBackground: "#1F78FF",
+        tag: buildTag("Morning views", "#EAF2FF", "#245BE2"),
       },
       {
-        id: "museum",
+        id: "day3-museum",
+        kind: "seed",
         time: "2:00 PM",
         title: "Academy Museum",
         location: "Miracle Mile",
         distance: "5.1 mi",
-        category: "museum",
-        tag: "",
+        markerColor: "#7A56EC",
+        iconLibrary: "material",
+        iconName: "bank-outline",
+        iconBackground: "#7A56EC",
+        tag: null,
       },
     ],
   },
@@ -246,38 +314,36 @@ const initialDays = [
     label: "Day 4",
     shortDate: "Jul 15",
     fullDate: "Tuesday, Jul 15",
-    weather: {
-      iconName: "sunny",
-      label: "Bright",
-      temperature: "75°F",
-    },
+    weather: { icon: "sunny", label: "Bright", temperature: "75°F" },
     activities: [
       {
-        id: "broad",
+        id: "day4-broad",
+        kind: "seed",
         time: "11:30 AM",
         title: "The Broad",
         location: "Downtown LA",
         distance: "1.1 mi",
-        category: "museum",
-        tag: "",
+        markerColor: "#7A56EC",
+        iconLibrary: "material",
+        iconName: "bank-outline",
+        iconBackground: "#7A56EC",
+        tag: null,
       },
       {
-        id: "transfer",
+        id: "day4-transfer",
+        kind: "seed",
         time: "5:30 PM",
         title: "Airport Transfer",
         location: "LAX",
         distance: "11.2 mi",
-        category: "travel",
-        tag: "Leave early for traffic",
+        markerColor: "#1F78FF",
+        iconLibrary: "ionicons",
+        iconName: "airplane-outline",
+        iconBackground: "#1F78FF",
+        tag: buildTag("Leave early for traffic", "#EAF2FF", "#245BE2"),
       },
     ],
   },
-];
-
-const itineraryTips = [
-  "Consider using rideshare or public transit to avoid parking and traffic.",
-  "The Getty Center is easiest with a timed ticket and a little extra arrival time.",
-  "Griffith Observatory gets busier close to sunset, so arriving early helps.",
 ];
 
 const cardShadowStyle = Platform.select({
@@ -293,12 +359,57 @@ const cardShadowStyle = Platform.select({
   },
 });
 
-function categoryFor(activity) {
-  return activityCategories[activity.category] || activityCategories.food;
+function createEmptyTripDraft() {
+  return {
+    title: "",
+    destination: "",
+    selectedDestination: null,
+    startDate: "",
+    endDate: "",
+    hotelName: "",
+    hotelProviderId: "",
+  };
+}
+
+function createTripDraftFromTrip(trip) {
+  return {
+    title: trip?.title || "",
+    destination: trip?.destination || "",
+    selectedDestination: trip?.destination
+      ? { label: trip.destination, lat: null, lng: null }
+      : null,
+    startDate: trip?.startDate || "",
+    endDate: trip?.endDate || "",
+    hotelName: trip?.hotelName || "",
+    hotelProviderId: trip?.hotelProviderId || "",
+  };
+}
+
+function nightsFromDates(startDate, endDate) {
+  if (!startDate || !endDate) {
+    return null;
+  }
+  const start = new Date(`${startDate}T12:00:00`);
+  const end = new Date(`${endDate}T12:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return null;
+  }
+  return Math.round((end - start) / (1000 * 60 * 60 * 24));
+}
+
+function createActivityDraft(dayId) {
+  return {
+    dayId,
+    time: "12:00 PM",
+    title: "",
+    location: "",
+    category: "food",
+    tag: "",
+  };
 }
 
 function parseTime(value) {
-  const match = value.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
 
   if (!match) {
     return Number.MAX_SAFE_INTEGER;
@@ -321,6 +432,26 @@ function parseTime(value) {
 
 function sortedActivities(activities) {
   return [...activities].sort((left, right) => parseTime(left.time) - parseTime(right.time));
+}
+
+/** Build a local (demo-only) activity; distance stays placeholder until GPS mapping. */
+function buildActivityFromDraft(draft) {
+  const category = categoryByKey[draft.category] || categoryByKey.food;
+  const tagLabel = draft.tag.trim();
+
+  return {
+    id: `activity-${Date.now()}`,
+    kind: "custom",
+    time: draft.time.trim(),
+    title: draft.title.trim(),
+    location: draft.location.trim(),
+    distance: "—",
+    markerColor: category.markerColor,
+    iconLibrary: category.iconLibrary,
+    iconName: category.iconName,
+    iconBackground: category.iconBackground,
+    tag: tagLabel ? buildTag(tagLabel, category.tagBackgroundColor, category.tagTextColor) : null,
+  };
 }
 
 function renderIcon(library, name, size, color) {
@@ -356,17 +487,15 @@ function routeMapUrl(day, destination) {
   return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destinationStop)}${waypointQuery}&travelmode=driving`;
 }
 
-async function openUrl(url) {
-  await Linking.openURL(url);
+async function openExternalUrl(url, onFailure) {
+  try {
+    await Linking.openURL(url);
+  } catch (_error) {
+    onFailure?.();
+  }
 }
 
-function HeaderActionButton({
-  iconName,
-  iconSize = 28,
-  accessibilityLabel,
-  onPress,
-  showDot = false,
-}) {
+function HeaderActionButton({ iconName, iconSize = 28, accessibilityLabel, onPress, showDot = false }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -380,19 +509,13 @@ function HeaderActionButton({
   );
 }
 
-function PillButton({
-  label,
-  iconName,
-  onPress,
-  outlined = false,
-  compact = false,
-  style,
-}) {
+function PillButton({ label, iconName, onPress, outlined = false, compact = false, accessibilityLabel, style }) {
   const Button = outlined ? DimPressable : Pressable;
 
   return (
     <Button
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel || label}
       onPress={onPress}
       style={[
         styles.pillButton,
@@ -402,9 +525,7 @@ function PillButton({
       ]}
     >
       <Ionicons name={iconName} size={compact ? 18 : 20} color="#2463EB" />
-      <Text style={[styles.pillButtonText, compact && styles.pillButtonTextCompact]}>
-        {label}
-      </Text>
+      <Text style={[styles.pillButtonText, compact && styles.pillButtonTextCompact]}>{label}</Text>
     </Button>
   );
 }
@@ -429,60 +550,54 @@ function GradientTab({ day, active, onPress, compact = false }) {
 
   if (active) {
     return (
-      <Pressable onPress={onPress} style={[styles.dayTab, compact && styles.dayTabCompact, styles.dayTabActive]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${day.label}, ${day.shortDate}`}
+        onPress={onPress}
+        style={[styles.dayTab, compact && styles.dayTabCompact, styles.dayTabActive]}
+      >
         {content}
       </Pressable>
     );
   }
 
   return (
-    <DimPressable onPress={onPress} style={[styles.dayTab, compact && styles.dayTabCompact]}>
+    <DimPressable
+      accessibilityRole="button"
+      accessibilityLabel={`${day.label}, ${day.shortDate}`}
+      onPress={onPress}
+      style={[styles.dayTab, compact && styles.dayTabCompact]}
+    >
       {content}
     </DimPressable>
   );
 }
 
-function TagBadge({ activity, compact = false }) {
-  if (!activity.tag) {
+function TagBadge({ tag, compact = false }) {
+  if (!tag) {
     return null;
   }
-
-  const category = categoryFor(activity);
 
   return (
     <View
       style={[
         styles.tagBadge,
         compact && styles.tagBadgeCompact,
-        { backgroundColor: category.tagBackgroundColor },
+        { backgroundColor: tag.backgroundColor },
       ]}
     >
-      <Ionicons name="sparkles" size={11} color={category.tagTextColor} />
+      <Ionicons name={tag.iconName} size={11} color={tag.textColor} />
       <Text
         numberOfLines={compact ? 2 : 1}
-        style={[
-          styles.tagBadgeText,
-          compact && styles.tagBadgeTextCompact,
-          { color: category.tagTextColor },
-        ]}
+        style={[styles.tagBadgeText, compact && styles.tagBadgeTextCompact, { color: tag.textColor }]}
       >
-        {activity.tag}
+        {tag.label}
       </Text>
     </View>
   );
 }
 
-function ActivityRow({
-  activity,
-  compact = false,
-  isFirst,
-  isLast,
-  onOpenDetails,
-  onOpenMap,
-  onDelete,
-}) {
-  const category = categoryFor(activity);
-
+function ActivityRow({ activity, compact = false, isFirst, isLast, onOpenDetails, onOpenMap, onDelete }) {
   return (
     <View style={[styles.activityRow, compact && styles.activityRowCompact, isFirst && styles.activityRowFirst]}>
       <View style={[styles.timeColumn, compact && styles.timeColumnCompact]}>
@@ -495,7 +610,7 @@ function ActivityRow({
           style={[
             styles.timelineMarker,
             compact && styles.timelineMarkerCompact,
-            { borderColor: category.markerColor },
+            { borderColor: activity.markerColor },
           ]}
         />
         <View style={[styles.timelineSegment, isLast && styles.timelineSegmentHidden]} />
@@ -506,10 +621,10 @@ function ActivityRow({
           style={[
             styles.activityIconCircle,
             compact && styles.activityIconCircleCompact,
-            { backgroundColor: category.iconBackground },
+            { backgroundColor: activity.iconBackground },
           ]}
         >
-          {renderIcon(category.iconLibrary, category.iconName, compact ? 24 : 27, "#FFFFFF")}
+          {renderIcon(activity.iconLibrary, activity.iconName, compact ? 24 : 27, "#FFFFFF")}
         </View>
       </View>
 
@@ -523,18 +638,27 @@ function ActivityRow({
             {activity.location}
           </Text>
         </View>
-        <TagBadge activity={activity} compact={compact} />
+        <TagBadge tag={activity.tag} compact={compact} />
       </Pressable>
 
-      <Pressable onPress={onOpenMap} style={[styles.routeActionColumn, compact && styles.routeActionColumnCompact]}>
-        <View style={styles.routeActionRow}>
+      <View style={[styles.routeActionColumn, compact && styles.routeActionColumnCompact]}>
+        <Pressable onPress={onOpenMap} style={styles.routeActionRow}>
           <Ionicons name="location" size={compact ? 15 : 17} color="#2463EB" />
-          <Text style={[styles.distanceText, compact && styles.distanceTextCompact]}>
-            {activity.distance}
-          </Text>
+          <Text style={[styles.distanceText, compact && styles.distanceTextCompact]}>{activity.distance}</Text>
           <Ionicons name="chevron-forward" size={compact ? 20 : 22} color="#627089" />
-        </View>
-      </Pressable>
+        </Pressable>
+
+        {onDelete ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Delete ${activity.title}`}
+            onPress={onDelete}
+            style={styles.deleteActivityButton}
+          >
+            <Ionicons name="trash-outline" size={16} color="#C2410C" />
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -575,7 +699,12 @@ function ModalShell({ visible, title, subtitle, onClose, children, footer }) {
               <Text style={styles.modalTitle}>{title}</Text>
               {subtitle ? <Text style={styles.modalSubtitle}>{subtitle}</Text> : null}
             </View>
-            <Pressable onPress={onClose} style={styles.modalCloseButton}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              onPress={onClose}
+              style={styles.modalCloseButton}
+            >
               <Ionicons name="close" size={24} color="#16284A" />
             </Pressable>
           </View>
@@ -596,7 +725,7 @@ function ModalShell({ visible, title, subtitle, onClose, children, footer }) {
   );
 }
 
-function Field({ label, value, onChangeText, placeholder }) {
+function Field({ label, value, onChangeText, placeholder, keyboardType = "default" }) {
   return (
     <View style={styles.fieldGroup}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -605,73 +734,451 @@ function Field({ label, value, onChangeText, placeholder }) {
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor="#8A99B1"
+        keyboardType={keyboardType}
         style={styles.fieldInput}
       />
     </View>
   );
 }
 
-function CategoryChip({ label, selected, onPress }) {
+function TripCoverImage({ uri, fallback, style }) {
+  const [failed, setFailed] = useState(false);
+  const source = uri && !failed ? { uri } : fallback;
+  return (
+    <Image
+      source={source}
+      resizeMode="cover"
+      style={style}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function StaticField({ label, value }) {
+  return (
+    <View style={styles.fieldGroup}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={styles.readOnlyField}>{value || "—"}</Text>
+    </View>
+  );
+}
+
+function CategoryChip({ category, selected, onPress }) {
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={category.label}
       onPress={onPress}
       style={[styles.categoryChip, selected && styles.categoryChipSelected]}
     >
-      <Text style={[styles.categoryChipText, selected && styles.categoryChipTextSelected]}>
-        {label}
-      </Text>
+      <View
+        style={[
+          styles.categoryIconBadge,
+          { backgroundColor: selected ? "#FFFFFF" : category.iconBackground },
+        ]}
+      >
+        {renderIcon(category.iconLibrary, category.iconName, 15, selected ? category.iconBackground : "#FFFFFF")}
+      </View>
+      <Text style={[styles.categoryChipText, selected && styles.categoryChipTextSelected]}>{category.label}</Text>
     </Pressable>
   );
 }
 
 function FooterButton({ label, primary = false, onPress }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.footerButton, primary && styles.footerButtonPrimary]}
-    >
-      <Text style={[styles.footerButtonText, primary && styles.footerButtonTextPrimary]}>
-        {label}
-      </Text>
+    <Pressable onPress={onPress} style={[styles.footerButton, primary && styles.footerButtonPrimary]}>
+      <Text style={[styles.footerButtonText, primary && styles.footerButtonTextPrimary]}>{label}</Text>
     </Pressable>
   );
 }
 
-function createDraft(dayId) {
-  return {
-    dayId,
-    time: "12:00 PM",
-    title: "",
-    location: "",
-    distance: "1.0 mi",
-    category: "food",
-    tag: "",
-  };
-}
-
-export default function ItineraryScreen({ onNavigate, onBack }) {
+export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
+  const insets = useSafeAreaInsets();
+  const bottomNavPadding = getBottomNavContentPadding(insets);
   const { width } = useWindowDimensions();
+  const { location } = useUserLocation();
+  const skipApiLoadRef = useRef(false);
+
   const isPhone = width < 520;
   const isCompactPhone = width < 400;
   const isHeroStacked = width < 760;
   const isHeroCompact = width < 460;
   const pageMaxWidth = width >= 1100 ? 1040 : 980;
 
-  const [trip, setTrip] = useState(initialTrip);
-  const [days, setDays] = useState(initialDays);
-  const [selectedDayId, setSelectedDayId] = useState(initialDays[0].id);
-  const [selectedActivity, setSelectedActivity] = useState(null);
-  const [tipsVisible, setTipsVisible] = useState(false);
-  const [editTripVisible, setEditTripVisible] = useState(false);
-  const [addActivityVisible, setAddActivityVisible] = useState(false);
-  const [tripDraft, setTripDraft] = useState(initialTrip);
-  const [activityDraft, setActivityDraft] = useState(createDraft(initialDays[0].id));
-  const [formError, setFormError] = useState("");
+  const [viewMode, setViewMode] = useState("loading"); // loading | empty | demo | plan
+  const [planId, setPlanId] = useState(null);
+  const [trip, setTrip] = useState(null);
+  const [days, setDays] = useState([]);
+  const [selectedDayId, setSelectedDayId] = useState(null);
+  const [notice, setNotice] = useState("");
+  const [loadError, setLoadError] = useState("");
 
-  const selectedDay = useMemo(
-    () => days.find((day) => day.id === selectedDayId) || days[0],
-    [days, selectedDayId]
+  const [isCreateTripVisible, setIsCreateTripVisible] = useState(false);
+  const [createDraft, setCreateDraft] = useState(createEmptyTripDraft());
+  const [createDraftError, setCreateDraftError] = useState("");
+  const [isSavingTrip, setIsSavingTrip] = useState(false);
+
+  const [editTripVisible, setEditTripVisible] = useState(false);
+  const [tripDraft, setTripDraft] = useState(createEmptyTripDraft());
+  const [tripDraftError, setTripDraftError] = useState("");
+
+  const [addActivityVisible, setAddActivityVisible] = useState(false);
+  const [activityDraft, setActivityDraft] = useState(createActivityDraft(null));
+  const [activityDraftError, setActivityDraftError] = useState("");
+  const [isSavingActivity, setIsSavingActivity] = useState(false);
+
+  const [tipsVisible, setTipsVisible] = useState(false);
+  const [selectedActivityRef, setSelectedActivityRef] = useState(null);
+
+  const [isPlanFavorited, setIsPlanFavorited] = useState(false);
+  const [isFavoritePending, setIsFavoritePending] = useState(false);
+
+  const [switcherVisible, setSwitcherVisible] = useState(false);
+  const [activePlans, setActivePlans] = useState([]);
+  const [pastPlans, setPastPlans] = useState([]);
+  const [switcherLoading, setSwitcherLoading] = useState(false);
+  const [switcherError, setSwitcherError] = useState("");
+
+  const selectedDay = days.find((day) => day.id === selectedDayId) || days[0] || null;
+  const selectedActivity = selectedActivityRef
+    ? days
+        .find((day) => day.id === selectedActivityRef.dayId)
+        ?.activities.find((activity) => activity.id === selectedActivityRef.activityId) || null
+    : null;
+
+  const applyMappedPlan = useCallback((plan, userLocation) => {
+    skipApiLoadRef.current = false;
+    const mapped = mapPlanDetail(plan, userLocation);
+    setPlanId(plan.id);
+    setTrip(mapped.trip);
+    setDays(mapped.days);
+    setSelectedDayId((current) => {
+      if (current && mapped.days.some((day) => day.id === current)) {
+        return current;
+      }
+      return mapped.days[0]?.id || null;
+    });
+    setViewMode("plan");
+    setLoadError("");
+  }, []);
+
+  const loadPlan = useCallback(
+    async (requestedPlanId = params.planId) => {
+      // Demo itinerary is local-only; skip until user navigates with a planId.
+      if (skipApiLoadRef.current && !requestedPlanId) {
+        return;
+      }
+
+      skipApiLoadRef.current = false;
+      setViewMode((mode) => (mode === "plan" || mode === "demo" ? mode : "loading"));
+      setLoadError("");
+
+      try {
+        const token = await getToken();
+        if (!token) {
+          setPlanId(null);
+          setTrip(null);
+          setDays([]);
+          setSelectedDayId(null);
+          setViewMode("empty");
+          setLoadError("Sign in to load or create a trip.");
+          return;
+        }
+
+        let targetId = requestedPlanId || null;
+        if (!targetId) {
+          const plans = await dashboardApi.fetchPlans(token, "active");
+          if (!plans?.length) {
+            setPlanId(null);
+            setTrip(null);
+            setDays([]);
+            setSelectedDayId(null);
+            setViewMode("empty");
+            return;
+          }
+          targetId = plans[0].id;
+        }
+
+        const plan = await dashboardApi.fetchPlan(token, targetId);
+        applyMappedPlan(plan, location);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to load itinerary.";
+        setLoadError(message);
+        setPlanId(null);
+        setTrip(null);
+        setDays([]);
+        setSelectedDayId(null);
+        setViewMode("empty");
+      }
+    },
+    [applyMappedPlan, location, params.planId]
   );
+
+  // Reload when planId or GPS origin changes (distances remap via mapPlanDetail).
+  useEffect(() => {
+    loadPlan(params.planId);
+  }, [params.planId, location?.lat, location?.lng, loadPlan]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFavoriteState(currentPlanId) {
+      if (!currentPlanId || viewMode !== "plan") {
+        setIsPlanFavorited(false);
+        return;
+      }
+      try {
+        const token = await getToken();
+        if (!token) {
+          if (!cancelled) {
+            setIsPlanFavorited(false);
+          }
+          return;
+        }
+        const favorites = await dashboardApi.fetchFavorites(token);
+        const key = planFavoriteKey(currentPlanId);
+        const isSaved = (favorites || []).some(
+          (item) =>
+            item.item_type === PLAN_FAVORITE_ITEM_TYPE && favoriteKeyFromItem(item) === key
+        );
+        if (!cancelled) {
+          setIsPlanFavorited(isSaved);
+        }
+      } catch {
+        // Keep prior heart state if refresh fails.
+      }
+    }
+
+    loadFavoriteState(planId);
+    return () => {
+      cancelled = true;
+    };
+  }, [planId, viewMode]);
+
+  const togglePlanFavorite = async () => {
+    if (viewMode !== "plan" || !planId || !trip) {
+      return;
+    }
+    if (isFavoritePending) {
+      return;
+    }
+
+    const token = await getToken();
+    if (!token) {
+      Alert.alert("Sign in required", "Sign in to save trips to your favorites.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign in", onPress: () => onNavigate?.("login") },
+      ]);
+      return;
+    }
+
+    const wasSaved = isPlanFavorited;
+    setIsFavoritePending(true);
+    setIsPlanFavorited(!wasSaved);
+
+    try {
+      if (wasSaved) {
+        await dashboardApi.removeFavorite(token, {
+          itemType: PLAN_FAVORITE_ITEM_TYPE,
+          provider: PLAN_FAVORITE_PROVIDER,
+          providerItemId: String(planId),
+        });
+        setNotice("Removed from favorites.");
+      } else {
+        await dashboardApi.addFavorite(token, planFavoritePayload(planId, trip));
+        setNotice("Saved to favorites.");
+      }
+    } catch (err) {
+      setIsPlanFavorited(wasSaved);
+      Alert.alert("Couldn't update favorites", err?.message || "Please try again.");
+    } finally {
+      setIsFavoritePending(false);
+    }
+  };
+
+  const refreshPlanLists = useCallback(async () => {
+    setSwitcherLoading(true);
+    setSwitcherError("");
+    try {
+      const token = await getToken();
+      if (!token) {
+        setActivePlans([]);
+        setPastPlans([]);
+        setSwitcherError("Sign in to manage trips.");
+        return;
+      }
+      const [active, past] = await Promise.all([
+        dashboardApi.fetchPlans(token, "active"),
+        dashboardApi.fetchPlans(token, "completed"),
+      ]);
+      setActivePlans(active || []);
+      setPastPlans(past || []);
+    } catch (error) {
+      setSwitcherError(error instanceof Error ? error.message : "Couldn't load trips.");
+    } finally {
+      setSwitcherLoading(false);
+    }
+  }, []);
+
+  const hasDirtyDrafts = () =>
+    isCreateTripVisible || editTripVisible || addActivityVisible;
+
+  const confirmDiscardThen = (action) => {
+    if (!hasDirtyDrafts()) {
+      action();
+      return;
+    }
+    Alert.alert("Discard changes?", "You have unsaved edits. Discard them and continue?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Discard",
+        style: "destructive",
+        onPress: () => {
+          setIsCreateTripVisible(false);
+          setEditTripVisible(false);
+          setAddActivityVisible(false);
+          setCreateDraftError("");
+          setTripDraftError("");
+          setActivityDraftError("");
+          action();
+        },
+      },
+    ]);
+  };
+
+  const openTripSwitcher = () => {
+    if (viewMode === "demo") {
+      Alert.alert("Demo mode", "Create a real trip to use the trip switcher.");
+      return;
+    }
+    confirmDiscardThen(() => {
+      setSwitcherVisible(true);
+      refreshPlanLists();
+    });
+  };
+
+  const closeTripSwitcher = () => setSwitcherVisible(false);
+
+  const showEmptyActiveState = () => {
+    setPlanId(null);
+    setTrip(null);
+    setDays([]);
+    setSelectedDayId(null);
+    setViewMode("empty");
+    setIsPlanFavorited(false);
+  };
+
+  const loadPlanById = async (nextPlanId) => {
+    const token = await getToken();
+    if (!token) {
+      setLoadError("Sign in to load or create a trip.");
+      showEmptyActiveState();
+      return;
+    }
+    const plan = await dashboardApi.fetchPlan(token, nextPlanId);
+    applyMappedPlan(plan, location);
+  };
+
+  const handleSelectPlan = (plan) => {
+    confirmDiscardThen(async () => {
+      try {
+        closeTripSwitcher();
+        if (String(plan.id) === String(planId) && viewMode === "plan") {
+          return;
+        }
+        await loadPlanById(plan.id);
+      } catch (error) {
+        Alert.alert("Couldn't open trip", error instanceof Error ? error.message : "Try again.");
+      }
+    });
+  };
+
+  const handleCreateFromSwitcher = () => {
+    confirmDiscardThen(() => {
+      closeTripSwitcher();
+      openCreateTrip();
+    });
+  };
+
+  const handleCompletePlan = async (plan) => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        return;
+      }
+      await dashboardApi.completePlan(token, plan.id);
+      await refreshPlanLists();
+      const wasCurrent = String(plan.id) === String(planId);
+      if (wasCurrent) {
+        const remaining = (await dashboardApi.fetchPlans(token, "active")) || [];
+        setActivePlans(remaining);
+        if (remaining.length > 0) {
+          await loadPlanById(remaining[0].id);
+          setNotice("Trip marked complete.");
+        } else {
+          showEmptyActiveState();
+          setNotice("Trip marked complete. Create a new trip when you're ready.");
+        }
+      } else {
+        setNotice("Trip marked complete.");
+      }
+    } catch (error) {
+      Alert.alert("Couldn't complete trip", error instanceof Error ? error.message : "Try again.");
+    }
+  };
+
+  const handleReopenPlan = async (plan) => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        return;
+      }
+      const updated = await dashboardApi.reopenPlan(token, plan.id);
+      await refreshPlanLists();
+      await loadPlanById(updated.id);
+      closeTripSwitcher();
+      setNotice("Trip reopened.");
+    } catch (error) {
+      Alert.alert("Couldn't reopen trip", error instanceof Error ? error.message : "Try again.");
+    }
+  };
+
+  const handleDeletePlan = async (plan) => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        return;
+      }
+      const wasCurrent = String(plan.id) === String(planId);
+      await dashboardApi.deletePlan(token, plan.id);
+      if (wasCurrent && isPlanFavorited) {
+        setIsPlanFavorited(false);
+      }
+      await refreshPlanLists();
+      if (wasCurrent) {
+        const remaining = (await dashboardApi.fetchPlans(token, "active")) || [];
+        setActivePlans(remaining);
+        if (remaining.length > 0) {
+          await loadPlanById(remaining[0].id);
+        } else {
+          showEmptyActiveState();
+        }
+        setNotice("Trip deleted.");
+      } else {
+        setNotice("Trip deleted.");
+      }
+    } catch (error) {
+      Alert.alert("Couldn't delete trip", error instanceof Error ? error.message : "Try again.");
+    }
+  };
+
+  useEffect(() => {
+    if (!notice) {
+      return undefined;
+    }
+    const timer = setTimeout(() => setNotice(""), 2600);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const startDemoItinerary = () => {
     skipApiLoadRef.current = true;
@@ -703,6 +1210,14 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
       return;
     }
 
+    if (
+      !createDraft.selectedDestination ||
+      createDraft.selectedDestination.label.trim().toLowerCase() !== destination.toLowerCase()
+    ) {
+      setCreateDraftError(INVALID_DESTINATION_MESSAGE);
+      return;
+    }
+
     if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
       setCreateDraftError("Use YYYY-MM-DD for start and end dates.");
       return;
@@ -720,10 +1235,14 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
 
       const body = {
         title,
-        destination_name: destination,
+        destination_name: createDraft.selectedDestination.label || destination,
         start_date: startDate,
         end_date: endDate,
       };
+      if (createDraft.selectedDestination.lat != null && createDraft.selectedDestination.lng != null) {
+        body.center_lat = createDraft.selectedDestination.lat;
+        body.center_lng = createDraft.selectedDestination.lng;
+      }
       if (hotelName) {
         body.hotel_name = hotelName;
       }
@@ -744,63 +1263,223 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
   };
 
   const openTripEditor = () => {
-    setTripDraft(trip);
-    setFormError("");
+    if (!trip) {
+      return;
+    }
+    setTripDraft(createTripDraftFromTrip(trip));
+    setTripDraftError("");
     setEditTripVisible(true);
   };
 
-  const saveTrip = () => {
-    if (!tripDraft.title.trim() || !tripDraft.destination.trim() || !tripDraft.dates.trim()) {
-      setFormError("Complete the trip details before saving.");
+  const saveTripEdits = async () => {
+    const title = tripDraft.title.trim();
+    const destination = tripDraft.destination.trim();
+    const startDate = tripDraft.startDate.trim();
+    const endDate = tripDraft.endDate.trim();
+    const hotelName = tripDraft.hotelName.trim();
+    const hotelProviderId = tripDraft.hotelProviderId.trim();
+
+    if (!title || !destination || !startDate || !endDate) {
+      setTripDraftError("Title, destination, start date, and end date are required.");
       return;
     }
 
-    setTrip({
-      title: tripDraft.title.trim(),
-      destination: tripDraft.destination.trim(),
-      dates: tripDraft.dates.trim(),
-      nights: tripDraft.nights.trim() || trip.nights,
-    });
-    setEditTripVisible(false);
-    setFormError("");
+    if (
+      !tripDraft.selectedDestination ||
+      tripDraft.selectedDestination.label.trim().toLowerCase() !== destination.toLowerCase()
+    ) {
+      setTripDraftError(INVALID_DESTINATION_MESSAGE);
+      return;
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      setTripDraftError("Use YYYY-MM-DD for start and end dates.");
+      return;
+    }
+
+    const nightsCount = nightsFromDates(startDate, endDate);
+
+    // Demo: local-only edits, no API.
+    if (viewMode === "demo") {
+      setTrip({
+        ...trip,
+        title,
+        destination,
+        startDate,
+        endDate,
+        dates: formatDateRange(startDate, endDate),
+        nights: formatNights(nightsCount),
+        nightsCount,
+        hotelName,
+        hotelProviderId,
+      });
+      setEditTripVisible(false);
+      setTripDraftError("");
+      setNotice("Demo trip updated locally.");
+      return;
+    }
+
+    setIsSavingTrip(true);
+    setTripDraftError("");
+
+    try {
+      const token = await getToken();
+      if (!token || !planId) {
+        setTripDraftError("Sign in to save trip edits.");
+        return;
+      }
+
+      const body = {
+        title,
+        destination_name: tripDraft.selectedDestination.label || destination,
+        start_date: startDate,
+        end_date: endDate,
+        hotel_name: hotelName || null,
+      };
+      if (tripDraft.selectedDestination.lat != null && tripDraft.selectedDestination.lng != null) {
+        body.center_lat = tripDraft.selectedDestination.lat;
+        body.center_lng = tripDraft.selectedDestination.lng;
+      }
+      if (hotelProviderId) {
+        body.hotel_provider_id = hotelProviderId;
+      }
+
+      const plan = await dashboardApi.updatePlan(token, planId, body);
+      applyMappedPlan(plan, location);
+      if (isPlanFavorited) {
+        const mapped = mapPlanDetail(plan, location);
+        try {
+          await dashboardApi.addFavorite(
+            token,
+            planFavoritePayload(planId, mapped.trip)
+          );
+        } catch {
+          // Favorites list still hydrates from the live plan on refresh.
+        }
+      }
+      setEditTripVisible(false);
+      setNotice("Trip details updated.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update trip.";
+      setTripDraftError(message);
+    } finally {
+      setIsSavingTrip(false);
+    }
   };
 
   const openAddActivity = () => {
-    setActivityDraft(createDraft(selectedDay.id));
-    setFormError("");
+    if (!selectedDay) {
+      return;
+    }
+    setActivityDraft(createActivityDraft(selectedDay.id));
+    setActivityDraftError("");
     setAddActivityVisible(true);
   };
 
-  const saveActivity = () => {
-    if (!activityDraft.time.trim() || !activityDraft.title.trim() || !activityDraft.location.trim()) {
-      setFormError("Add a time, title, and location before saving.");
+  const saveActivity = async () => {
+    if (!selectedDay) {
       return;
     }
 
-    const nextActivity = {
-      id: `activity-${Date.now()}`,
-      time: activityDraft.time.trim(),
-      title: activityDraft.title.trim(),
-      location: activityDraft.location.trim(),
-      distance: activityDraft.distance.trim() || "1.0 mi",
-      category: activityDraft.category,
-      tag: activityDraft.tag.trim(),
-    };
+    if (!activityDraft.time.trim() || !activityDraft.title.trim() || !activityDraft.location.trim()) {
+      setActivityDraftError("Add a time, title, and location before saving.");
+      return;
+    }
 
-    setDays((currentDays) =>
-      currentDays.map((day) =>
-        day.id === selectedDay.id
-          ? { ...day, activities: sortedActivities([...day.activities, nextActivity]) }
-          : day
-      )
-    );
+    // Demo: append locally without API.
+    if (viewMode === "demo") {
+      const nextActivity = buildActivityFromDraft(activityDraft);
+      setDays((currentDays) =>
+        currentDays.map((day) =>
+          day.id === selectedDay.id
+            ? { ...day, activities: sortedActivities([...day.activities, nextActivity]) }
+            : day
+        )
+      );
+      setAddActivityVisible(false);
+      setActivityDraftError("");
+      setNotice(`${nextActivity.title} added to ${selectedDay.label}.`);
+      return;
+    }
 
-    setAddActivityVisible(false);
-    setFormError("");
+    setIsSavingActivity(true);
+    setActivityDraftError("");
+
+    try {
+      const token = await getToken();
+      if (!token || !planId) {
+        setActivityDraftError("Sign in to add an activity.");
+        return;
+      }
+
+      await dashboardApi.createPlanActivity(token, planId, selectedDay.id, {
+        time_label: activityDraft.time.trim(),
+        title: activityDraft.title.trim(),
+        location: activityDraft.location.trim(),
+        category: activityDraft.category,
+        tag_label: activityDraft.tag.trim() || null,
+      });
+
+      const plan = await dashboardApi.fetchPlan(token, planId);
+      applyMappedPlan(plan, location);
+      setAddActivityVisible(false);
+      setNotice(`${activityDraft.title.trim()} added to ${selectedDay.label}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to add activity.";
+      setActivityDraftError(message);
+    } finally {
+      setIsSavingActivity(false);
+    }
+  };
+
+  const deleteCustomActivity = async (activity) => {
+    if (viewMode !== "plan" || !planId || activity.kind !== "custom") {
+      return;
+    }
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        setNotice("Sign in to delete activities.");
+        return;
+      }
+
+      await dashboardApi.deletePlanActivity(token, planId, activity.id);
+      const plan = await dashboardApi.fetchPlan(token, planId);
+      applyMappedPlan(plan, location);
+      setSelectedActivityRef(null);
+      setNotice("Activity removed.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to delete activity.";
+      setNotice(message);
+    }
   };
 
   const openDetails = (activity) => {
-    setSelectedActivity(activity);
+    if (!selectedDay) {
+      return;
+    }
+    setSelectedActivityRef({ dayId: selectedDay.id, activityId: activity.id });
+  };
+
+  const closeDetails = () => setSelectedActivityRef(null);
+
+  const openActivityMapPress = (activity) => {
+    if (!trip) {
+      return;
+    }
+    openExternalUrl(activityMapUrl(activity, trip.destination), () =>
+      setNotice(`Unable to open ${activity.title} in Maps right now.`)
+    );
+  };
+
+  const openDayRoute = () => {
+    if (!selectedDay || !trip) {
+      return;
+    }
+    openExternalUrl(routeMapUrl(selectedDay, trip.destination), () =>
+      setNotice("Unable to open the route map right now.")
+    );
   };
 
   const editNightsPreview = formatNights(nightsFromDates(tripDraft.startDate, tripDraft.endDate));
@@ -808,9 +1487,10 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
     nightsFromDates(createDraft.startDate, createDraft.endDate)
   );
   const showTripContent = viewMode === "plan" || viewMode === "demo";
+  const canDeleteActivity = (activity) => viewMode === "plan" && activity.kind === "custom";
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar style="dark" />
 
       <View style={styles.screen}>
@@ -818,11 +1498,10 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent,
-            {
-              paddingBottom: BOTTOM_NAV_CONTENT_PADDING + 20,
-            },
+            { paddingBottom: bottomNavPadding },
           ]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           <View style={[styles.page, { maxWidth: pageMaxWidth }]}>
             <View style={styles.pageGlowTop} />
@@ -839,10 +1518,7 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
               </DimPressable>
 
               <View style={styles.brandSlot}>
-                <WayfinderBrand
-                  containerStyle={styles.headerBrandRow}
-                  textStyle={styles.headerBrandText}
-                />
+                <WayfinderBrand containerStyle={styles.headerBrandRow} textStyle={styles.headerBrandText} />
               </View>
 
               <View style={styles.headerActions}>
@@ -862,11 +1538,23 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
               </View>
             </View>
 
+            {notice ? (
+              <View style={styles.noticeBanner}>
+                <Ionicons name="checkmark-circle" size={18} color="#2463EB" />
+                <Text style={styles.noticeText}>{notice}</Text>
+              </View>
+            ) : null}
+
+            {loadError && viewMode === "empty" ? (
+              <View style={styles.errorBanner}>
+                <Ionicons name="alert-circle" size={18} color="#C2410C" />
+                <Text style={styles.errorBannerText}>{loadError}</Text>
+              </View>
+            ) : null}
+
             <View style={[styles.heroSection, isHeroStacked && styles.heroSectionStacked]}>
               <View style={[styles.heroCopyColumn, isHeroStacked && styles.heroCopyColumnStacked]}>
-                <Text style={[styles.heroTitle, isHeroCompact && styles.heroTitleCompact]}>
-                  Itinerary
-                </Text>
+                <Text style={[styles.heroTitle, isHeroCompact && styles.heroTitleCompact]}>Itinerary</Text>
                 <Text style={[styles.heroSubtitle, isHeroCompact && styles.heroSubtitleCompact]}>
                   Your trip, <Text style={styles.heroSubtitleAccent}>day by day.</Text>
                 </Text>
@@ -874,133 +1562,235 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
 
               <View style={[styles.heroArtworkWrap, isHeroStacked && styles.heroArtworkWrapStacked]}>
                 <View style={styles.heroArtworkGlow} />
-                <Image
-                  source={heroArtworkImage}
-                  resizeMode="cover"
-                  style={styles.heroArtworkImage}
-                />
+                <Image source={heroArtworkImage} resizeMode="cover" style={styles.heroArtworkImage} />
               </View>
             </View>
 
-            <View style={[styles.tripCard, cardShadowStyle, isPhone && styles.tripCardPhone]}>
-              <Image
-                source={tripPreviewImage}
-                resizeMode="cover"
-                style={[styles.tripImage, isPhone && styles.tripImagePhone]}
-              />
+            {viewMode === "loading" ? (
+              <View style={styles.loadingBlock}>
+                <ActivityIndicator size="large" color="#2463EB" />
+                <Text style={styles.loadingText}>Loading your itinerary…</Text>
+              </View>
+            ) : null}
 
-              <View style={[styles.tripCardBody, isPhone && styles.tripCardBodyPhone]}>
-                <View style={styles.tripDetailsColumn}>
-                  <View style={styles.tripTitleRow}>
-                    <Text
-                      numberOfLines={2}
-                      style={[styles.tripTitle, isPhone && styles.tripTitlePhone]}
-                    >
-                      {trip.title}
+            {viewMode === "empty" ? (
+              <View style={[styles.emptyCard, cardShadowStyle]}>
+                <Text style={styles.emptyTitle}>No trip yet</Text>
+                <Text style={styles.emptyBody}>
+                  Create a trip to build a day-by-day itinerary, or explore the local demo.
+                </Text>
+                <View style={styles.emptyActions}>
+                  <PillButton label="Create Trip" iconName="add" onPress={openCreateTrip} />
+                  <PillButton
+                    label="Demo Itinerary"
+                    iconName="sparkles"
+                    outlined
+                    onPress={startDemoItinerary}
+                    accessibilityLabel="Load demo itinerary"
+                  />
+                </View>
+              </View>
+            ) : null}
+
+            {showTripContent && trip ? (
+              <>
+                {viewMode === "demo" ? (
+                  <View style={styles.demoBanner}>
+                    <Ionicons name="flask-outline" size={18} color="#1849A9" />
+                    <Text style={styles.demoBannerText}>
+                      Demo mode — edits stay on this device until you create a real trip.
                     </Text>
-                    <Ionicons name="sparkles" size={18} color="#F5A623" />
                   </View>
+                ) : null}
 
-                  <View style={styles.tripMetaRow}>
-                    <Ionicons name="location" size={18} color="#2463EB" />
-                    <Text style={[styles.tripMetaText, isPhone && styles.tripMetaTextPhone]}>
-                      {trip.destination}
-                    </Text>
+                {viewMode === "plan" && trip.status === "completed" ? (
+                  <View style={styles.completedBanner}>
+                    <Ionicons name="checkmark-circle" size={18} color="#8A5A00" />
+                    <Text style={styles.completedBannerText}>Completed</Text>
                   </View>
+                ) : null}
 
-                  <View style={styles.tripMetaRow}>
-                    <Ionicons name="calendar-outline" size={18} color="#2463EB" />
-                    <Text style={[styles.tripMetaText, isPhone && styles.tripMetaTextPhone]}>
-                      {trip.dates}
-                    </Text>
-                    <Text style={[styles.tripMetaDot, isPhone && styles.tripMetaDotPhone]}>•</Text>
-                    <Text style={[styles.tripMetaText, isPhone && styles.tripMetaTextPhone]}>
-                      {trip.nights}
-                    </Text>
+                <View style={[styles.tripCard, cardShadowStyle, isPhone && styles.tripCardPhone]}>
+                  <TripCoverImage
+                    uri={trip.coverImageUrl}
+                    fallback={tripPreviewImage}
+                    style={[styles.tripImage, isPhone && styles.tripImagePhone]}
+                  />
+
+                  <View style={[styles.tripCardBody, isPhone && styles.tripCardBodyPhone]}>
+                    <View style={styles.tripDetailsColumn}>
+                      <View style={styles.tripTitleRow}>
+                        {viewMode === "plan" ? (
+                          <DimPressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Switch trips, current ${trip.title}`}
+                            onPress={openTripSwitcher}
+                            style={styles.tripTitleButton}
+                          >
+                            <Text
+                              numberOfLines={2}
+                              style={[styles.tripTitle, isPhone && styles.tripTitlePhone]}
+                            >
+                              {trip.title}
+                            </Text>
+                            <Ionicons name="chevron-down" size={18} color="#14253E" />
+                          </DimPressable>
+                        ) : (
+                          <Text numberOfLines={2} style={[styles.tripTitle, isPhone && styles.tripTitlePhone]}>
+                            {trip.title}
+                          </Text>
+                        )}
+                        <Ionicons name="sparkles" size={18} color="#F5A623" />
+                        {viewMode === "plan" ? (
+                          <DimPressable
+                            accessibilityRole="button"
+                            accessibilityLabel={
+                              isPlanFavorited
+                                ? `Remove ${trip.title} from favorites`
+                                : `Save ${trip.title} to favorites`
+                            }
+                            accessibilityState={{ disabled: isFavoritePending }}
+                            disabled={isFavoritePending}
+                            onPress={togglePlanFavorite}
+                            style={styles.tripFavoriteButton}
+                          >
+                            <Ionicons
+                              name={isPlanFavorited ? "heart" : "heart-outline"}
+                              size={22}
+                              color={isPlanFavorited ? "#FF5A4E" : "#14253E"}
+                            />
+                          </DimPressable>
+                        ) : null}
+                      </View>
+
+                      <View style={styles.tripMetaRow}>
+                        <Ionicons name="location" size={18} color="#2463EB" />
+                        <Text style={[styles.tripMetaText, isPhone && styles.tripMetaTextPhone]}>
+                          {trip.destination}
+                        </Text>
+                      </View>
+
+                      <View style={styles.tripMetaRow}>
+                        <Ionicons name="calendar-outline" size={18} color="#2463EB" />
+                        <Text style={[styles.tripMetaText, isPhone && styles.tripMetaTextPhone]}>{trip.dates}</Text>
+                        <Text style={[styles.tripMetaDot, isPhone && styles.tripMetaDotPhone]}>•</Text>
+                        <Text style={[styles.tripMetaText, isPhone && styles.tripMetaTextPhone]}>{trip.nights}</Text>
+                      </View>
+
+                      {trip.hotelName ? (
+                        <View style={styles.tripMetaRow}>
+                          <Ionicons name="bed-outline" size={18} color="#2463EB" />
+                          <Text style={[styles.tripMetaText, isPhone && styles.tripMetaTextPhone]}>
+                            {trip.hotelName}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    <View style={[styles.tripCardActions, isPhone && styles.tripCardActionsPhone]}>
+                      {viewMode === "plan" ? (
+                        <PillButton
+                          label="My trips"
+                          iconName="list-outline"
+                          onPress={openTripSwitcher}
+                          outlined
+                          compact={isPhone}
+                          accessibilityLabel="Open trip switcher"
+                          style={[styles.editTripButton, isPhone && styles.editTripButtonPhone]}
+                        />
+                      ) : null}
+                      <PillButton
+                        label="Edit Trip"
+                        iconName="pencil-outline"
+                        onPress={openTripEditor}
+                        outlined
+                        compact={isPhone}
+                        style={[styles.editTripButton, isPhone && styles.editTripButtonPhone]}
+                      />
+                    </View>
                   </View>
                 </View>
 
-                <PillButton
-                  label="Edit Trip"
-                  iconName="pencil-outline"
-                  onPress={openTripEditor}
-                  outlined
-                  compact={isPhone}
-                  style={[styles.editTripButton, isPhone && styles.editTripButtonPhone]}
-                />
-              </View>
-            </View>
+                {selectedDay ? (
+                  <>
+                    <View style={[styles.selectorRow, isPhone && styles.selectorRowPhone]}>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={[styles.tabsScroller, isPhone && styles.tabsScrollerPhone]}
+                        contentContainerStyle={styles.tabsRow}
+                      >
+                        {days.map((day) => (
+                          <GradientTab
+                            key={day.id}
+                            day={day}
+                            compact={isPhone}
+                            active={day.id === selectedDay.id}
+                            onPress={() => setSelectedDayId(day.id)}
+                          />
+                        ))}
+                      </ScrollView>
 
-            <View style={[styles.selectorRow, isPhone && styles.selectorRowPhone]}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={[styles.tabsScroller, isPhone && styles.tabsScrollerPhone]}
-                contentContainerStyle={styles.tabsRow}
-              >
-                {days.map((day) => (
-                  <GradientTab
-                    key={day.id}
-                    day={day}
-                    compact={isPhone}
-                    active={day.id === selectedDay.id}
-                    onPress={() => setSelectedDayId(day.id)}
-                  />
-                ))}
-              </ScrollView>
+                      <PillButton
+                        label="View Map"
+                        iconName="map-outline"
+                        onPress={openDayRoute}
+                        outlined
+                        compact={isPhone}
+                        style={[styles.viewMapButton, isPhone && styles.viewMapButtonPhone]}
+                      />
+                    </View>
 
-              <PillButton
-                label="View Map"
-                iconName="map-outline"
-                onPress={() => openUrl(routeMapUrl(selectedDay, trip.destination))}
-                outlined
-                compact={isPhone}
-                style={[styles.viewMapButton, isPhone && styles.viewMapButtonPhone]}
-              />
-            </View>
+                    <View style={[styles.itineraryCard, cardShadowStyle]}>
+                      <View style={[styles.itineraryHeader, isPhone && styles.itineraryHeaderPhone]}>
+                        <View style={styles.headerGradientFill} />
+                        <View style={styles.headerGradientBubbleLarge} />
+                        <View style={styles.headerGradientBubbleSmall} />
 
-            <View style={[styles.itineraryCard, cardShadowStyle]}>
-              <View style={[styles.itineraryHeader, isPhone && styles.itineraryHeaderPhone]}>
-                <View style={styles.headerGradientFill} />
-                <View style={styles.headerGradientBubbleLarge} />
-                <View style={styles.headerGradientBubbleSmall} />
+                        <View style={[styles.itineraryHeaderCopy, isPhone && styles.itineraryHeaderCopyPhone]}>
+                          <Text style={[styles.itineraryHeaderTitle, isPhone && styles.itineraryHeaderTitlePhone]}>
+                            {selectedDay.label} <Text style={styles.itineraryHeaderDot}>•</Text>{" "}
+                            {selectedDay.fullDate}
+                          </Text>
+                          <View style={styles.weatherRow}>
+                            <Ionicons name={selectedDay.weather.icon} size={19} color="#FDBB2C" />
+                            <Text style={[styles.weatherText, isPhone && styles.weatherTextPhone]}>
+                              {selectedDay.weather.label} <Text style={styles.weatherDot}>•</Text>{" "}
+                              {selectedDay.weather.temperature}
+                            </Text>
+                          </View>
+                        </View>
 
-                <View style={[styles.itineraryHeaderCopy, isPhone && styles.itineraryHeaderCopyPhone]}>
-                  <Text style={[styles.itineraryHeaderTitle, isPhone && styles.itineraryHeaderTitlePhone]}>
-                    {selectedDay.label} <Text style={styles.itineraryHeaderDot}>•</Text>{" "}
-                    {selectedDay.fullDate}
-                  </Text>
-                  <View style={styles.weatherRow}>
-                    <Ionicons name={selectedDay.weather.iconName} size={19} color="#FDBB2C" />
-                    <Text style={[styles.weatherText, isPhone && styles.weatherTextPhone]}>
-                      {selectedDay.weather.label} <Text style={styles.weatherDot}>•</Text>{" "}
-                      {selectedDay.weather.temperature}
-                    </Text>
-                  </View>
+                        <PillButton
+                          label="Add Activity"
+                          iconName="add"
+                          onPress={openAddActivity}
+                          compact={isPhone}
+                          style={[styles.addActivityButton, isPhone && styles.addActivityButtonPhone]}
+                        />
+                      </View>
 
-                <PillButton
-                  label="Add Activity"
-                  iconName="add"
-                  onPress={openAddActivity}
-                  compact={isPhone}
-                  style={[styles.addActivityButton, isPhone && styles.addActivityButtonPhone]}
-                />
-              </View>
+                      <View style={styles.activitiesList}>
+                        {sortedActivities(selectedDay.activities).map((activity, index, activities) => (
+                          <ActivityRow
+                            key={activity.id}
+                            activity={activity}
+                            compact={isCompactPhone}
+                            isFirst={index === 0}
+                            isLast={index === activities.length - 1}
+                            onOpenDetails={() => openDetails(activity)}
+                            onOpenMap={() => openActivityMapPress(activity)}
+                            onDelete={canDeleteActivity(activity) ? () => deleteCustomActivity(activity) : undefined}
+                          />
+                        ))}
+                      </View>
+                    </View>
+                  </>
+                ) : null}
 
-              <View style={styles.activitiesList}>
-                {sortedActivities(selectedDay.activities).map((activity, index, activities) => (
-                  <ActivityRow
-                    key={activity.id}
-                    activity={activity}
-                    compact={isCompactPhone}
-                    isFirst={index === 0}
-                    isLast={index === activities.length - 1}
-                    onOpenDetails={() => openDetails(activity)}
-                    onOpenMap={() => openUrl(activityMapUrl(activity, trip.destination))}
-                  />
-                </View>
-
-            <TipCard onPress={() => setTipsVisible(true)} compact={isPhone} />
+                <TipCard onPress={() => setTipsVisible(true)} compact={isPhone} />
+              </>
+            ) : null}
           </View>
         </ScrollView>
 
@@ -1008,59 +1798,166 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
       </View>
 
       <ModalShell
+        visible={isCreateTripVisible}
+        title="Create Trip"
+        subtitle="Set the basics. Days are seeded on the server."
+        onClose={() => setIsCreateTripVisible(false)}
+        footer={
+          <>
+            <FooterButton label="Cancel" onPress={() => setIsCreateTripVisible(false)} />
+            <FooterButton
+              label={isSavingTrip ? "Creating…" : "Create Trip"}
+              primary
+              onPress={saveCreateTrip}
+            />
+          </>
+        }
+      >
+        {createDraftError ? <Text style={styles.formErrorText}>{createDraftError}</Text> : null}
+        <Field
+          label="Trip Title"
+          value={createDraft.title}
+          onChangeText={(value) => setCreateDraft((current) => ({ ...current, title: value }))}
+          placeholder="Los Angeles Trip"
+        />
+        <DestinationSuggestField
+          label="Destination"
+          value={createDraft.destination}
+          selectedLabel={createDraft.selectedDestination?.label || null}
+          onChangeText={(value) =>
+            setCreateDraft((current) => ({
+              ...current,
+              destination: value,
+              selectedDestination: null,
+            }))
+          }
+          onSelectSuggestion={(suggestion) =>
+            setCreateDraft((current) => ({
+              ...current,
+              destination: suggestion?.label || current.destination,
+              selectedDestination: suggestion,
+            }))
+          }
+          placeholder="Start typing a city or country"
+        />
+        <Field
+          label="Start Date (YYYY-MM-DD)"
+          value={createDraft.startDate}
+          onChangeText={(value) => setCreateDraft((current) => ({ ...current, startDate: value }))}
+          placeholder="2026-07-12"
+        />
+        <Field
+          label="End Date (YYYY-MM-DD)"
+          value={createDraft.endDate}
+          onChangeText={(value) => setCreateDraft((current) => ({ ...current, endDate: value }))}
+          placeholder="2026-07-15"
+        />
+        <StaticField label="Nights (display only)" value={createNightsPreview} />
+        <Field
+          label="Hotel Name (Optional)"
+          value={createDraft.hotelName}
+          onChangeText={(value) => setCreateDraft((current) => ({ ...current, hotelName: value }))}
+          placeholder="Hotel Figueroa"
+        />
+        <Field
+          label="Hotel Provider ID (Optional)"
+          value={createDraft.hotelProviderId}
+          onChangeText={(value) => setCreateDraft((current) => ({ ...current, hotelProviderId: value }))}
+          placeholder="liteapi hotel id"
+        />
+      </ModalShell>
+
+      <ModalShell
         visible={editTripVisible}
         title="Edit Trip"
-        subtitle="Update the summary card for this itinerary."
+        subtitle={
+          viewMode === "demo"
+            ? "Local demo edits only — nothing is saved to your account."
+            : "Update the trip summary. Nights are calculated from your dates."
+        }
         onClose={() => setEditTripVisible(false)}
         footer={
           <>
             <FooterButton label="Cancel" onPress={() => setEditTripVisible(false)} />
-            <FooterButton label="Save Changes" primary onPress={saveTrip} />
+            <FooterButton
+              label={isSavingTrip ? "Saving…" : "Save Changes"}
+              primary
+              onPress={saveTripEdits}
+            />
           </>
         }
       >
-        {formError ? <Text style={styles.formErrorText}>{formError}</Text> : null}
+        {tripDraftError ? <Text style={styles.formErrorText}>{tripDraftError}</Text> : null}
         <Field
           label="Trip Title"
           value={tripDraft.title}
           onChangeText={(value) => setTripDraft((current) => ({ ...current, title: value }))}
           placeholder="Los Angeles Trip"
         />
-        <Field
+        <DestinationSuggestField
           label="Destination"
           value={tripDraft.destination}
+          selectedLabel={tripDraft.selectedDestination?.label || null}
           onChangeText={(value) =>
-            setTripDraft((current) => ({ ...current, destination: value }))
+            setTripDraft((current) => ({
+              ...current,
+              destination: value,
+              selectedDestination: null,
+            }))
           }
-          placeholder="Los Angeles, California"
+          onSelectSuggestion={(suggestion) =>
+            setTripDraft((current) => ({
+              ...current,
+              destination: suggestion?.label || current.destination,
+              selectedDestination: suggestion,
+            }))
+          }
+          placeholder="Start typing a city or country"
         />
         <Field
-          label="Dates"
-          value={tripDraft.dates}
-          onChangeText={(value) => setTripDraft((current) => ({ ...current, dates: value }))}
-          placeholder="Jul 12 - Jul 15, 2025"
+          label="Start Date (YYYY-MM-DD)"
+          value={tripDraft.startDate}
+          onChangeText={(value) => setTripDraft((current) => ({ ...current, startDate: value }))}
+          placeholder="2026-07-12"
         />
         <Field
-          label="Nights"
-          value={tripDraft.nights}
-          onChangeText={(value) => setTripDraft((current) => ({ ...current, nights: value }))}
-          placeholder="3 Nights"
+          label="End Date (YYYY-MM-DD)"
+          value={tripDraft.endDate}
+          onChangeText={(value) => setTripDraft((current) => ({ ...current, endDate: value }))}
+          placeholder="2026-07-15"
+        />
+        <StaticField label="Nights (display only)" value={editNightsPreview} />
+        <Field
+          label="Hotel Name"
+          value={tripDraft.hotelName}
+          onChangeText={(value) => setTripDraft((current) => ({ ...current, hotelName: value }))}
+          placeholder="Hotel Figueroa"
+        />
+        <Field
+          label="Hotel Provider ID (Optional)"
+          value={tripDraft.hotelProviderId}
+          onChangeText={(value) => setTripDraft((current) => ({ ...current, hotelProviderId: value }))}
+          placeholder="liteapi hotel id"
         />
       </ModalShell>
 
       <ModalShell
         visible={addActivityVisible}
         title="Add Activity"
-        subtitle={`Add a stop to ${selectedDay.label}.`}
+        subtitle={selectedDay ? `Add a stop to ${selectedDay.label}.` : "Add a stop to the timeline."}
         onClose={() => setAddActivityVisible(false)}
         footer={
           <>
             <FooterButton label="Cancel" onPress={() => setAddActivityVisible(false)} />
-            <FooterButton label="Add Activity" primary onPress={saveActivity} />
+            <FooterButton
+              label={isSavingActivity ? "Adding…" : "Add Activity"}
+              primary
+              onPress={saveActivity}
+            />
           </>
         }
       >
-        {formError ? <Text style={styles.formErrorText}>{formError}</Text> : null}
+        {activityDraftError ? <Text style={styles.formErrorText}>{activityDraftError}</Text> : null}
         <Field
           label="Time"
           value={activityDraft.time}
@@ -1076,45 +1973,26 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
         <Field
           label="Location"
           value={activityDraft.location}
-          onChangeText={(value) =>
-            setActivityDraft((current) => ({ ...current, location: value }))
-          }
+          onChangeText={(value) => setActivityDraft((current) => ({ ...current, location: value }))}
           placeholder="Santa Monica"
-        />
-        <Field
-          label="Distance"
-          value={activityDraft.distance}
-          onChangeText={(value) =>
-            setActivityDraft((current) => ({ ...current, distance: value }))
-          }
-          placeholder="1.0 mi"
         />
 
         <View style={styles.fieldGroup}>
           <Text style={styles.fieldLabel}>Category</Text>
           <View style={styles.categoryRow}>
-            {[
-              ["cafe", "Cafe"],
-              ["photo", "Photo"],
-              ["food", "Food"],
-              ["museum", "Culture"],
-              ["sunset", "Scenic"],
-              ["travel", "Travel"],
-            ].map(([key, label]) => (
+            {activityCategories.map((category) => (
               <CategoryChip
-                key={key}
-                label={label}
-                selected={activityDraft.category === key}
-                onPress={() =>
-                  setActivityDraft((current) => ({ ...current, category: key }))
-                }
+                key={category.key}
+                category={category}
+                selected={activityDraft.category === category.key}
+                onPress={() => setActivityDraft((current) => ({ ...current, category: category.key }))}
               />
             ))}
           </View>
         </View>
 
         <Field
-          label="Badge Text"
+          label="Badge Text (Optional)"
           value={activityDraft.tag}
           onChangeText={(value) => setActivityDraft((current) => ({ ...current, tag: value }))}
           placeholder="Recommended by Wayfinder"
@@ -1125,22 +2003,20 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
         visible={Boolean(selectedActivity)}
         title={selectedActivity?.title || "Activity"}
         subtitle={
-          selectedActivity
-            ? `${selectedActivity.time} • ${selectedActivity.location} • ${selectedActivity.distance}`
-            : ""
+          selectedActivity ? `${selectedActivity.time} • ${selectedActivity.location} • ${selectedActivity.distance}` : ""
         }
-        onClose={() => setSelectedActivity(null)}
+        onClose={closeDetails}
         footer={
           <>
-            <FooterButton label="Close" onPress={() => setSelectedActivity(null)} />
+            {selectedActivity && canDeleteActivity(selectedActivity) ? (
+              <FooterButton label="Delete" onPress={() => deleteCustomActivity(selectedActivity)} />
+            ) : (
+              <FooterButton label="Close" onPress={closeDetails} />
+            )}
             <FooterButton
               label="Open in Maps"
               primary
-              onPress={() =>
-                selectedActivity
-                  ? openUrl(activityMapUrl(selectedActivity, trip.destination))
-                  : undefined
-              }
+              onPress={() => (selectedActivity ? openActivityMapPress(selectedActivity) : undefined)}
             />
           </>
         }
@@ -1148,17 +2024,9 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
         {selectedActivity ? (
           <View style={styles.detailsModalCard}>
             <View
-              style={[
-                styles.detailsModalIcon,
-                { backgroundColor: categoryFor(selectedActivity).iconBackground },
-              ]}
+              style={[styles.detailsModalIcon, { backgroundColor: selectedActivity.iconBackground }]}
             >
-              {renderIcon(
-                categoryFor(selectedActivity).iconLibrary,
-                categoryFor(selectedActivity).iconName,
-                28,
-                "#FFFFFF"
-              )}
+              {renderIcon(selectedActivity.iconLibrary, selectedActivity.iconName, 28, "#FFFFFF")}
             </View>
 
             <View style={styles.detailsModalCopy}>
@@ -1171,7 +2039,7 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
                 <Ionicons name="time-outline" size={16} color="#2463EB" />
                 <Text style={styles.detailsModalText}>{selectedActivity.time}</Text>
               </View>
-              <TagBadge activity={selectedActivity} />
+              <TagBadge tag={selectedActivity.tag} />
             </View>
           </View>
         ) : null}
@@ -1180,7 +2048,7 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
       <ModalShell
         visible={tipsVisible}
         title="Wayfinder Tips"
-        subtitle="Helpful notes for this Los Angeles itinerary."
+        subtitle="Helpful notes for this itinerary."
         onClose={() => setTipsVisible(false)}
         footer={
           <>
@@ -1190,7 +2058,7 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
               primary
               onPress={() => {
                 setTipsVisible(false);
-                onNavigate?.("travelCheck", { destination: trip.destination });
+                onNavigate?.("travelCheck", { destination: trip?.destination || "Los Angeles" });
               }}
             />
           </>
@@ -1203,9 +2071,26 @@ export default function ItineraryScreen({ onNavigate, onBack }) {
           </View>
         ))}
       </ModalShell>
+
+      <TripSwitcherSheet
+        visible={switcherVisible}
+        currentPlanId={planId}
+        activePlans={activePlans}
+        pastPlans={pastPlans}
+        loading={switcherLoading}
+        error={switcherError}
+        onClose={closeTripSwitcher}
+        onCreateTrip={handleCreateFromSwitcher}
+        onSelectPlan={handleSelectPlan}
+        onCompletePlan={handleCompletePlan}
+        onReopenPlan={handleReopenPlan}
+        onDeletePlan={handleDeletePlan}
+        onRetry={refreshPlanLists}
+      />
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -1312,6 +2197,131 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: "#FF7A26",
+  },
+
+  noticeBanner: {
+    marginTop: 16,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderWidth: 1,
+    borderColor: "#D1E0FB",
+  },
+
+  noticeText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1849A9",
+  },
+
+  errorBanner: {
+    marginTop: 16,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 241, 232, 0.95)",
+    borderWidth: 1,
+    borderColor: "#FDC6A5",
+  },
+
+  errorBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#9A3412",
+  },
+
+  demoBanner: {
+    marginBottom: 16,
+    alignSelf: "stretch",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    backgroundColor: "rgba(234, 242, 255, 0.95)",
+    borderWidth: 1,
+    borderColor: "#D1E0FB",
+  },
+
+  demoBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1849A9",
+  },
+
+  completedBanner: {
+    marginBottom: 16,
+    alignSelf: "stretch",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    backgroundColor: "#FFF6E0",
+    borderWidth: 1,
+    borderColor: "#F0D79A",
+  },
+
+  completedBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#8A5A00",
+  },
+
+  loadingBlock: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+    gap: 14,
+  },
+
+  loadingText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#51607D",
+  },
+
+  emptyCard: {
+    padding: 24,
+    borderRadius: 27,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#DDE8F8",
+    marginBottom: 24,
+    gap: 12,
+  },
+
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#16284A",
+  },
+
+  emptyBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#51607D",
+  },
+
+  emptyActions: {
+    marginTop: 8,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
   },
 
   heroSection: {
@@ -1457,6 +2467,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 
+  tripTitleButton: {
+    flexShrink: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: "72%",
+  },
+
+  tripFavoriteButton: {
+    marginLeft: "auto",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   tripTitle: {
     flexShrink: 1,
     fontSize: 22,
@@ -1508,6 +2535,20 @@ const styles = StyleSheet.create({
 
   editTripButtonPhone: {
     alignSelf: "flex-start",
+  },
+
+  tripCardActions: {
+    alignSelf: "center",
+    flexShrink: 0,
+    alignItems: "stretch",
+    gap: 10,
+  },
+
+  tripCardActionsPhone: {
+    alignSelf: "stretch",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
   },
 
   selectorRow: {
@@ -1948,6 +2989,7 @@ const styles = StyleSheet.create({
     width: 78,
     alignItems: "flex-end",
     justifyContent: "center",
+    gap: 8,
   },
 
   routeActionColumnCompact: {
@@ -1969,6 +3011,15 @@ const styles = StyleSheet.create({
 
   distanceTextCompact: {
     fontSize: 12.5,
+  },
+
+  deleteActivityButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF1E9",
   },
 
   tipCard: {
@@ -2174,6 +3225,19 @@ const styles = StyleSheet.create({
     color: "#16284A",
   },
 
+  readOnlyField: {
+    minHeight: 48,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderWidth: 1,
+    borderColor: "#D6E1F3",
+    backgroundColor: "#F1F5FC",
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#51607D",
+  },
+
   categoryRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -2181,6 +3245,9 @@ const styles = StyleSheet.create({
   },
 
   categoryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
@@ -2192,6 +3259,14 @@ const styles = StyleSheet.create({
   categoryChipSelected: {
     backgroundColor: "#2463EB",
     borderColor: "#2463EB",
+  },
+
+  categoryIconBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   categoryChipText: {
@@ -2207,8 +3282,8 @@ const styles = StyleSheet.create({
   formErrorText: {
     marginBottom: 2,
     fontSize: 14,
-    fontWeight: "600",
-    color: "#C2410C",
+    fontWeight: "700",
+    color: "#E11D48",
   },
 
   detailsModalCard: {

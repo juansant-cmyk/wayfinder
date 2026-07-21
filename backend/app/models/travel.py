@@ -2,15 +2,19 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
+    Boolean,
     Date,
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
+    Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -38,6 +42,10 @@ class TravelPlan(Base):
     hotel_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     hotel_provider: Mapped[str | None] = mapped_column(String(50), nullable=True)
     hotel_provider_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    suppress_auto_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    cover_image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -59,7 +67,10 @@ class PlanDay(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     plan_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("travel_plans.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("travel_plans.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     day_date: Mapped[date] = mapped_column(Date, nullable=False)
     sort_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -84,7 +95,10 @@ class PlanActivity(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     day_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("plan_days.id", ondelete="CASCADE"), nullable=False, index=True
+        UUID(as_uuid=True),
+        ForeignKey("plan_days.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     kind: Mapped[str] = mapped_column(String(20), nullable=False, default="custom")
     time_label: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -107,7 +121,9 @@ class PlanActivity(Base):
 
 class Place(Base):
     __tablename__ = "places"
-    __table_args__ = (UniqueConstraint("provider", "provider_place_id", name="places_provider_place_unique"),)
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_place_id", name="places_provider_place_unique"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     provider: Mapped[str] = mapped_column(String(50), nullable=False, default="mock")
@@ -127,7 +143,9 @@ class Place(Base):
 
 class Hotel(Base):
     __tablename__ = "hotels"
-    __table_args__ = (UniqueConstraint("provider", "provider_hotel_id", name="hotels_provider_hotel_unique"),)
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_hotel_id", name="hotels_provider_hotel_unique"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     provider: Mapped[str] = mapped_column(String(50), nullable=False, default="mock")
@@ -173,4 +191,88 @@ class Favorite(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class SafetyAlert(Base):
+    __tablename__ = "safety_alerts"
+    __table_args__ = (
+        UniqueConstraint("source", "dedupe_key", name="safety_alerts_source_dedupe_unique"),
+        Index(
+            "safety_alerts_source_provider_alert_unique",
+            "source",
+            "provider_alert_id",
+            unique=True,
+            postgresql_where=text("provider_alert_id IS NOT NULL"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source: Mapped[str] = mapped_column(String(50), nullable=False)
+    dedupe_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_alert_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    country_iso: Mapped[str | None] = mapped_column(String(3), nullable=True, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    destination: Mapped[str] = mapped_column(String(255), nullable=False)
+    alert_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    headline: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    urgency: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    areas: Mapped[str | None] = mapped_column(Text, nullable=True)
+    event: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    @property
+    def effective(self) -> datetime | None:
+        return self.starts_at
+
+    @property
+    def expires(self) -> datetime | None:
+        return self.ends_at
+
+    @property
+    def desc(self) -> str:
+        return self.description
+
+
+class SafetyRiskSnapshot(Base):
+    __tablename__ = "safety_risk_snapshots"
+
+    country_iso: Mapped[str] = mapped_column(String(3), primary_key=True)
+    country_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class AlertDismissal(Base):
+    __tablename__ = "alert_dismissals"
+    __table_args__ = (
+        UniqueConstraint("user_id", "alert_id", name="alert_dismissals_user_alert_unique"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    alert_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("safety_alerts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )

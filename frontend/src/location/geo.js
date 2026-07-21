@@ -88,8 +88,8 @@ async function backendGeo(path) {
   }
 }
 
-/** GPS → closest city / area label. */
-export async function reverseGeocodeLabel(lat, lng) {
+/** GPS → closest city / area label and country metadata. */
+export async function reverseGeocodeQuery(lat, lng) {
   const fromApi = await backendGeo(
     `/geo/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`
   );
@@ -97,7 +97,18 @@ export async function reverseGeocodeLabel(lat, lng) {
     return null;
   }
   if (fromApi?.label) {
-    return fromApi.label;
+    return {
+      lat: Number(fromApi.lat),
+      lng: Number(fromApi.lng),
+      label: fromApi.label,
+      city: fromApi.city || null,
+      region: fromApi.region || null,
+      country: fromApi.country || null,
+      countryCode: fromApi.country_code || null,
+      countryIso: fromApi.country_iso || fromApi.country_code || null,
+      provider: fromApi.provider || null,
+      source: "reverse",
+    };
   }
 
   try {
@@ -105,10 +116,30 @@ export async function reverseGeocodeLabel(lat, lng) {
       latitude: lat,
       longitude: lng,
     });
-    return formatExpoPlace(results?.[0], null);
+    const place = results?.[0];
+    const label = formatExpoPlace(place, null);
+    return label
+      ? {
+          lat,
+          lng,
+          label,
+          city: place?.city || place?.subregion || null,
+          region: place?.region || null,
+          country: place?.country || null,
+          countryCode: place?.isoCountryCode || null,
+          countryIso: place?.isoCountryCode || null,
+          provider: "expo",
+          source: "reverse",
+        }
+      : null;
   } catch {
     return null;
   }
+}
+
+export async function reverseGeocodeLabel(lat, lng) {
+  const result = await reverseGeocodeQuery(lat, lng);
+  return result?.label || null;
 }
 
 /**
@@ -131,6 +162,11 @@ export async function geocodeQuery(query) {
       lat: Number(fromApi.lat),
       lng: Number(fromApi.lng),
       label: fromApi.label || fromApi.city || prettyQuery,
+      city: fromApi.city || null,
+      region: fromApi.region || null,
+      country: fromApi.country || null,
+      countryCode: fromApi.country_code || null,
+      countryIso: fromApi.country_iso || null,
       source: "search",
       query: trimmed,
     };
@@ -143,16 +179,56 @@ export async function geocodeQuery(query) {
       return null;
     }
 
-    const label = (await reverseGeocodeLabel(hit.latitude, hit.longitude)) || prettyQuery;
+    const resolved = await reverseGeocodeQuery(hit.latitude, hit.longitude);
+    const label = resolved?.label || prettyQuery;
 
     return {
       lat: hit.latitude,
       lng: hit.longitude,
       label,
+      city: resolved?.city || null,
+      region: resolved?.region || null,
+      country: resolved?.country || null,
+      countryCode: resolved?.countryCode || null,
+      countryIso: resolved?.countryIso || null,
       source: "search",
       query: trimmed,
     };
   } catch {
     return null;
   }
+}
+
+/** Top destination suggestions for typeahead (city / country). */
+export async function suggestGeocodeQuery(query, limit = 5) {
+  const trimmed = String(query || "").trim();
+  if (trimmed.length < 2) {
+    return [];
+  }
+
+  const fromApi = await backendGeo(
+    `/geo/suggest?q=${encodeURIComponent(trimmed)}&limit=${encodeURIComponent(limit)}`
+  );
+  if (fromApi === GEO_AUTH_REQUIRED) {
+    return [];
+  }
+  if (!Array.isArray(fromApi)) {
+    return [];
+  }
+
+  return fromApi
+    .filter((item) => item?.lat != null && item?.lng != null && item?.label)
+    .slice(0, limit)
+    .map((item) => ({
+      lat: Number(item.lat),
+      lng: Number(item.lng),
+      label: item.label,
+      city: item.city || null,
+      region: item.region || null,
+      country: item.country || null,
+      countryCode: item.country_code || null,
+      countryIso: item.country_iso || null,
+      provider: item.provider || null,
+      source: "suggest",
+    }));
 }

@@ -156,6 +156,49 @@ Protected routes require `Authorization: Bearer <token>`.
 
 Places, hotels, flights, and dashboard feeds use deterministic mock data by default.
 
+## AI chat (class scope)
+
+`POST /chat/messages` collects the user's **active travel plan**, **weather** (soft-fail if
+unavailable), and up to **10 favorite snapshots**, scores **seed** suggestions with weather +
+favorites affinity, routes intent with a **keyword fallback**, then replies via:
+
+| Mode | Env |
+|------|-----|
+| Mock | `CHAT_PROVIDER=mock` (default) |
+| OpenAI | `CHAT_PROVIDER=openai` + `OPENAI_API_KEY` (failures return 502/503 — no silent fallback) |
+| Optional narrator | `NARRATOR_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` |
+
+Plan selection: one active plan is used as-is; if several exist, the message is matched against
+`destination_name` / title; otherwise the most recently updated active plan wins.
+
+### Scoring roadmap (after class)
+
+**Full discovery:** scoring will pull live hotels, popular places/attractions, and favorites near
+the plan center (and related destinations), combining weather, distance, and preference signals —
+not seed templates. Keyword intent routing will give way to a classifier (keywords remain a
+fallback). Safety context and multi-agent tool loops land in that same expansion.
+
+See [../docs/AI_SUGGESTION_LAYER.md](../docs/AI_SUGGESTION_LAYER.md).
+
+## WeatherAPI.com setup
+
+Weather uses mock data unless `WEATHER_PROVIDER=weatherapi` is configured. To enable live current
+weather, icons, 3-day forecasts, air quality, and severe weather warnings:
+
+```env
+WEATHER_PROVIDER=weatherapi
+WEATHER_API_KEY=<your WeatherAPI.com key>
+WEATHERAPI_BASE_URL=https://api.weatherapi.com/v1
+```
+
+Add those values to `backend/.env`. Keep `USE_MOCK_PROVIDERS=true` if you want mock fallback when
+WeatherAPI is missing or temporarily unavailable.
+
+`GET /weather/current` accepts either `destination=Bali` or `lat=-8.34&lng=115.09`. Existing fields
+remain unchanged, and the backend also returns optional fields for `icon_url`, wind, pressure,
+precipitation, feels-like temperature, UV, visibility, cloud cover, local time, `air_quality`,
+`forecast_days`, and severe weather `warnings`.
+
 ## Environment variables
 
 See [.env.example](.env.example):
@@ -168,13 +211,21 @@ See [.env.example](.env.example):
 | `CORS_ORIGINS` | Comma-separated Expo dev origins |
 | `GOOGLE_MAPS_API_KEY` | Google Places key (maps / POI features) |
 | `HOTEL_API_KEY` | Legacy unused key |
+| `WEATHER_PROVIDER` | `mock` \| `weatherapi`; selects WeatherAPI.com when configured |
+| `WEATHER_API_KEY` | WeatherAPI.com key for live weather, forecast, AQI, and alerts |
+| `WEATHERAPI_BASE_URL` | Default `https://api.weatherapi.com/v1` |
 | `LITEAPI_API_KEY` | LiteAPI / Nuitee Connect API key |
 | `LITEAPI_BASE_URL` | Default `https://api.liteapi.travel/v3.0` |
 | `LITEAPI_GUEST_NATIONALITY` | ISO country for rate search (default `US`) |
 | `LITEAPI_CURRENCY` | Rate currency (default `USD`) |
 | `HOTEL_PROVIDER` | `mock` \| `liteapi` when mocks are off |
-| `USE_MOCK_PROVIDERS` | `true` → mock hotels; `false` → LiteAPI when keyed |
-| `EXTERNAL_REQUEST_TIMEOUT_SECONDS` | HTTP timeout (default `30` for hotel searches) |
+| `USE_MOCK_PROVIDERS` | `true` enables mock fallback for supported live providers |
+| `EXTERNAL_REQUEST_TIMEOUT_SECONDS` | HTTP timeout (default `30` for external provider calls) |
+| `CHAT_PROVIDER` | `mock` \| `openai` — primary chat brain |
+| `OPENAI_API_KEY` | Required when `CHAT_PROVIDER=openai` |
+| `OPENAI_CHAT_MODEL` | Default `gpt-4o-mini` |
+| `NARRATOR_PROVIDER` | `none` \| `anthropic` \| `openai` \| `mock` |
+| `ANTHROPIC_API_KEY` | Required when `NARRATOR_PROVIDER=anthropic` |
 
 ## Related docs
 

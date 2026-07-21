@@ -84,6 +84,27 @@ class WeatherResponse(BaseModel):
     condition: str
     humidity: int
     forecast_summary: str
+    icon_url: str | None = None
+    is_day: bool | None = None
+    wind_mph: float | None = None
+    wind_kph: float | None = None
+    wind_dir: str | None = None
+    gust_mph: float | None = None
+    pressure_mb: float | None = None
+    precip_mm: float | None = None
+    feelslike_c: float | None = None
+    feelslike_f: float | None = None
+    uv: float | None = None
+    visibility_miles: float | None = None
+    cloud: int | None = None
+    localtime: str | None = None
+    sunrise: str | None = None
+    sunset: str | None = None
+    provider: str | None = None
+    air_quality: dict | None = None
+    forecast_days: list[dict] = Field(default_factory=list)
+    forecast_hours: list[dict] = Field(default_factory=list)
+    warnings: list[dict] = Field(default_factory=list)
 
 
 class ChatMessageRequest(BaseModel):
@@ -93,6 +114,8 @@ class ChatMessageRequest(BaseModel):
 class ChatMessageResponse(BaseModel):
     reply: str
     session_id: str
+    provider: str | None = None
+    agent: str | None = None
 
 
 class NotificationResponse(BaseModel):

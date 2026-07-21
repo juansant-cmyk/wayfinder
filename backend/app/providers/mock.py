@@ -1,6 +1,18 @@
 from dataclasses import replace
 
-from app.providers.base import ProviderHotel, ProviderPlace
+from app.providers.base import (
+    ChatCompletion,
+    ChatMessage,
+    ChatToolSpec,
+    ProviderAirQuality,
+    ProviderCurrentWeather,
+    ProviderForecastDay,
+    ProviderForecastHour,
+    ProviderHotel,
+    ProviderPlace,
+    ProviderSafetyAlert,
+    ProviderTravelRiskReport,
+)
 from app.services.hotel_sort import sort_provider_hotels
 
 DEFAULT_CENTER_LAT = -8.3405
@@ -139,3 +151,156 @@ class MockHotelProvider:
                 if hotel.provider_hotel_id == hotel_id:
                     return hotel
         raise LookupError(f"Mock hotel not found: {hotel_id}")
+
+
+class MockWeatherProvider:
+    async def current_weather(
+        self,
+        destination: str | None,
+        lat: float | None,
+        lng: float | None,
+    ) -> ProviderCurrentWeather:
+        target = destination or (
+            f"{lat},{lng}" if lat is not None and lng is not None else "Selected location"
+        )
+        warning = ProviderSafetyAlert(
+            source="mock-weather",
+            destination=target,
+            alert_type="weather",
+            severity="moderate",
+            title=f"Rain likely near {target}",
+            description="Carry rain gear and allow extra travel time.",
+            lat=lat,
+            lng=lng,
+        )
+        return ProviderCurrentWeather(
+            destination=target,
+            temp_c=26.0,
+            temp_f=78.8,
+            condition="Partly cloudy",
+            humidity=62,
+            forecast_summary=f"Mild and breezy in {target} over the next 3 days.",
+            icon_url="https://cdn.weatherapi.com/weather/64x64/day/116.png",
+            is_day=True,
+            wind_mph=7.5,
+            wind_kph=12.1,
+            wind_dir="E",
+            gust_mph=10.0,
+            pressure_mb=1012.0,
+            precip_mm=0.2,
+            feelslike_c=27.0,
+            feelslike_f=80.6,
+            uv=6.0,
+            visibility_miles=6.0,
+            cloud=35,
+            localtime=None,
+            sunrise="6:12 AM",
+            sunset="7:45 PM",
+            provider="mock",
+            air_quality=ProviderAirQuality(us_epa_index=1, gb_defra_index=1),
+            forecast_days=[
+                ProviderForecastDay(
+                    date="2026-08-10",
+                    max_temp_c=28.0,
+                    min_temp_c=23.0,
+                    avg_temp_c=25.5,
+                    max_temp_f=82.4,
+                    min_temp_f=73.4,
+                    avg_temp_f=77.9,
+                    condition="Partly cloudy",
+                    icon_url="https://cdn.weatherapi.com/weather/64x64/day/116.png",
+                    chance_of_rain=25,
+                    chance_of_snow=0,
+                    uv=6.0,
+                )
+            ],
+            forecast_hours=[
+                ProviderForecastHour(
+                    time="2026-08-10 12:00",
+                    temp_c=26.0,
+                    temp_f=78.8,
+                    condition="Partly cloudy",
+                    icon_url="https://cdn.weatherapi.com/weather/64x64/day/116.png",
+                    wind_kph=12.1,
+                    chance_of_rain=20,
+                    is_day=True,
+                )
+            ],
+            warnings=[warning],
+        )
+
+    async def alerts(
+        self, lat: float | None, lng: float | None, destination: str
+    ) -> list[ProviderSafetyAlert]:
+        report = await self.current_weather(destination, lat, lng)
+        return report.warnings
+
+
+class MockChatProvider:
+    """Default chat brain until CHAT_PROVIDER=openai and OPENAI_API_KEY are set."""
+
+    name = "mock"
+
+    async def complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        tools: list[ChatToolSpec] | None = None,
+    ) -> ChatCompletion:
+        user_text = next(
+            (m.content for m in reversed(messages) if m.role == "user"),
+            "",
+        ).strip()
+        asked = user_text
+        for line in user_text.splitlines():
+            if line.lower().startswith("user message:"):
+                asked = line.split(":", 1)[1].strip()
+                break
+        return ChatCompletion(
+            content=(f'I\'m Wayfinder. Agent is currently not active. You asked: "{asked}".'),
+            provider=self.name,
+            model="mock",
+        )
+
+
+class MockNarratorProvider:
+    name = "mock"
+
+    async def narrate(self, system: str, user: str) -> str:
+        return user.strip() or "No narration."
+
+
+class MockTravelRiskProvider:
+    async def country_report(self, country_iso: str) -> ProviderTravelRiskReport:
+        iso = (country_iso or "IDN").upper()
+        country_names = {
+            "IDN": "Indonesia",
+            "JPN": "Japan",
+            "KOR": "South Korea",
+            "PRT": "Portugal",
+        }
+        country_name = country_names.get(iso, iso)
+        alert = ProviderSafetyAlert(
+            source="travelrisk",
+            destination=country_name,
+            alert_type="advisory",
+            severity="low",
+            title=f"Country advisory for {country_name}",
+            description="Exercise normal precautions and monitor official local guidance.",
+            areas=country_name,
+            provider_alert_id=f"mock-{iso}-advisory",
+            country_iso=iso,
+        )
+        return ProviderTravelRiskReport(
+            country_iso=iso,
+            country_name=country_name,
+            risk_score=1.0,
+            advisory_level=1,
+            advisory_description="Exercise normal precautions",
+            advisory_date=None,
+            last_updated=None,
+            active_alert_count=1,
+            alerts=[alert],
+            calculation={"composite": 1.0},
+            provider="mock",
+        )

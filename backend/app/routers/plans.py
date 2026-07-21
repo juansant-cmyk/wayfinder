@@ -1,7 +1,7 @@
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -25,8 +25,12 @@ router = APIRouter(prefix="/plans", tags=["plans"])
 async def list_plans(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    status_filter: Annotated[
+        Literal["active", "completed", "all"],
+        Query(alias="status", description="Filter by plan lifecycle status"),
+    ] = "all",
 ):
-    plans = await plan_service.list_plans(db, current_user.id)
+    plans = await plan_service.list_plans(db, current_user.id, status_filter=status_filter)
     return [itinerary_service.plan_to_response(plan) for plan in plans]
 
 
@@ -83,9 +87,7 @@ async def create_activity(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    activity = await itinerary_service.create_activity(
-        db, current_user.id, plan_id, day_id, body
-    )
+    activity = await itinerary_service.create_activity(db, current_user.id, plan_id, day_id, body)
     return itinerary_service.activity_to_response(activity)
 
 

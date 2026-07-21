@@ -61,9 +61,7 @@ async def test_mock_hotel_provider_sorts_by_distance():
 
     provider = MockHotelProvider()
     origin_lat, origin_lng = 40.7128, -74.006
-    hotels = await provider.search_hotels(
-        "Bali", origin_lat, origin_lng, None, None, 2, "distance"
-    )
+    hotels = await provider.search_hotels("Bali", origin_lat, origin_lng, None, None, 2, "distance")
 
     assert len(hotels) == 2
     first = haversine_km(origin_lat, origin_lng, hotels[0].lat, hotels[0].lng)

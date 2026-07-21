@@ -9,11 +9,12 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import * as dashboardApi from "../src/api/dashboard";
 import { mapSafetyLevel } from "../src/api/mappers";
 import { getToken } from "../src/auth/tokenStorage";
-import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
+import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 
 const quickTools = [
@@ -104,6 +105,8 @@ function QuickToolIcon({ tool }) {
 }
 
 export default function HomeScreen({ displayName = "Traveler", onNavigate, onNavigateHotels }) {
+  const insets = useSafeAreaInsets();
+  const bottomNavPadding = getBottomNavContentPadding(insets);
   const [recommendedDestinations, setRecommendedDestinations] = useState(fallbackDestinations);
   const [travelCheck, setTravelCheck] = useState(null);
   const [travelCheckLoading, setTravelCheckLoading] = useState(true);
@@ -122,7 +125,7 @@ export default function HomeScreen({ displayName = "Traveler", onNavigate, onNav
         if (!cancelled && destinations?.length) {
           setRecommendedDestinations(destinations);
         }
-      } catch (error) {
+      } catch (_error) {
         // Keep fallback cards when the API is unavailable.
       }
     }
@@ -150,7 +153,7 @@ export default function HomeScreen({ displayName = "Traveler", onNavigate, onNav
         if (!cancelled) {
           setTravelCheck(check);
         }
-      } catch (error) {
+      } catch (_error) {
         // Keep placeholder values when the API is unavailable.
       } finally {
         if (!cancelled) {
@@ -195,7 +198,7 @@ export default function HomeScreen({ displayName = "Traveler", onNavigate, onNav
 
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: bottomNavPadding }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerRow}>
@@ -346,7 +349,6 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingTop: 52,
     paddingHorizontal: 20,
-    paddingBottom: BOTTOM_NAV_CONTENT_PADDING,
   },
 
   headerRow: {

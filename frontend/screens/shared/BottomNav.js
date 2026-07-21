@@ -1,11 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import DimPressable from "./DimPressable";
 
-export const BOTTOM_NAV_CONTENT_PADDING = 122;
+// paddingTop + icon + label gap + label line (~8 + 24 + 2 + 13)
+const NAV_BAR_CONTENT_HEIGHT = 47;
+const SCROLL_CLEARANCE = 16;
 
-const DEFAULT_NAV_ITEMS = [
+export const NAV_ITEMS = [
   { label: "Home", icon: "home-outline", activeIcon: "home", route: "home" },
   {
     label: "Itinerary",
@@ -14,67 +17,37 @@ const DEFAULT_NAV_ITEMS = [
     route: "itinerary",
   },
   { label: "Favorites", icon: "heart-outline", activeIcon: "heart", route: "favorites" },
-  { label: "Trips", icon: "briefcase-outline", activeIcon: "briefcase", route: "itinerary" },
+  { label: "Maps", icon: "location-outline", activeIcon: "location", route: "maps" },
   { label: "Profile", icon: "person-outline", activeIcon: "person", route: "profile" },
 ];
 
-const FLIGHTS_NAV_ITEMS = [
-  DEFAULT_NAV_ITEMS[0],
-  DEFAULT_NAV_ITEMS[1],
-  { label: "Flights", icon: "airplane-outline", activeIcon: "airplane", route: "flights" },
-  DEFAULT_NAV_ITEMS[2],
-  DEFAULT_NAV_ITEMS[4],
-];
+/** Bottom inset inside the tab bar — shared by the bar and scroll clearance. */
+export function getBottomNavBarPadding(insets = { bottom: 0 }) {
+  const inset = insets.bottom ?? 0;
 
-const MAPS_NAV_ITEMS = [
-  DEFAULT_NAV_ITEMS[0],
-  DEFAULT_NAV_ITEMS[1],
-  DEFAULT_NAV_ITEMS[2],
-  { label: "Maps", icon: "location-outline", activeIcon: "location", route: "maps" },
-  DEFAULT_NAV_ITEMS[4],
-];
-
-const CHAT_NAV_ITEMS = [
-  DEFAULT_NAV_ITEMS[0],
-  DEFAULT_NAV_ITEMS[1],
-  DEFAULT_NAV_ITEMS[2],
-  {
-    label: "AI Chat",
-    icon: "chatbubble-ellipses-outline",
-    activeIcon: "chatbubble-ellipses",
-    route: "chat",
-  },
-  DEFAULT_NAV_ITEMS[4],
-];
-
-function getDefaultItemsForActiveLabel(activeLabel) {
-  if (activeLabel === "Flights") {
-    return FLIGHTS_NAV_ITEMS;
+  if (inset > 0) {
+    // White bar reaches the screen edge; icons sit just above the home indicator.
+    return Math.max(inset - 12, 6);
   }
 
-  if (activeLabel === "Maps") {
-    return MAPS_NAV_ITEMS;
-  }
-
-  if (activeLabel === "AI Chat") {
-    return CHAT_NAV_ITEMS;
-  }
-
-  return DEFAULT_NAV_ITEMS;
+  return 8;
 }
+
+export function getBottomNavContentPadding(insets = { bottom: 0 }) {
+  return NAV_BAR_CONTENT_HEIGHT + getBottomNavBarPadding(insets) + SCROLL_CLEARANCE;
+}
+
+export const BOTTOM_NAV_CONTENT_PADDING = getBottomNavContentPadding({ bottom: 34 });
 
 export function getBottomNavActiveLabel(screen) {
   const activeByScreen = {
     home: "Home",
     itinerary: "Itinerary",
-    flights: "Flights",
     favorites: "Favorites",
     maps: "Maps",
     profile: "Profile",
-    chat: "AI Chat",
   };
 
-  // Hotels and other feature screens are not bottom-nav tabs — no tab stays lit.
   return activeByScreen[screen] || null;
 }
 
@@ -83,7 +56,9 @@ export default function BottomNav({
   onNavigate,
   items = null,
 }) {
-  const resolvedItems = items || getDefaultItemsForActiveLabel(activeLabel);
+  const insets = useSafeAreaInsets();
+  const resolvedItems = items || NAV_ITEMS;
+  const bottomPadding = getBottomNavBarPadding(insets);
 
   function handlePress(item) {
     if (item.route === "home") {
@@ -99,7 +74,7 @@ export default function BottomNav({
   }
 
   return (
-    <View style={styles.bottomNav}>
+    <View style={[styles.bottomNav, { paddingBottom: bottomPadding }]}>
       {resolvedItems.map((item) => {
         const isActive = item.label === activeLabel;
 
@@ -134,8 +109,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingTop: 12,
-    paddingBottom: 20,
+    paddingTop: 8,
     paddingHorizontal: 12,
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
@@ -154,7 +128,7 @@ const styles = StyleSheet.create({
   },
 
   bottomNavLabel: {
-    marginTop: 5,
+    marginTop: 2,
     fontSize: 11,
     fontWeight: "600",
     color: "#334155",

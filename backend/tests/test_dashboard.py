@@ -50,6 +50,16 @@ async def test_quick_tools_endpoints(client: AsyncClient):
 
     weather = await client.get("/weather/current?destination=Bali", headers=headers)
     assert weather.status_code == 200
+    weather_payload = weather.json()
+    assert weather_payload["destination"] == "Bali"
+    assert weather_payload["temp_c"] is not None
+    assert weather_payload["icon_url"].startswith("https://")
+    assert weather_payload["forecast_days"]
+    assert "warnings" in weather_payload
+
+    weather_by_coords = await client.get("/weather/current?lat=-8.34&lng=115.09", headers=headers)
+    assert weather_by_coords.status_code == 200
+    assert weather_by_coords.json()["destination"] == "-8.34,115.09"
 
     chat = await client.post(
         "/chat/messages",
@@ -57,7 +67,9 @@ async def test_quick_tools_endpoints(client: AsyncClient):
         json={"message": "What should I do in Bali?"},
     )
     assert chat.status_code == 200
-    assert "mock reply" in chat.json()["reply"]
+    chat_payload = chat.json()
+    assert chat_payload["reply"].strip()
+    assert chat_payload["provider"] == "mock"
 
     places = await client.get("/places/popular?lat=40&lng=-74&radius_km=5", headers=headers)
     assert places.status_code == 200
@@ -78,6 +90,7 @@ async def test_home_screen_endpoints(client: AsyncClient):
     travel_check = await client.get("/travel-check?destination=Bali", headers=headers)
     assert travel_check.status_code == 200
     assert travel_check.json()["summary"]
+    assert travel_check.json()["weather"]["icon_url"].startswith("https://")
 
     notifications = await client.get("/notifications", headers=headers)
     assert notifications.status_code == 200

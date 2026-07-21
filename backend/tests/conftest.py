@@ -84,7 +84,8 @@ async def clean_tables(create_schema):
     async with TestSessionLocal() as session:
         await session.execute(
             text(
-                "TRUNCATE TABLE users, travel_plans, plan_days, plan_activities, places, hotels, favorites CASCADE"
+                "TRUNCATE TABLE users, travel_plans, plan_days, plan_activities, places, hotels, favorites, "
+                "safety_alerts, alert_dismissals, safety_risk_snapshots CASCADE"
             )
         )
         await session.commit()

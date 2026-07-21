@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import {
   Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -12,14 +13,16 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DEFAULT_LAT, DEFAULT_LNG, reverseGeocodeLabel } from "../src/location/geo";
+import { useUserLocation } from "../src/location/UserLocationContext";
 import { WayfinderBrand } from "./AuthShared";
-import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
+import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
+import MapCanvas from "./shared/MapCanvas";
 
 const heroArtworkImage = require("../assets/images/maps/maps-hero-art.png");
-const wideMapArtworkImage = require("../assets/images/maps/maps-static-map-wide.png");
 
 const COLORS = {
   background: "#EAF2FC",
@@ -31,6 +34,17 @@ const COLORS = {
 };
 
 const MOBILE_MAP_ASPECT_RATIO = 624 / 282;
+const DEFAULT_MAP_DELTA = 0.08;
+const EXPANDED_MAP_SHEET_RATIO = 0.88;
+
+function buildMapRegion(lat, lng) {
+  return {
+    latitude: lat,
+    longitude: lng,
+    latitudeDelta: DEFAULT_MAP_DELTA,
+    longitudeDelta: DEFAULT_MAP_DELTA,
+  };
+}
 
 const MAP_ACTIONS = [
   {
@@ -206,25 +220,6 @@ const SAVED_PLACES = [
     image: require("../assets/images/maps/maps-tsukiji-market.png"),
   },
 ];
-
-const MAP_INTERACTIVE_AREAS = {
-  wide: {
-    locationSelector: { top: "4%", left: "2.5%", width: "26%", height: "24%" },
-    controls: [
-      { id: "recenter", top: "13%", right: "2.4%", width: 54, height: 54 },
-      { id: "layers", top: "35.5%", right: "2.4%", width: 54, height: 54 },
-      { id: "navigate", top: "58.2%", right: "2.4%", width: 54, height: 54 },
-    ],
-  },
-  mobile: {
-    locationSelector: { top: "4%", left: "2.5%", width: "27%", height: "24%" },
-    controls: [
-      { id: "recenter", top: "13%", right: "2.4%", width: "8.7%", height: "19.2%" },
-      { id: "layers", top: "35.5%", right: "2.4%", width: "8.7%", height: "19.2%" },
-      { id: "navigate", top: "58.2%", right: "2.4%", width: "8.7%", height: "19.2%" },
-    ],
-  },
-};
 
 const cardShadowStyle = Platform.select({
   web: {
@@ -443,42 +438,172 @@ function TripBanner({ onPress, isPhone }) {
   );
 }
 
-function MapInteractiveOverlay({ isPhone }) {
-  const areas = isPhone ? MAP_INTERACTIVE_AREAS.mobile : MAP_INTERACTIVE_AREAS.wide;
-
+function MapOverlayControls({ onRecenter, onExpand }) {
   return (
     <>
-      <Pressable accessibilityRole="button" onPress={() => {}} style={[styles.mapHotspot, areas.locationSelector]} />
-      {areas.controls.map((control) => (
-        <Pressable
-          key={control.id}
-          accessibilityRole="button"
-          onPress={() => {}}
-          style={[styles.mapHotspot, styles.mapControlHotspot, control]}
-        />
-      ))}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Recenter map on your location"
+        onPress={onRecenter}
+        style={styles.mapRecenterButton}
+      >
+        <Ionicons name="locate-outline" size={22} color={COLORS.blue} />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Expand map"
+        onPress={onExpand}
+        style={styles.mapExpandButton}
+      >
+        <Ionicons name="expand-outline" size={22} color={COLORS.blue} />
+      </Pressable>
     </>
   );
 }
 
-function MapCard({ isPhone, height }) {
+function MapCard({ height, region, locationLabel, mapRef, onRecenter, onExpand }) {
   return (
-    <View style={[styles.mapCard, isPhone && styles.mapCardPhone, cardShadowStyle, { height }]}>
-      <Image
-        source={wideMapArtworkImage}
-        resizeMode={isPhone ? "contain" : "cover"}
-        style={[styles.mapArtworkImage, isPhone && styles.mapArtworkImagePhone]}
-      />
-      <MapInteractiveOverlay isPhone={isPhone} />
+    <View style={[styles.mapCard, cardShadowStyle, { height }]}>
+      <MapCanvas ref={mapRef} region={region} locationLabel={locationLabel} style={styles.mapCanvas} />
+      <MapOverlayControls onRecenter={onRecenter} onExpand={onExpand} />
     </View>
   );
 }
 
+function MapExpandedSheet({
+  visible,
+  onClose,
+  region,
+  locationLabel,
+  mapRef,
+  onRecenter,
+  sheetHeight,
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.mapSheetOverlay}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close expanded map"
+          onPress={onClose}
+          style={styles.mapSheetBackdrop}
+        />
+        <View style={[styles.mapSheet, { height: sheetHeight }]}>
+          <View style={styles.mapSheetHandle} />
+          <View style={styles.mapSheetHeader}>
+            <Text style={styles.mapSheetTitle} numberOfLines={1}>
+              {locationLabel}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close map"
+              onPress={onClose}
+              hitSlop={8}
+            >
+              <Ionicons name="close" size={24} color={COLORS.text} />
+            </Pressable>
+          </View>
+          <View style={styles.mapSheetMapWrap}>
+            <MapCanvas
+              ref={mapRef}
+              region={region}
+              locationLabel={locationLabel}
+              style={styles.mapCanvas}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Recenter map on your location"
+              onPress={onRecenter}
+              style={styles.mapRecenterButton}
+            >
+              <Ionicons name="locate-outline" size={22} color={COLORS.blue} />
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function MapsScreen({ onNavigate, onBack }) {
-  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const bottomNavPadding = getBottomNavContentPadding(insets);
+  const { width, height: windowHeight } = useWindowDimensions();
+  const { location, status: locationStatus, refreshLocation } = useUserLocation();
+  const inlineMapRef = useRef(null);
+  const expandedMapRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedToolbarId, setSelectedToolbarId] = useState(null);
   const [savedPlaceIds, setSavedPlaceIds] = useState(SAVED_PLACES.map((place) => place.id));
+  const [locationLabel, setLocationLabel] = useState("Locating…");
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const [mapCenter, setMapCenter] = useState({ lat: DEFAULT_LAT, lng: DEFAULT_LNG });
+
+  const region = useMemo(
+    () => buildMapRegion(mapCenter.lat, mapCenter.lng),
+    [mapCenter.lat, mapCenter.lng]
+  );
+
+  const animateMapsToRegion = useCallback((nextRegion) => {
+    inlineMapRef.current?.animateToRegion(nextRegion);
+    expandedMapRef.current?.animateToRegion(nextRegion);
+  }, []);
+
+  useEffect(() => {
+    if (location?.lat == null || location?.lng == null) {
+      return;
+    }
+
+    const nextCenter = { lat: location.lat, lng: location.lng };
+    setMapCenter(nextCenter);
+    animateMapsToRegion(buildMapRegion(nextCenter.lat, nextCenter.lng));
+  }, [location, animateMapsToRegion]);
+
+  useEffect(() => {
+    if (!mapExpanded) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      expandedMapRef.current?.animateToRegion(region);
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [mapExpanded, region]);
+
+  const handleRecenter = useCallback(async () => {
+    const nextLocation = await refreshLocation();
+    const center = nextLocation ?? { lat: DEFAULT_LAT, lng: DEFAULT_LNG };
+    setMapCenter(center);
+    animateMapsToRegion(buildMapRegion(center.lat, center.lng));
+  }, [animateMapsToRegion, refreshLocation]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function labelLocation() {
+      if (!location && locationStatus === "loading") {
+        setLocationLabel("Locating…");
+        return;
+      }
+
+      try {
+        const resolved = await reverseGeocodeLabel(mapCenter.lat, mapCenter.lng);
+        if (!cancelled) {
+          setLocationLabel(resolved || (location ? "Current area" : "Default area"));
+        }
+      } catch {
+        if (!cancelled) {
+          setLocationLabel(location ? "Current area" : "Default area");
+        }
+      }
+    }
+
+    labelLocation();
+    return () => {
+      cancelled = true;
+    };
+  }, [location, locationStatus, mapCenter.lat, mapCenter.lng]);
 
   const isPhone = width < 520;
   const isNarrow = width < 760;
@@ -496,6 +621,7 @@ export default function MapsScreen({ onNavigate, onBack }) {
   const mapHeight = isPhone
     ? Math.round(Math.min(pageWidth / MOBILE_MAP_ASPECT_RATIO, 420))
     : Math.round(Math.min(pageWidth * 0.45, 470));
+  const expandedMapSheetHeight = Math.round(windowHeight * EXPANDED_MAP_SHEET_RATIO);
   const toolbarItems = [
     {
       id: "categories",
@@ -529,13 +655,13 @@ export default function MapsScreen({ onNavigate, onBack }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar style="dark" />
 
       <View style={styles.screen}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavPadding }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
@@ -627,7 +753,29 @@ export default function MapsScreen({ onNavigate, onBack }) {
               </View>
             </View>
 
-            <MapCard isPhone={isPhone} height={mapHeight} />
+            <Text style={styles.mapLocationLabel}>
+              {locationLabel}
+              {locationStatus === "denied" ? " · enable location for GPS" : ""}
+            </Text>
+
+            <MapCard
+              height={mapHeight}
+              region={region}
+              locationLabel={locationLabel}
+              mapRef={inlineMapRef}
+              onRecenter={handleRecenter}
+              onExpand={() => setMapExpanded(true)}
+            />
+
+            <MapExpandedSheet
+              visible={mapExpanded}
+              onClose={() => setMapExpanded(false)}
+              region={region}
+              locationLabel={locationLabel}
+              mapRef={expandedMapRef}
+              onRecenter={handleRecenter}
+              sheetHeight={expandedMapSheetHeight}
+            />
 
             <ActionPanel isNarrow={isNarrow} />
 
@@ -683,7 +831,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: 18,
     paddingHorizontal: 18,
-    paddingBottom: BOTTOM_NAV_CONTENT_PADDING + 18,
     alignItems: "center",
   },
 
@@ -973,26 +1120,101 @@ const styles = StyleSheet.create({
     position: "relative",
   },
 
-  mapCardPhone: {
-    justifyContent: "center",
+  mapCanvas: {
+    flex: 1,
+    borderRadius: 30,
   },
 
-  mapArtworkImage: {
-    width: "100%",
-    height: "100%",
-  },
-
-  mapArtworkImagePhone: {
-    alignSelf: "center",
-  },
-
-  mapHotspot: {
+  mapRecenterButton: {
     position: "absolute",
-    backgroundColor: "transparent",
+    top: 14,
+    right: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    zIndex: 3,
   },
 
-  mapControlHotspot: {
+  mapExpandButton: {
+    position: "absolute",
+    top: 66,
+    right: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    zIndex: 3,
+  },
+
+  mapLocationLabel: {
+    marginTop: 16,
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.text,
+  },
+
+  mapSheetOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+
+  mapSheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(16, 33, 59, 0.42)",
+  },
+
+  mapSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    backgroundColor: COLORS.background,
+    overflow: "hidden",
+  },
+
+  mapSheetHandle: {
+    alignSelf: "center",
+    width: 44,
+    height: 5,
     borderRadius: 999,
+    marginTop: 10,
+    backgroundColor: COLORS.border,
+  },
+
+  mapSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 10,
+  },
+
+  mapSheetTitle: {
+    flex: 1,
+    marginRight: 12,
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.text,
+  },
+
+  mapSheetMapWrap: {
+    flex: 1,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 24,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+    position: "relative",
   },
 
   actionGrid: {
