@@ -1,17 +1,20 @@
+import { forwardRef, useImperativeHandle } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Image, StyleSheet, Text, View } from "react-native";
 
 const COLORS = {
   border: "#D6E4F8",
   card: "#F8FBFF",
-  text: "#10213B",
   subtext: "#51607D",
 };
 
 const wideMapArtworkImage = require("../../assets/images/maps/maps-static-map-wide.png");
 
-// react-native-maps does not render on web — keep Ally artwork as preview.
-export default function MapCanvas({ locationLabel, style }) {
+const MapCanvas = forwardRef(function MapCanvas({ locationLabel, style }, ref) {
+  useImperativeHandle(ref, () => ({
+    animateToRegion() {},
+  }));
+
   return (
     <View style={[styles.mapCard, style]}>
       <Image source={wideMapArtworkImage} resizeMode="cover" style={styles.mapArtwork} />
@@ -24,7 +27,9 @@ export default function MapCanvas({ locationLabel, style }) {
       </View>
     </View>
   );
-}
+});
+
+export default MapCanvas;
 
 const styles = StyleSheet.create({
   mapCard: {
