@@ -13,10 +13,10 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { WayfinderBrand } from "./AuthShared";
-import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
+import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 import * as dashboardApi from "../src/api/dashboard";
 import { mapSafetyReportForScreen } from "../src/api/mappers";
@@ -28,24 +28,6 @@ const LIVE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 const heroRobotImage = require("../assets/images/safety/safety-shield-robot.png");
 const bannerRobotImage = require("../assets/images/itinerary-tip-bot-reference.png");
-
-const SAFETY_NAV_ITEMS = [
-  { label: "Home", route: "home", icon: "home-outline", activeIcon: "home" },
-  {
-    label: "Itinerary",
-    route: "itinerary",
-    icon: "calendar-clear-outline",
-    activeIcon: "calendar-clear",
-  },
-  { label: "Flights", route: "flights", icon: "airplane-outline", activeIcon: "airplane" },
-  {
-    label: "Safety",
-    route: "safety",
-    icon: "shield-checkmark-outline",
-    activeIcon: "shield-checkmark",
-  },
-  { label: "Profile", route: "profile", icon: "person-outline", activeIcon: "person" },
-];
 
 const MONTH_NAMES = [
   "January",
@@ -414,6 +396,8 @@ function TipRow({ tip, isSelected, isLast, onPress }) {
 }
 
 export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
+  const insets = useSafeAreaInsets();
+  const bottomNavPadding = getBottomNavContentPadding(insets);
   const { width } = useWindowDimensions();
   const { refreshLocation } = useUserLocation();
   const isPhone = width < 560;
@@ -666,13 +650,13 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar style="dark" />
 
       <View style={styles.screen}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={[styles.scrollContent, styles.scrollContentWithBottomNav]}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavPadding }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -1027,7 +1011,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
           </View>
         </ScrollView>
 
-        <BottomNav activeLabel="Safety" items={SAFETY_NAV_ITEMS} onNavigate={onNavigate} />
+        <BottomNav activeLabel={null} onNavigate={onNavigate} />
       </View>
     </SafeAreaView>
   );
@@ -1080,10 +1064,6 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingHorizontal: 18,
     alignItems: "center",
-  },
-
-  scrollContentWithBottomNav: {
-    paddingBottom: BOTTOM_NAV_CONTENT_PADDING + 28,
   },
 
   pageInner: {

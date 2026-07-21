@@ -20,29 +20,11 @@ import { getToken } from "../src/auth/tokenStorage";
 import { reverseGeocodeLabel, suggestGeocodeQuery } from "../src/location/geo";
 import { useUserLocation } from "../src/location/UserLocationContext";
 import { WayfinderBrand } from "./AuthShared";
-import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
+import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 
 const heroRobotImage = require("../assets/images/weather-hero-robot-reference.png");
 const weatherCardSceneImage = require("../assets/images/weather-card-scene-reference.png");
-
-const WEATHER_NAV_ITEMS = [
-  { label: "Home", route: "home", icon: "home-outline", activeIcon: "home" },
-  {
-    label: "Itinerary",
-    route: "itinerary",
-    icon: "calendar-clear-outline",
-    activeIcon: "calendar-clear",
-  },
-  { label: "Flights", route: "flights", icon: "airplane-outline", activeIcon: "airplane" },
-  {
-    label: "Weather",
-    route: "weather",
-    icon: "partly-sunny-outline",
-    activeIcon: "partly-sunny",
-  },
-  { label: "Profile", route: "profile", icon: "person-outline", activeIcon: "person" },
-];
 
 const LOCATION_OPTIONS = [
   { id: "tokyo", label: "Tokyo, Japan" },
@@ -384,7 +366,7 @@ export default function WeatherScreen({ onNavigate, onBack }) {
   const compactForecastRows = width < 650;
   const compactAlerts = width < 760;
   const compactSummary = width < 620;
-  const bottomPadding = BOTTOM_NAV_CONTENT_PADDING + insets.bottom + 32;
+  const bottomPadding = getBottomNavContentPadding(insets);
   const pageWidth = Math.min(Math.max(width - 36, 280), 1040);
   const showBackButton = width < 760 && typeof onBack === "function";
   const heroArtworkWidth = isHeroStacked ? Math.min(pageWidth, 340) : Math.min(pageWidth * 0.49, 408);
@@ -584,7 +566,7 @@ export default function WeatherScreen({ onNavigate, onBack }) {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar style="dark" />
 
       <View style={styles.screen}>
@@ -1049,7 +1031,7 @@ export default function WeatherScreen({ onNavigate, onBack }) {
           </View>
         </ScrollView>
 
-        <BottomNav activeLabel="Weather" items={WEATHER_NAV_ITEMS} onNavigate={onNavigate} />
+        <BottomNav activeLabel={null} onNavigate={onNavigate} />
       </View>
     </SafeAreaView>
   );

@@ -121,10 +121,9 @@ const FEATURE_SCREENS = new Set([
 ]);
 
 const BOTTOM_NAV_TAB_SCREENS = new Set([
+  "home",
   "itinerary",
-  "flights",
   "favorites",
-  "safety",
   "maps",
   "profile",
 ]);

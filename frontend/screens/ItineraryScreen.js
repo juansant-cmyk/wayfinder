@@ -16,7 +16,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import * as dashboardApi from "../src/api/dashboard";
 import {
@@ -34,7 +34,7 @@ import DestinationSuggestField, {
 import TripSwitcherSheet from "../src/itinerary/TripSwitcherSheet";
 import { useUserLocation } from "../src/location/UserLocationContext";
 import { WayfinderBrand } from "./AuthShared";
-import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
+import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 
 const heroArtworkImage = require("../assets/images/itinerary-hero-reference.png");
@@ -490,7 +490,7 @@ function routeMapUrl(day, destination) {
 async function openExternalUrl(url, onFailure) {
   try {
     await Linking.openURL(url);
-  } catch (error) {
+  } catch (_error) {
     onFailure?.();
   }
 }
@@ -793,6 +793,8 @@ function FooterButton({ label, primary = false, onPress }) {
 }
 
 export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
+  const insets = useSafeAreaInsets();
+  const bottomNavPadding = getBottomNavContentPadding(insets);
   const { width } = useWindowDimensions();
   const { location } = useUserLocation();
   const skipApiLoadRef = useRef(false);
@@ -1488,7 +1490,7 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
   const canDeleteActivity = (activity) => viewMode === "plan" && activity.kind === "custom";
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar style="dark" />
 
       <View style={styles.screen}>
@@ -1496,7 +1498,7 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: BOTTOM_NAV_CONTENT_PADDING + 20 },
+            { paddingBottom: bottomNavPadding },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"

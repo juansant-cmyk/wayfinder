@@ -31,7 +31,7 @@ import * as dashboardApi from "../src/api/dashboard";
 import { getToken } from "../src/auth/tokenStorage";
 import MarkdownText from "../src/ui/MarkdownText";
 import { WayfinderBrand } from "./AuthShared";
-import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
+import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 
 /**
@@ -146,39 +146,6 @@ const POPULAR_QUESTIONS = [
   {
     label: "Best time to visit Japan?",
     iconImage: questionTimingImage,
-  },
-];
-
-const CHAT_NAV_ITEMS = [
-  {
-    label: "Home",
-    route: "home",
-    icon: "home-outline",
-    activeIcon: "home",
-  },
-  {
-    label: "Itinerary",
-    route: "itinerary",
-    icon: "calendar-clear-outline",
-    activeIcon: "calendar-clear",
-  },
-  {
-    label: "Flights",
-    route: "flights",
-    icon: "airplane-outline",
-    activeIcon: "airplane",
-  },
-  {
-    label: "AI Chat",
-    route: "chat",
-    icon: "chatbubble-ellipses-outline",
-    activeIcon: "chatbubble-ellipses",
-  },
-  {
-    label: "Profile",
-    route: "profile",
-    icon: "person-outline",
-    activeIcon: "person",
   },
 ];
 
@@ -409,7 +376,7 @@ export default function AIChatScreen({ onNavigate, onBack }) {
   const useStructuredPhoneTop = isPhone;
   const useMobileTopBlock = !useStructuredPhoneTop && width < 520;
   const pageHorizontalPadding = isPhone ? 14 : 18;
-  const pageBottomPadding = BOTTOM_NAV_CONTENT_PADDING;
+  const pageBottomPadding = getBottomNavContentPadding(insets);
   const cardGap = isPhone ? (isShortPhone ? 5 : 6) : 16;
   const questionGap = isPhone ? (isShortPhone ? 4 : 5) : 12;
   // Phone: help cards stay 3-col; popular question chips use 2-col for wider labels.
@@ -1044,11 +1011,7 @@ export default function AIChatScreen({ onNavigate, onBack }) {
           </KeyboardAvoidingView>
         </Modal>
 
-        <BottomNav
-          activeLabel="AI Chat"
-          items={CHAT_NAV_ITEMS}
-          onNavigate={onNavigate}
-        />
+        <BottomNav activeLabel={null} onNavigate={onNavigate} />
       </View>
     </SafeAreaView>
   );

@@ -13,10 +13,10 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { WayfinderBrand } from "./AuthShared";
-import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
+import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 
 const flightsHeroArt = require("../assets/images/flights/flights-hero-reference-crop.png");
@@ -612,6 +612,8 @@ export default function FlightsScreen({
   onNavigate,
   params = {},
 }) {
+  const insets = useSafeAreaInsets();
+  const bottomNavPadding = getBottomNavContentPadding(insets);
   const { width } = useWindowDimensions();
   const isPhone = width < 520;
   const isNarrow = width < 760;
@@ -696,13 +698,13 @@ export default function FlightsScreen({
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar style="dark" />
 
       <View style={styles.screen}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavPadding }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
@@ -996,7 +998,7 @@ export default function FlightsScreen({
           </View>
         </ScrollView>
 
-        <BottomNav activeLabel="Home" onNavigate={onNavigate} />
+        <BottomNav activeLabel={null} onNavigate={onNavigate} />
       </View>
 
       <SheetModal
@@ -1140,7 +1142,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: 18,
     paddingHorizontal: 18,
-    paddingBottom: BOTTOM_NAV_CONTENT_PADDING + 18,
     alignItems: "center",
   },
 

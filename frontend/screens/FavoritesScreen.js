@@ -15,7 +15,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import * as dashboardApi from "../src/api/dashboard";
 import {
@@ -25,7 +25,7 @@ import {
 } from "../src/api/mappers";
 import { getToken } from "../src/auth/tokenStorage";
 import { WayfinderBrand } from "./AuthShared";
-import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
+import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 
 const heroArtworkImage = require("../assets/images/favorites/favorites-hero-art.png");
@@ -811,6 +811,8 @@ function SavedPlaceCard({ place, isSaved, compact, onPress, onToggleSaved }) {
 }
 
 export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }) {
+  const insets = useSafeAreaInsets();
+  const bottomNavPadding = getBottomNavContentPadding(insets);
   const { width } = useWindowDimensions();
   const isPhone = width < 760;
   const isCompact = width < 460;
@@ -960,7 +962,7 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar style="dark" />
 
       <View style={styles.screen}>
@@ -969,7 +971,7 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: BOTTOM_NAV_CONTENT_PADDING + 20 },
+            { paddingBottom: bottomNavPadding },
           ]}
           showsVerticalScrollIndicator={false}
           refreshControl={

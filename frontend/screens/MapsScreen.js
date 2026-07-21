@@ -13,12 +13,12 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DEFAULT_LAT, DEFAULT_LNG, reverseGeocodeLabel } from "../src/location/geo";
 import { useUserLocation } from "../src/location/UserLocationContext";
 import { WayfinderBrand } from "./AuthShared";
-import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
+import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 import MapCanvas from "./shared/MapCanvas";
 
@@ -526,6 +526,8 @@ function MapExpandedSheet({
 }
 
 export default function MapsScreen({ onNavigate, onBack }) {
+  const insets = useSafeAreaInsets();
+  const bottomNavPadding = getBottomNavContentPadding(insets);
   const { width, height: windowHeight } = useWindowDimensions();
   const { location, status: locationStatus, refreshLocation } = useUserLocation();
   const inlineMapRef = useRef(null);
@@ -653,13 +655,13 @@ export default function MapsScreen({ onNavigate, onBack }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar style="dark" />
 
       <View style={styles.screen}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavPadding }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
@@ -829,7 +831,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: 18,
     paddingHorizontal: 18,
-    paddingBottom: BOTTOM_NAV_CONTENT_PADDING + 18,
     alignItems: "center",
   },
 

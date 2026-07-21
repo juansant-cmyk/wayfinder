@@ -9,7 +9,9 @@ import {
   View,
 } from "react-native";
 
-import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./BottomNav";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import BottomNav, { getBottomNavContentPadding } from "./BottomNav";
 
 export default function ScreenLayout({
   title,
@@ -21,6 +23,8 @@ export default function ScreenLayout({
   onNavigate,
   activeLabel = null,
 }) {
+  const insets = useSafeAreaInsets();
+  const bottomNavPadding = getBottomNavContentPadding(insets);
   const showBottomNav = Boolean(onNavigate);
   return (
     <View style={styles.screen}>
@@ -48,7 +52,7 @@ export default function ScreenLayout({
           style={styles.content}
           contentContainerStyle={[
             styles.contentContainer,
-            showBottomNav && styles.contentContainerWithBottomNav,
+            showBottomNav && { paddingBottom: bottomNavPadding },
           ]}
           showsVerticalScrollIndicator={false}
         >
@@ -127,9 +131,5 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 20,
     paddingBottom: 32,
-  },
-
-  contentContainerWithBottomNav: {
-    paddingBottom: BOTTOM_NAV_CONTENT_PADDING,
   },
 });
