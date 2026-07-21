@@ -24,7 +24,6 @@ import {
   mapPlanFavoriteToCard,
 } from "../src/api/mappers";
 import { getToken } from "../src/auth/tokenStorage";
-import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 
@@ -34,6 +33,7 @@ const cityViewImage = require("../assets/images/favorites/favorites-hotel-city-v
 const losAngelesTripImage = require("../assets/images/favorites/favorites-itinerary-los-angeles.png");
 const tokyoTowerImage = require("../assets/images/favorites/favorites-place-tokyo-tower.png");
 const shibuyaCrossingImage = require("../assets/images/favorites/favorites-place-shibuya-crossing.png");
+const tipBotImage = require("../assets/images/itinerary-tip-bot-reference.png");
 
 /** Preview caps per Favorites section — raise later without rewriting UI. */
 const SECTION_PREVIEW_LIMITS = {
@@ -196,24 +196,24 @@ function renderNavIcon(iconFamily, iconName, color, size) {
   return <Ionicons name={iconName} size={size} color={color} />;
 }
 
-function renderAmenityIcon(amenity) {
+function renderAmenityIcon(amenity, size = 19) {
   if (amenity === "Pool") {
-    return <MaterialCommunityIcons name="pool" size={19} color="#14253E" />;
+    return <MaterialCommunityIcons name="pool" size={size} color="#14253E" />;
   }
 
   if (amenity === "Parking") {
-    return <Ionicons name="car-outline" size={19} color="#14253E" />;
+    return <Ionicons name="car-outline" size={size} color="#14253E" />;
   }
 
   if (amenity === "Breakfast") {
-    return <Ionicons name="cafe-outline" size={19} color="#14253E" />;
+    return <Ionicons name="cafe-outline" size={size} color="#14253E" />;
   }
 
   if (amenity === "Gym") {
-    return <Ionicons name="barbell-outline" size={19} color="#14253E" />;
+    return <Ionicons name="barbell-outline" size={size} color="#14253E" />;
   }
 
-  return <Ionicons name="wifi-outline" size={19} color="#14253E" />;
+  return <Ionicons name="wifi-outline" size={size} color="#14253E" />;
 }
 
 function CardButton({ children, onPress, style, accessibilityLabel }) {
@@ -307,14 +307,21 @@ function FavoriteTabs({ activeTab, onSelect, compact = false, tight = false }) {
   );
 }
 
-function SectionHeader({ title, iconName, iconFamily = "ion", onViewAll, showViewAll = true }) {
+function SectionHeader({
+  title,
+  iconName,
+  iconFamily = "ion",
+  onViewAll,
+  showViewAll = true,
+  compact = false,
+}) {
   return (
-    <View style={styles.sectionHeaderRow}>
+    <View style={[styles.sectionHeaderRow, compact && styles.sectionHeaderRowCompact]}>
       <View style={styles.sectionHeaderCopy}>
         <View style={styles.sectionHeaderIconWrap}>
-          {renderNavIcon(iconFamily, iconName, COLORS.blue, 21)}
+          {renderNavIcon(iconFamily, iconName, COLORS.blue, compact ? 18 : 21)}
         </View>
-        <Text style={styles.sectionTitle}>{title}</Text>
+        <Text style={[styles.sectionTitle, compact && styles.sectionTitleCompact]}>{title}</Text>
       </View>
 
       {showViewAll ? (
@@ -324,8 +331,10 @@ function SectionHeader({ title, iconName, iconFamily = "ion", onViewAll, showVie
           onPress={onViewAll}
           style={styles.sectionLinkButton}
         >
-          <Text style={styles.sectionLinkText}>View all</Text>
-          <Ionicons name="chevron-forward" size={18} color={COLORS.blue} />
+          <Text style={[styles.sectionLinkText, compact && styles.sectionLinkTextCompact]}>
+            View all
+          </Text>
+          <Ionicons name="chevron-forward" size={compact ? 16 : 18} color={COLORS.blue} />
         </Pressable>
       ) : null}
     </View>
@@ -380,9 +389,12 @@ function HotelFavoriteCard({
   hotel,
   isSaved,
   isStacked,
+  compact = false,
   onPress,
   onToggleSaved,
 }) {
+  const amenityIconSize = compact ? 15 : 19;
+
   return (
     <CardButton
       accessibilityLabel={`Open ${hotel.name}`}
@@ -390,19 +402,37 @@ function HotelFavoriteCard({
       style={[
         styles.hotelCard,
         cardShadowStyle,
+        compact && styles.hotelCardCompact,
         isStacked && styles.hotelCardStacked,
       ]}
     >
-      <View style={[styles.hotelImageWrap, isStacked && styles.hotelImageWrapStacked]}>
+      <View
+        style={[
+          styles.hotelImageWrap,
+          compact && styles.hotelImageWrapCompact,
+          isStacked && styles.hotelImageWrapStacked,
+        ]}
+      >
         <Image source={hotel.image} resizeMode="cover" style={styles.hotelImage} />
         <View
           style={[
             styles.hotelBadge,
+            compact && styles.hotelBadgeCompact,
             { backgroundColor: hotel.badgeBackground },
           ]}
         >
-          <Ionicons name="star-outline" size={17} color={hotel.badgeTextColor} />
-          <Text style={[styles.hotelBadgeText, { color: hotel.badgeTextColor }]}>
+          <Ionicons
+            name="star-outline"
+            size={compact ? 13 : 17}
+            color={hotel.badgeTextColor}
+          />
+          <Text
+            style={[
+              styles.hotelBadgeText,
+              compact && styles.hotelBadgeTextCompact,
+              { color: hotel.badgeTextColor },
+            ]}
+          >
             {hotel.badge}
           </Text>
         </View>
@@ -411,10 +441,17 @@ function HotelFavoriteCard({
       <View style={styles.hotelContent}>
         <View style={styles.cardTopRow}>
           <View style={styles.cardHeadlineCopy}>
-            <Text numberOfLines={2} style={styles.hotelName}>{hotel.name}</Text>
-            <View style={styles.metaRow}>
-              <Ionicons name="location" size={16} color={COLORS.blue} />
-              <Text style={styles.metaText}>{hotel.location}</Text>
+            <Text
+              numberOfLines={2}
+              style={[styles.hotelName, compact && styles.hotelNameCompact]}
+            >
+              {hotel.name}
+            </Text>
+            <View style={[styles.metaRow, compact && styles.metaRowCompact]}>
+              <Ionicons name="location" size={compact ? 13 : 16} color={COLORS.blue} />
+              <Text style={[styles.metaText, compact && styles.metaTextCompact]}>
+                {hotel.location}
+              </Text>
             </View>
           </View>
 
@@ -422,41 +459,56 @@ function HotelFavoriteCard({
             accessibilityLabel={isSaved ? `Remove ${hotel.name} from favorites` : `Save ${hotel.name}`}
             iconName={isSaved ? "heart" : "heart-outline"}
             color={isSaved ? COLORS.coral : COLORS.text}
+            size={compact ? 18 : 20}
             onPress={onToggleSaved}
           />
         </View>
 
-        <View style={styles.hotelStatsRow}>
+        <View style={[styles.hotelStatsRow, compact && styles.hotelStatsRowCompact]}>
           <View style={styles.ratingWrap}>
-            <Ionicons name="star" size={18} color="#F5B32C" />
-            <Text style={styles.ratingText}>{hotel.rating}</Text>
+            <Ionicons name="star" size={compact ? 14 : 18} color="#F5B32C" />
+            <Text style={[styles.ratingText, compact && styles.ratingTextCompact]}>
+              {hotel.rating}
+            </Text>
           </View>
-          <Text style={styles.reviewText}>({hotel.reviewCount} reviews)</Text>
-          <Text style={styles.metaDivider}>|</Text>
+          <Text style={[styles.reviewText, compact && styles.reviewTextCompact]}>
+            ({hotel.reviewCount} reviews)
+          </Text>
+          <Text style={[styles.metaDivider, compact && styles.metaDividerCompact]}>|</Text>
           <View style={styles.priceWrap}>
-            <Text style={styles.priceText}>${hotel.price}</Text>
-            <Text style={styles.priceSuffix}>/night</Text>
+            <Text style={[styles.priceText, compact && styles.priceTextCompact]}>
+              ${hotel.price}
+            </Text>
+            <Text style={[styles.priceSuffix, compact && styles.priceSuffixCompact]}>
+              /night
+            </Text>
           </View>
         </View>
 
-        <View style={styles.amenitiesRow}>
+        <View style={[styles.amenitiesRow, compact && styles.amenitiesRowCompact]}>
           {hotel.amenities.map((amenity) => (
-            <View key={amenity} style={styles.amenityPill}>
-              {renderAmenityIcon(amenity)}
-              <Text style={styles.amenityText}>{amenity}</Text>
+            <View key={amenity} style={[styles.amenityPill, compact && styles.amenityPillCompact]}>
+              {renderAmenityIcon(amenity, amenityIconSize)}
+              <Text style={[styles.amenityText, compact && styles.amenityTextCompact]}>
+                {amenity}
+              </Text>
             </View>
           ))}
         </View>
 
-        <View style={[styles.noteBox, { backgroundColor: hotel.noteBackground }]}>
-          <View style={[styles.noteIconWrap, { backgroundColor: "#FFFFFF" }]}>
-            <MaterialCommunityIcons
-              name="robot-happy-outline"
-              size={22}
-              color={hotel.noteIconColor}
-            />
-          </View>
-          <Text style={styles.noteText}>
+        <View
+          style={[
+            styles.noteBox,
+            compact && styles.noteBoxCompact,
+            { backgroundColor: hotel.noteBackground },
+          ]}
+        >
+          <Image
+            source={tipBotImage}
+            resizeMode="contain"
+            style={[styles.noteRobotImage, compact && styles.noteRobotImageCompact]}
+          />
+          <Text style={[styles.noteText, compact && styles.noteTextCompact]}>
             <Text style={styles.noteLabel}>Wayfinder note:</Text> {hotel.note}
           </Text>
         </View>
@@ -643,7 +695,7 @@ function ItineraryFavoriteCard({
     itinerary.accentIconFamily,
     itinerary.accentIconName,
     itinerary.accentIconColor,
-    18
+    compact ? 14 : 16
   );
 
   const actionButtons = (
@@ -652,12 +704,14 @@ function ItineraryFavoriteCard({
         accessibilityLabel={isSaved ? `Remove ${itinerary.title} from favorites` : `Save ${itinerary.title}`}
         iconName={isSaved ? "heart" : "heart-outline"}
         color={isSaved ? COLORS.coral : COLORS.text}
+        size={compact ? 18 : 20}
         onPress={onToggleSaved}
       />
       <IconButton
         accessibilityLabel={`Open ${itinerary.title} itinerary`}
         iconName="chevron-forward"
         color={COLORS.text}
+        size={compact ? 18 : 20}
         filled
         onPress={onPress}
       />
@@ -680,9 +734,15 @@ function ItineraryFavoriteCard({
             />
 
             <View style={[styles.itineraryDateBlock, styles.itineraryDateBlockCompact]}>
-              <Text style={styles.itineraryMonthText}>{itinerary.month}</Text>
-              <Text style={styles.itineraryDayText}>{itinerary.day}</Text>
-              <Text style={styles.itineraryYearText}>{itinerary.year}</Text>
+              <Text style={[styles.itineraryMonthText, styles.itineraryMonthTextCompact]}>
+                {itinerary.month}
+              </Text>
+              <Text style={[styles.itineraryDayText, styles.itineraryDayTextCompact]}>
+                {itinerary.day}
+              </Text>
+              <Text style={[styles.itineraryYearText, styles.itineraryYearTextCompact]}>
+                {itinerary.year}
+              </Text>
             </View>
           </View>
 
@@ -788,21 +848,36 @@ function SavedPlaceCard({ place, isSaved, compact, onPress, onToggleSaved }) {
         compact ? styles.savedPlaceCardCompact : styles.savedPlaceCardWide,
       ]}
     >
-      <View style={styles.savedPlaceImageShell}>
-        <Image source={place.image} resizeMode="contain" style={styles.savedPlaceImage} />
+      <View
+        style={[
+          styles.savedPlaceImageShell,
+          compact && styles.savedPlaceImageShellCompact,
+        ]}
+      >
+        <Image
+          source={place.image}
+          resizeMode="cover"
+          style={[styles.savedPlaceImage, compact && styles.savedPlaceImageCompact]}
+        />
         <View style={styles.savedPlaceHeartWrap}>
           <IconButton
             accessibilityLabel={isSaved ? `Remove ${place.title} from favorites` : `Save ${place.title}`}
             iconName={isSaved ? "heart" : "heart-outline"}
             color={isSaved ? COLORS.coral : COLORS.text}
+            size={compact ? 18 : 20}
             onPress={onToggleSaved}
           />
         </View>
       </View>
 
-      <View style={styles.savedPlaceCopy}>
-        <Text numberOfLines={2} style={styles.savedPlaceTitle}>{place.title}</Text>
-        <Text style={styles.savedPlaceMeta}>
+      <View style={[styles.savedPlaceCopy, compact && styles.savedPlaceCopyCompact]}>
+        <Text
+          numberOfLines={2}
+          style={[styles.savedPlaceTitle, compact && styles.savedPlaceTitleCompact]}
+        >
+          {place.title}
+        </Text>
+        <Text style={[styles.savedPlaceMeta, compact && styles.savedPlaceMetaCompact]}>
           {place.meta} <Text style={styles.savedPlaceDivider}>•</Text> {place.distance}
         </Text>
       </View>
@@ -814,13 +889,31 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
   const insets = useSafeAreaInsets();
   const bottomNavPadding = getBottomNavContentPadding(insets);
   const { width } = useWindowDimensions();
-  const isPhone = width < 760;
-  const isCompact = width < 460;
+  const isPhone = width < 700;
+  const isCompactPhone = width < 400;
   const useTightTabs = width < 520;
-  const shouldStackHotelCards = width < 900;
-  const shouldCompactFlightRows = width < 680;
+  // Keep hotel cards side-by-side like the mockup; stack only on very narrow widths.
+  const shouldStackHotelCards = width < 340;
+  const shouldCompactFlightRows = width < 520;
   const shouldCompactItineraryCards = width < 640;
   const pageMaxWidth = width >= 1100 ? 1040 : 980;
+  const pagePaddingHorizontal = isCompactPhone ? 14 : isPhone ? 16 : 18;
+
+  // Favorites hero art is 842×356 — size near natural resolution (avoid soft upscaling).
+  const heroAspectRatio = 842 / 356;
+  const heroArtworkWidth = isCompactPhone
+    ? Math.min(Math.round(width * 0.46), 168)
+    : isPhone
+      ? Math.min(Math.round(width * 0.44), 196)
+      : width < 900
+        ? Math.min(Math.round(width * 0.36), 300)
+        : Math.min(Math.round(width * 0.32), 380);
+  const heroTitleSize = isCompactPhone ? 30 : isPhone ? 34 : width < 900 ? 42 : 48;
+  const heroSubtitleSize = isCompactPhone ? 13 : isPhone ? 14 : 17;
+  const backButtonSize = isCompactPhone ? 40 : isPhone ? 44 : 48;
+  const headerIconSize = isPhone ? 24 : 28;
+  const profileIconSize = isPhone ? 30 : 33;
+  const heroHeartSize = isCompactPhone ? 22 : isPhone ? 26 : 32;
 
   const scrollRef = useRef(null);
   const sectionOffsetsRef = useRef({});
@@ -971,7 +1064,11 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
           style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: bottomNavPadding },
+            {
+              paddingBottom: bottomNavPadding,
+              paddingHorizontal: pagePaddingHorizontal,
+              paddingTop: isPhone ? 12 : 18,
+            },
           ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -987,63 +1084,105 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
                 accessibilityRole="button"
                 accessibilityLabel="Go back"
                 onPress={handleGoBack}
-                style={styles.roundHeaderButton}
+                style={[
+                  styles.roundHeaderButton,
+                  {
+                    width: backButtonSize,
+                    height: backButtonSize,
+                    borderRadius: backButtonSize / 2,
+                  },
+                ]}
               >
-                <Ionicons name="arrow-back" size={28} color="#14253E" />
+                <Ionicons name="arrow-back" size={isPhone ? 22 : 26} color="#14253E" />
               </DimPressable>
-
-              <View style={styles.brandSlot}>
-                <WayfinderBrand
-                  containerStyle={styles.headerBrandRow}
-                  textStyle={styles.headerBrandText}
-                />
-              </View>
 
               <View style={styles.headerActions}>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Notifications"
                   onPress={() => onNavigate?.("notifications")}
-                  style={styles.headerActionButton}
+                  style={[
+                    styles.headerActionButton,
+                    isPhone && styles.headerActionButtonPhone,
+                  ]}
                 >
-                  <Ionicons name="notifications-outline" size={28} color="#111827" />
-                  <View style={styles.notificationDot} />
+                  <Ionicons name="notifications-outline" size={headerIconSize} color="#111827" />
+                  <View
+                    style={[
+                      styles.notificationDot,
+                      isPhone && styles.notificationDotPhone,
+                    ]}
+                  />
                 </Pressable>
 
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Profile"
                   onPress={() => onNavigate?.("profile")}
-                  style={styles.headerActionButton}
+                  style={[
+                    styles.headerActionButton,
+                    isPhone && styles.headerActionButtonPhone,
+                  ]}
                 >
-                  <Ionicons name="person-circle-outline" size={33} color="#111827" />
+                  <Ionicons name="person-circle-outline" size={profileIconSize} color="#111827" />
                 </Pressable>
               </View>
             </View>
 
-            <View style={[styles.heroSection, isPhone && styles.heroSectionStacked]}>
-              <View style={[styles.heroCopyColumn, isPhone && styles.heroCopyColumnStacked]}>
+            <View style={[styles.heroSection, isPhone && styles.heroSectionPhone]}>
+              <View style={[styles.heroCopyColumn, isPhone && styles.heroCopyColumnPhone]}>
                 <View style={styles.heroTitleRow}>
-                  <Text style={[styles.heroTitle, isCompact && styles.heroTitleCompact]}>
+                  <Text
+                    style={[
+                      styles.heroTitle,
+                      {
+                        fontSize: heroTitleSize,
+                        lineHeight: heroTitleSize + 4,
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
                     Favorites
                   </Text>
-                  <Ionicons name="heart" size={isCompact ? 28 : 34} color="#8FA2FF" />
+                  <Ionicons name="heart" size={heroHeartSize} color="#8FA2FF" />
                 </View>
-                <Text style={[styles.heroSubtitle, isCompact && styles.heroSubtitleCompact]}>
+                <Text
+                  style={[
+                    styles.heroSubtitle,
+                    {
+                      fontSize: heroSubtitleSize,
+                      lineHeight: heroSubtitleSize + 8,
+                      marginTop: isPhone ? 6 : 12,
+                    },
+                  ]}
+                >
                   All your saved places, flights, and trips in one spot.
                 </Text>
               </View>
 
-              <View style={[styles.heroArtworkWrap, isPhone && styles.heroArtworkWrapStacked]}>
+              <View
+                style={[
+                  styles.heroArtworkWrap,
+                  {
+                    width: heroArtworkWidth,
+                    maxWidth: heroArtworkWidth,
+                    aspectRatio: heroAspectRatio,
+                  },
+                ]}
+              >
                 <View style={styles.heroArtworkGlow} />
-                <Image source={heroArtworkImage} resizeMode="cover" style={styles.heroArtworkImage} />
+                <Image
+                  source={heroArtworkImage}
+                  resizeMode="contain"
+                  style={styles.heroArtworkImage}
+                />
               </View>
             </View>
 
             <FavoriteTabs
               activeTab={activeTab}
               onSelect={handleTabSelect}
-              compact={isCompact}
+              compact={isPhone}
               tight={useTightTabs}
             />
 
@@ -1052,15 +1191,17 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
                 title="Saved Hotels"
                 iconName="bed-outline"
                 iconFamily="material"
+                compact={isPhone}
                 onViewAll={() => handleViewAll("hotels")}
               />
-              <View style={styles.sectionStack}>
+              <View style={[styles.sectionStack, isPhone && styles.sectionStackPhone]}>
                 {SAVED_HOTELS.map((hotel) => (
                   <HotelFavoriteCard
                     key={hotel.id}
                     hotel={hotel}
                     isSaved={savedHotelIds.includes(hotel.id)}
                     isStacked={shouldStackHotelCards}
+                    compact={isPhone}
                     onPress={() => onNavigate?.("hotels")}
                     onToggleSaved={() => toggleSaved(setSavedHotelIds, hotel.id)}
                   />
@@ -1072,9 +1213,10 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
               <SectionHeader
                 title="Saved Flights"
                 iconName="airplane-outline"
+                compact={isPhone}
                 onViewAll={() => handleViewAll("flights")}
               />
-              <View style={styles.sectionStack}>
+              <View style={[styles.sectionStack, isPhone && styles.sectionStackPhone]}>
                 {SAVED_FLIGHTS.map((flight) => (
                   <FlightFavoriteRow
                     key={flight.id}
@@ -1092,12 +1234,13 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
               <SectionHeader
                 title="Saved Itineraries"
                 iconName="calendar-outline"
+                compact={isPhone}
                 onViewAll={() => handleViewAll("itineraries")}
                 showViewAll={
                   !itinerariesLoading && !itinerariesError && savedItineraries.length > 0
                 }
               />
-              <View style={styles.sectionStack}>
+              <View style={[styles.sectionStack, isPhone && styles.sectionStackPhone]}>
                 {itinerariesLoading ? (
                   <View style={styles.itinerariesStatusBlock}>
                     <ActivityIndicator size="small" color={COLORS.blue} />
@@ -1166,9 +1309,10 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
               <SectionHeader
                 title="Saved Places"
                 iconName="location-outline"
+                compact={isPhone}
                 onViewAll={() => handleViewAll("places")}
               />
-              <View style={styles.savedPlacesGrid}>
+              <View style={[styles.savedPlacesGrid, isPhone && styles.savedPlacesGridPhone]}>
                 {SAVED_PLACES.map((place) => (
                   <SavedPlaceCard
                     key={place.id}
@@ -1279,25 +1423,10 @@ const styles = StyleSheet.create({
     elevation: 7,
   },
 
-  brandSlot: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
-
-  headerBrandRow: {
-    alignSelf: "auto",
-    marginRight: 0,
-  },
-
-  headerBrandText: {
-    fontSize: 26,
-  },
-
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 0,
   },
 
   headerActionButton: {
@@ -1307,6 +1436,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
+  },
+
+  headerActionButtonPhone: {
+    width: 42,
+    height: 42,
+    marginLeft: 4,
   },
 
   notificationDot: {
@@ -1319,109 +1454,100 @@ const styles = StyleSheet.create({
     backgroundColor: "#FF7A32",
   },
 
+  notificationDotPhone: {
+    top: 6,
+    right: 6,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+  },
+
   heroSection: {
-    marginTop: 18,
+    marginTop: 14,
+    marginBottom: 2,
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
-    gap: 18,
+    gap: 10,
+    overflow: "visible",
   },
 
-  heroSectionStacked: {
-    flexDirection: "column",
-    alignItems: "flex-start",
+  heroSectionPhone: {
+    marginTop: 10,
+    gap: 6,
   },
 
   heroCopyColumn: {
     flex: 1,
-    minWidth: 230,
+    minWidth: 0,
     maxWidth: 430,
-    paddingTop: 6,
+    paddingTop: 4,
+    paddingRight: 4,
+    paddingBottom: 4,
+    zIndex: 2,
   },
 
-  heroCopyColumnStacked: {
-    width: "100%",
-    minWidth: 0,
-    maxWidth: 480,
+  heroCopyColumnPhone: {
+    maxWidth: "56%",
+    paddingTop: 0,
+    paddingBottom: 2,
   },
 
   heroTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
+    minWidth: 0,
   },
 
   heroTitle: {
-    fontSize: 54,
-    lineHeight: 58,
+    flexShrink: 1,
     fontWeight: "800",
-    letterSpacing: -2,
+    letterSpacing: -1.6,
     color: COLORS.text,
   },
 
-  heroTitleCompact: {
-    fontSize: 42,
-    lineHeight: 46,
-  },
-
   heroSubtitle: {
-    marginTop: 14,
     maxWidth: 380,
-    fontSize: 18,
-    lineHeight: 30,
     color: COLORS.subtext,
   },
 
-  heroSubtitleCompact: {
-    fontSize: 17,
-    lineHeight: 28,
-  },
-
   heroArtworkWrap: {
-    flex: 1,
-    minWidth: 260,
-    maxWidth: 430,
-    height: 212,
+    flexShrink: 0,
     justifyContent: "flex-end",
+    alignItems: "flex-end",
     position: "relative",
-    overflow: "hidden",
-  },
-
-  heroArtworkWrapStacked: {
-    alignSelf: "stretch",
-    width: "100%",
-    maxWidth: 1000,
-    height: 196,
+    overflow: "visible",
+    zIndex: 1,
   },
 
   heroArtworkGlow: {
     position: "absolute",
-    right: 26,
-    bottom: 22,
-    width: 178,
-    height: 178,
-    borderRadius: 89,
+    right: 18,
+    bottom: 14,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     backgroundColor: "rgba(111, 170, 255, 0.14)",
   },
 
   heroArtworkImage: {
     width: "100%",
     height: "100%",
-    borderRadius: 26,
   },
 
   tabsShell: {
-    marginTop: 18,
-    marginBottom: 24,
-    padding: 8,
-    borderRadius: 32,
+    marginTop: 14,
+    marginBottom: 18,
+    padding: 6,
+    borderRadius: 28,
     backgroundColor: COLORS.card,
   },
 
   tabsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
 
   tabsRowTight: {
@@ -1434,11 +1560,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
-    borderRadius: 24,
-    minHeight: 56,
-    paddingVertical: 15,
-    paddingHorizontal: 10,
+    gap: 8,
+    borderRadius: 22,
+    minHeight: 48,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     backgroundColor: "#FFFFFF",
   },
 
@@ -1447,21 +1573,23 @@ const styles = StyleSheet.create({
   },
 
   tabButtonCompact: {
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 13,
+    gap: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 10,
+    minHeight: 44,
+    borderRadius: 20,
   },
 
   tabButtonTight: {
-    gap: 4,
-    borderRadius: 20,
-    minHeight: 52,
-    paddingHorizontal: 4,
-    paddingVertical: 12,
+    gap: 3,
+    borderRadius: 18,
+    minHeight: 42,
+    paddingHorizontal: 3,
+    paddingVertical: 9,
   },
 
   tabLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
     color: COLORS.text,
     flexShrink: 1,
@@ -1473,7 +1601,7 @@ const styles = StyleSheet.create({
   },
 
   tabLabelCompact: {
-    fontSize: 14,
+    fontSize: 13,
   },
 
   tabLabelTight: {
@@ -1483,45 +1611,65 @@ const styles = StyleSheet.create({
   },
 
   sectionHeaderRow: {
-    marginTop: 10,
-    marginBottom: 16,
+    marginTop: 8,
+    marginBottom: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
 
+  sectionHeaderRowCompact: {
+    marginTop: 6,
+    marginBottom: 10,
+  },
+
   sectionHeaderCopy: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
+    minWidth: 0,
+    flexShrink: 1,
   },
 
   sectionHeaderIconWrap: {
-    width: 30,
+    width: 26,
     alignItems: "center",
   },
 
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "800",
     color: "#14253E",
-    letterSpacing: -0.6,
+    letterSpacing: -0.5,
+  },
+
+  sectionTitleCompact: {
+    fontSize: 16,
   },
 
   sectionLinkButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
+    gap: 2,
+    flexShrink: 0,
   },
 
   sectionLinkText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
     color: COLORS.blue,
   },
 
+  sectionLinkTextCompact: {
+    fontSize: 14,
+  },
+
   sectionStack: {
-    gap: 16,
+    gap: 14,
+  },
+
+  sectionStackPhone: {
+    gap: 12,
   },
 
   itinerariesStatusBlock: {
@@ -1622,14 +1770,15 @@ const styles = StyleSheet.create({
   },
 
   iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E6EEF9",
+    flexShrink: 0,
   },
 
   iconButtonFilled: {
@@ -1642,12 +1791,18 @@ const styles = StyleSheet.create({
 
   hotelCard: {
     flexDirection: "row",
-    gap: 20,
-    padding: 16,
-    borderRadius: 28,
+    gap: 14,
+    padding: 14,
+    borderRadius: 24,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: "#E3ECFA",
+  },
+
+  hotelCardCompact: {
+    gap: 12,
+    padding: 12,
+    borderRadius: 20,
   },
 
   hotelCardStacked: {
@@ -1655,18 +1810,26 @@ const styles = StyleSheet.create({
   },
 
   hotelImageWrap: {
-    width: 270,
-    minWidth: 270,
-    height: 212,
-    borderRadius: 22,
+    width: 148,
+    minWidth: 148,
+    height: 148,
+    borderRadius: 18,
     overflow: "hidden",
     position: "relative",
+    flexShrink: 0,
+  },
+
+  hotelImageWrapCompact: {
+    width: 112,
+    minWidth: 112,
+    height: 112,
+    borderRadius: 14,
   },
 
   hotelImageWrapStacked: {
     width: "100%",
     minWidth: 0,
-    height: 220,
+    height: 180,
   },
 
   hotelImage: {
@@ -1676,19 +1839,32 @@ const styles = StyleSheet.create({
 
   hotelBadge: {
     position: "absolute",
-    top: 14,
-    left: 14,
+    top: 10,
+    left: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+
+  hotelBadgeCompact: {
+    top: 8,
+    left: 8,
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 12,
   },
 
   hotelBadgeText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "800",
+  },
+
+  hotelBadgeTextCompact: {
+    fontSize: 11,
   },
 
   hotelContent: {
@@ -1700,7 +1876,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 8,
   },
 
   cardHeadlineCopy: {
@@ -1709,117 +1885,188 @@ const styles = StyleSheet.create({
   },
 
   hotelName: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "800",
     color: COLORS.text,
-    letterSpacing: -0.6,
+    letterSpacing: -0.4,
+  },
+
+  hotelNameCompact: {
+    fontSize: 16,
   },
 
   metaRow: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-
-  metaText: {
-    fontSize: 16,
-    color: COLORS.subtext,
-  },
-
-  hotelStatsRow: {
-    marginTop: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-
-  ratingWrap: {
+    marginTop: 6,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
 
+  metaRowCompact: {
+    marginTop: 4,
+    gap: 4,
+  },
+
+  metaText: {
+    fontSize: 14,
+    color: COLORS.subtext,
+    flexShrink: 1,
+  },
+
+  metaTextCompact: {
+    fontSize: 13,
+  },
+
+  hotelStatsRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+
+  hotelStatsRowCompact: {
+    marginTop: 8,
+    gap: 6,
+  },
+
+  ratingWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+
   ratingText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "800",
     color: COLORS.blue,
   },
 
+  ratingTextCompact: {
+    fontSize: 13,
+  },
+
   reviewText: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.subtext,
   },
 
+  reviewTextCompact: {
+    fontSize: 12,
+  },
+
   metaDivider: {
-    fontSize: 16,
+    fontSize: 14,
     color: "#94A3B8",
+  },
+
+  metaDividerCompact: {
+    fontSize: 12,
   },
 
   priceWrap: {
     flexDirection: "row",
     alignItems: "baseline",
-    gap: 4,
+    gap: 2,
     flexShrink: 0,
   },
 
   priceText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "800",
     color: COLORS.blue,
   },
 
+  priceTextCompact: {
+    fontSize: 15,
+  },
+
   priceSuffix: {
-    fontSize: 17,
+    fontSize: 14,
     color: COLORS.text,
   },
 
+  priceSuffixCompact: {
+    fontSize: 13,
+  },
+
   amenitiesRow: {
-    marginTop: 16,
+    marginTop: 12,
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 16,
+    gap: 12,
+  },
+
+  amenitiesRowCompact: {
+    marginTop: 8,
+    gap: 8,
   },
 
   amenityPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
+  },
+
+  amenityPillCompact: {
+    gap: 4,
   },
 
   amenityText: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.text,
   },
 
-  noteBox: {
-    marginTop: 18,
-    minHeight: 70,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#D9E7FB",
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+  amenityTextCompact: {
+    fontSize: 12,
   },
 
-  noteIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+  noteBox: {
+    marginTop: 12,
+    minHeight: 56,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#D9E7FB",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 10,
+  },
+
+  noteBoxCompact: {
+    marginTop: 10,
+    minHeight: 48,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 8,
+  },
+
+  noteRobotImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    flexShrink: 0,
+  },
+
+  noteRobotImageCompact: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
   },
 
   noteText: {
     flex: 1,
     minWidth: 0,
-    fontSize: 15,
-    lineHeight: 24,
+    fontSize: 13,
+    lineHeight: 20,
     color: COLORS.text,
+  },
+
+  noteTextCompact: {
+    fontSize: 12,
+    lineHeight: 17,
   },
 
   noteLabel: {
@@ -1827,9 +2074,9 @@ const styles = StyleSheet.create({
   },
 
   flightRowCard: {
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 20,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: "#E3ECFA",
@@ -1839,43 +2086,46 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 18,
+    gap: 12,
   },
 
   flightCompactTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 10,
   },
 
   flightAirlineBlock: {
-    width: 170,
+    width: 140,
+    flexShrink: 0,
   },
 
   flightAirlineBlockCompact: {
     flex: 1,
     minWidth: 0,
-    paddingRight: 8,
+    paddingRight: 6,
   },
 
   flightCompactTopActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
+    flexShrink: 0,
   },
 
   airlineLogoRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "flex-start",
+    gap: 6,
     minWidth: 0,
   },
 
   airlineLogoText: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "900",
-    letterSpacing: -0.8,
+    letterSpacing: -0.6,
   },
 
   anaLogoText: {
@@ -1883,32 +2133,32 @@ const styles = StyleSheet.create({
   },
 
   anaStripe: {
-    width: 28,
-    height: 6,
+    width: 22,
+    height: 5,
     borderRadius: 3,
     backgroundColor: "#2557D6",
     transform: [{ skewX: "-24deg" }],
   },
 
   jalMark: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FEE2E2",
   },
 
   jalMarkText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
     color: "#D53032",
   },
 
   koreanMark: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     overflow: "hidden",
     backgroundColor: "#E8EEF9",
   },
@@ -1924,16 +2174,16 @@ const styles = StyleSheet.create({
   },
 
   airlineSecondaryText: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: "800",
     color: COLORS.text,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
     flexShrink: 1,
   },
 
   flightAirlineName: {
-    marginTop: 8,
-    fontSize: 14,
+    marginTop: 6,
+    fontSize: 12,
     color: COLORS.subtext,
   },
 
@@ -1943,70 +2193,71 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 16,
+    gap: 10,
   },
 
   flightScheduleBlockCompact: {
-    marginTop: 18,
+    marginTop: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 8,
   },
 
   flightTimeColumn: {
-    minWidth: 74,
+    minWidth: 62,
     alignItems: "flex-start",
+    flexShrink: 0,
   },
 
   flightTimeText: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "800",
     color: COLORS.text,
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
 
   arrivalTimeRow: {
     flexDirection: "row",
     alignItems: "baseline",
-    gap: 5,
+    gap: 4,
   },
 
   flightOffsetText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "700",
     color: "#EF4444",
   },
 
   flightCodeText: {
-    marginTop: 6,
-    fontSize: 15,
+    marginTop: 4,
+    fontSize: 13,
     color: COLORS.subtext,
   },
 
   flightRouteBlock: {
     flex: 1,
     alignItems: "center",
-    gap: 8,
-    minWidth: 110,
+    gap: 6,
+    minWidth: 88,
   },
 
   flightRouteBlockCompact: {
     flex: 1,
     minWidth: 0,
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
 
   flightDurationText: {
-    fontSize: 17,
+    fontSize: 13,
     fontWeight: "700",
     color: COLORS.subtext,
   },
 
   routeTrackRow: {
     width: "100%",
-    maxWidth: 160,
+    maxWidth: 130,
     flexDirection: "row",
     alignItems: "center",
   },
@@ -2018,33 +2269,34 @@ const styles = StyleSheet.create({
   },
 
   routeDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     borderWidth: 1.5,
     borderColor: "#93ADD3",
     backgroundColor: "#FFFFFF",
   },
 
   routeMidDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: "#93ADD3",
   },
 
   flightStopText: {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "700",
   },
 
   flightPriceBlock: {
-    width: 88,
+    width: 78,
     alignItems: "flex-end",
+    flexShrink: 0,
   },
 
   flightPriceBlockCompact: {
-    width: 74,
+    width: 68,
   },
 
   flightTimeColumnArrival: {
@@ -2052,98 +2304,116 @@ const styles = StyleSheet.create({
   },
 
   flightPriceText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "800",
     color: COLORS.blue,
   },
 
   flightPriceMeta: {
-    marginTop: 4,
-    fontSize: 15,
+    marginTop: 2,
+    fontSize: 12,
     color: COLORS.subtext,
   },
 
   itineraryCard: {
-    padding: 16,
-    borderRadius: 26,
+    padding: 14,
+    borderRadius: 22,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: "#E3ECFA",
   },
 
   itineraryCardCompact: {
-    paddingBottom: 18,
+    padding: 12,
+    paddingBottom: 14,
+    borderRadius: 18,
   },
 
   itineraryTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 12,
   },
 
   itineraryCompactTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 12,
+    gap: 10,
   },
 
   itineraryMediaGroup: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: 10,
+    flexShrink: 0,
   },
 
   itineraryMediaGroupCompact: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
+    flexShrink: 0,
   },
 
   itineraryImage: {
-    width: 194,
-    height: 112,
-    borderRadius: 18,
+    width: 132,
+    height: 88,
+    borderRadius: 14,
   },
 
   itineraryImageCompact: {
-    width: 102,
-    height: 92,
+    width: 88,
+    height: 72,
+    borderRadius: 12,
   },
 
   itineraryDateBlock: {
-    width: 74,
-    minHeight: 112,
+    width: 64,
+    minHeight: 88,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    borderRadius: 18,
+    paddingVertical: 10,
+    borderRadius: 14,
     backgroundColor: "#F7FAFF",
   },
 
   itineraryDateBlockCompact: {
-    width: 66,
-    minHeight: 92,
-    borderRadius: 16,
-    paddingVertical: 10,
+    width: 54,
+    minHeight: 72,
+    borderRadius: 12,
+    paddingVertical: 8,
   },
 
   itineraryMonthText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "700",
     color: COLORS.blue,
   },
 
+  itineraryMonthTextCompact: {
+    fontSize: 10,
+  },
+
   itineraryDayText: {
-    fontSize: 34,
-    lineHeight: 36,
+    fontSize: 26,
+    lineHeight: 28,
     fontWeight: "800",
     color: COLORS.text,
-    letterSpacing: -1.2,
+    letterSpacing: -1,
+  },
+
+  itineraryDayTextCompact: {
+    fontSize: 22,
+    lineHeight: 24,
   },
 
   itineraryYearText: {
-    fontSize: 13,
+    fontSize: 11,
     color: COLORS.subtext,
+  },
+
+  itineraryYearTextCompact: {
+    fontSize: 10,
   },
 
   itineraryBody: {
@@ -2159,7 +2429,7 @@ const styles = StyleSheet.create({
   itineraryTitleRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 8,
+    gap: 6,
     minWidth: 0,
   },
 
@@ -2167,28 +2437,28 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     flexShrink: 1,
-    fontSize: 20,
-    lineHeight: 26,
+    fontSize: 17,
+    lineHeight: 22,
     fontWeight: "800",
     color: COLORS.text,
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
 
   itineraryTitleCompact: {
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 20,
   },
 
   itineraryMeta: {
-    marginTop: 10,
-    fontSize: 16,
-    lineHeight: 24,
+    marginTop: 6,
+    fontSize: 14,
+    lineHeight: 20,
     color: COLORS.subtext,
   },
 
   itineraryMetaCompact: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 13,
+    lineHeight: 18,
   },
 
   itineraryMetaDivider: {
@@ -2196,48 +2466,53 @@ const styles = StyleSheet.create({
   },
 
   itineraryTagsRow: {
-    marginTop: 14,
+    marginTop: 12,
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 8,
   },
 
   itineraryTagsRowCompact: {
-    marginTop: 12,
-    gap: 8,
+    marginTop: 10,
+    gap: 6,
   },
 
   tagChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
     backgroundColor: "#F1F6FF",
   },
 
   tagChipText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
     color: COLORS.text,
   },
 
   itineraryActions: {
-    width: 40,
+    width: 36,
     alignItems: "center",
-    gap: 12,
+    gap: 8,
+    flexShrink: 0,
   },
 
   savedPlacesGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 16,
+    gap: 14,
+  },
+
+  savedPlacesGridPhone: {
+    gap: 12,
   },
 
   savedPlaceCard: {
-    padding: 12,
-    borderRadius: 24,
+    padding: 10,
+    borderRadius: 20,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: "#E3ECFA",
@@ -2246,6 +2521,7 @@ const styles = StyleSheet.create({
   savedPlaceCardWide: {
     flexBasis: "48.5%",
     flexGrow: 1,
+    minWidth: 0,
   },
 
   savedPlaceCardCompact: {
@@ -2254,43 +2530,68 @@ const styles = StyleSheet.create({
 
   savedPlaceImageShell: {
     position: "relative",
-    borderRadius: 18,
+    borderRadius: 14,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F4F7FD",
+    aspectRatio: 16 / 9,
+    width: "100%",
+  },
+
+  savedPlaceImageShellCompact: {
+    borderRadius: 12,
+    aspectRatio: 16 / 10,
   },
 
   savedPlaceImage: {
     width: "100%",
-    height: 160,
-    borderRadius: 18,
+    height: "100%",
+    borderRadius: 14,
+  },
+
+  savedPlaceImageCompact: {
+    borderRadius: 12,
   },
 
   savedPlaceHeartWrap: {
     position: "absolute",
-    top: 12,
-    right: 12,
+    top: 10,
+    right: 10,
   },
 
   savedPlaceCopy: {
-    paddingTop: 14,
+    paddingTop: 12,
     paddingHorizontal: 4,
-    paddingBottom: 4,
+    paddingBottom: 2,
+  },
+
+  savedPlaceCopyCompact: {
+    paddingTop: 10,
   },
 
   savedPlaceTitle: {
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 16,
+    lineHeight: 22,
     fontWeight: "800",
     color: COLORS.text,
   },
 
-  savedPlaceMeta: {
-    marginTop: 8,
+  savedPlaceTitleCompact: {
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 20,
+  },
+
+  savedPlaceMeta: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
     color: COLORS.subtext,
+  },
+
+  savedPlaceMetaCompact: {
+    fontSize: 12,
+    lineHeight: 17,
   },
 
   savedPlaceDivider: {
