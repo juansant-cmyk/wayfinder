@@ -26,7 +26,12 @@
         "ACCESS_FINE_LOCATION"
       ],
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": "TODO_ANDROID_MAPS_API_KEY"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/images/favicon.png"

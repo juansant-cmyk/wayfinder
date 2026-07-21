@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import {
@@ -14,12 +14,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { DEFAULT_LAT, DEFAULT_LNG, reverseGeocodeLabel } from "../src/location/geo";
+import { useUserLocation } from "../src/location/UserLocationContext";
 import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { BOTTOM_NAV_CONTENT_PADDING } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
+import MapCanvas from "./shared/MapCanvas";
 
 const heroArtworkImage = require("../assets/images/maps/maps-hero-art.png");
-const wideMapArtworkImage = require("../assets/images/maps/maps-static-map-wide.png");
 
 const COLORS = {
   background: "#EAF2FC",
@@ -31,6 +33,7 @@ const COLORS = {
 };
 
 const MOBILE_MAP_ASPECT_RATIO = 624 / 282;
+const DEFAULT_MAP_DELTA = 0.08;
 
 const MAP_ACTIONS = [
   {
@@ -206,25 +209,6 @@ const SAVED_PLACES = [
     image: require("../assets/images/maps/maps-tsukiji-market.png"),
   },
 ];
-
-const MAP_INTERACTIVE_AREAS = {
-  wide: {
-    locationSelector: { top: "4%", left: "2.5%", width: "26%", height: "24%" },
-    controls: [
-      { id: "recenter", top: "13%", right: "2.4%", width: 54, height: 54 },
-      { id: "layers", top: "35.5%", right: "2.4%", width: 54, height: 54 },
-      { id: "navigate", top: "58.2%", right: "2.4%", width: 54, height: 54 },
-    ],
-  },
-  mobile: {
-    locationSelector: { top: "4%", left: "2.5%", width: "27%", height: "24%" },
-    controls: [
-      { id: "recenter", top: "13%", right: "2.4%", width: "8.7%", height: "19.2%" },
-      { id: "layers", top: "35.5%", right: "2.4%", width: "8.7%", height: "19.2%" },
-      { id: "navigate", top: "58.2%", right: "2.4%", width: "8.7%", height: "19.2%" },
-    ],
-  },
-};
 
 const cardShadowStyle = Platform.select({
   web: {
@@ -443,42 +427,73 @@ function TripBanner({ onPress, isPhone }) {
   );
 }
 
-function MapInteractiveOverlay({ isPhone }) {
-  const areas = isPhone ? MAP_INTERACTIVE_AREAS.mobile : MAP_INTERACTIVE_AREAS.wide;
-
+function MapCard({ height, region, locationLabel, onRecenter }) {
   return (
-    <>
-      <Pressable accessibilityRole="button" onPress={() => {}} style={[styles.mapHotspot, areas.locationSelector]} />
-      {areas.controls.map((control) => (
-        <Pressable
-          key={control.id}
-          accessibilityRole="button"
-          onPress={() => {}}
-          style={[styles.mapHotspot, styles.mapControlHotspot, control]}
-        />
-      ))}
-    </>
-  );
-}
-
-function MapCard({ isPhone, height }) {
-  return (
-    <View style={[styles.mapCard, isPhone && styles.mapCardPhone, cardShadowStyle, { height }]}>
-      <Image
-        source={wideMapArtworkImage}
-        resizeMode={isPhone ? "contain" : "cover"}
-        style={[styles.mapArtworkImage, isPhone && styles.mapArtworkImagePhone]}
-      />
-      <MapInteractiveOverlay isPhone={isPhone} />
+    <View style={[styles.mapCard, cardShadowStyle, { height }]}>
+      <MapCanvas region={region} locationLabel={locationLabel} style={styles.mapCanvas} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Recenter map on your location"
+        onPress={onRecenter}
+        style={styles.mapRecenterButton}
+      >
+        <Ionicons name="locate-outline" size={22} color={COLORS.blue} />
+      </Pressable>
     </View>
   );
 }
 
 export default function MapsScreen({ onNavigate, onBack }) {
   const { width } = useWindowDimensions();
+  const { location, status: locationStatus, refreshLocation } = useUserLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedToolbarId, setSelectedToolbarId] = useState(null);
   const [savedPlaceIds, setSavedPlaceIds] = useState(SAVED_PLACES.map((place) => place.id));
+  const [locationLabel, setLocationLabel] = useState("Locating…");
+
+  const mapCenter = useMemo(() => {
+    if (location?.lat != null && location?.lng != null) {
+      return { lat: location.lat, lng: location.lng };
+    }
+    return { lat: DEFAULT_LAT, lng: DEFAULT_LNG };
+  }, [location]);
+
+  const region = useMemo(
+    () => ({
+      latitude: mapCenter.lat,
+      longitude: mapCenter.lng,
+      latitudeDelta: DEFAULT_MAP_DELTA,
+      longitudeDelta: DEFAULT_MAP_DELTA,
+    }),
+    [mapCenter.lat, mapCenter.lng]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function labelLocation() {
+      if (!location && locationStatus === "loading") {
+        setLocationLabel("Locating…");
+        return;
+      }
+
+      try {
+        const resolved = await reverseGeocodeLabel(mapCenter.lat, mapCenter.lng);
+        if (!cancelled) {
+          setLocationLabel(resolved || (location ? "Current area" : "Default area"));
+        }
+      } catch {
+        if (!cancelled) {
+          setLocationLabel(location ? "Current area" : "Default area");
+        }
+      }
+    }
+
+    labelLocation();
+    return () => {
+      cancelled = true;
+    };
+  }, [location, locationStatus, mapCenter.lat, mapCenter.lng]);
 
   const isPhone = width < 520;
   const isNarrow = width < 760;
@@ -627,7 +642,17 @@ export default function MapsScreen({ onNavigate, onBack }) {
               </View>
             </View>
 
-            <MapCard isPhone={isPhone} height={mapHeight} />
+            <Text style={styles.mapLocationLabel}>
+              {locationLabel}
+              {locationStatus === "denied" ? " · enable location for GPS" : ""}
+            </Text>
+
+            <MapCard
+              height={mapHeight}
+              region={region}
+              locationLabel={locationLabel}
+              onRecenter={refreshLocation}
+            />
 
             <ActionPanel isNarrow={isNarrow} />
 
@@ -973,26 +998,31 @@ const styles = StyleSheet.create({
     position: "relative",
   },
 
-  mapCardPhone: {
-    justifyContent: "center",
+  mapCanvas: {
+    flex: 1,
+    borderRadius: 30,
   },
 
-  mapArtworkImage: {
-    width: "100%",
-    height: "100%",
-  },
-
-  mapArtworkImagePhone: {
-    alignSelf: "center",
-  },
-
-  mapHotspot: {
+  mapRecenterButton: {
     position: "absolute",
-    backgroundColor: "transparent",
+    top: 14,
+    right: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    zIndex: 3,
   },
 
-  mapControlHotspot: {
-    borderRadius: 999,
+  mapLocationLabel: {
+    marginTop: 16,
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.text,
   },
 
   actionGrid: {
