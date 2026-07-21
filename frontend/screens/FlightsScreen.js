@@ -15,7 +15,6 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 
@@ -337,16 +336,23 @@ function getSortedFlights(flights, sortKey) {
   return nextFlights;
 }
 
-function HeroArtwork() {
+function HeroArtwork({ width: artworkWidth, aspectRatio }) {
   return (
-    <View style={styles.heroArtworkShell}>
-      <View style={styles.heroArtworkFrame}>
-        <Image
-          source={flightsHeroArt}
-          resizeMode="contain"
-          style={styles.heroArtworkImage}
-        />
-      </View>
+    <View
+      style={[
+        styles.heroArtworkShell,
+        {
+          width: artworkWidth,
+          maxWidth: artworkWidth,
+          aspectRatio,
+        },
+      ]}
+    >
+      <Image
+        source={flightsHeroArt}
+        resizeMode="contain"
+        style={styles.heroArtworkImage}
+      />
     </View>
   );
 }
@@ -374,7 +380,7 @@ function SearchField({
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.fieldValueRow}>
         <View style={styles.fieldIconWrap}>
-          {renderIcon(iconFamily, iconName, COLORS.blue, isPhone ? 20 : 22)}
+          {renderIcon(iconFamily, iconName, COLORS.blue, isPhone ? 17 : 19)}
         </View>
         <View style={styles.fieldTextWrap}>
           <Text style={[styles.fieldPrimaryText, isPhone && styles.fieldPrimaryTextPhone]}>
@@ -403,7 +409,7 @@ function AirportInputField({
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.fieldValueRow}>
         <View style={styles.fieldIconWrap}>
-          {renderIcon(iconFamily, iconName, COLORS.blue, isPhone ? 19 : 21)}
+          {renderIcon(iconFamily, iconName, COLORS.blue, isPhone ? 16 : 18)}
         </View>
         <View style={styles.fieldTextWrap}>
           <TextInput
@@ -423,7 +429,7 @@ function AirportInputField({
   );
 }
 
-function BenefitCard({ item, isPhone }) {
+function BenefitCard({ item, isPhone, showFourAcross }) {
   const shouldCenterCardContent =
     item.title === "Best Prices" || item.title === "24/7 Support";
 
@@ -433,15 +439,33 @@ function BenefitCard({ item, isPhone }) {
         styles.benefitCard,
         shouldCenterCardContent && styles.benefitCardContentCentered,
         isPhone && styles.benefitCardPhone,
+        showFourAcross && styles.benefitCardFourAcross,
         cardShadowStyle,
       ]}
     >
-      <View style={[styles.benefitIconWrap, { backgroundColor: item.iconBackground }]}>
-        {renderIcon(item.iconFamily, item.icon, item.iconColor, 22)}
+      <View
+        style={[
+          styles.benefitIconWrap,
+          showFourAcross && styles.benefitIconWrapCompact,
+          { backgroundColor: item.iconBackground },
+        ]}
+      >
+        {renderIcon(
+          item.iconFamily,
+          item.icon,
+          item.iconColor,
+          showFourAcross ? 18 : isPhone ? 18 : 20
+        )}
       </View>
       <View style={styles.benefitCopy}>
-        <Text style={styles.benefitTitle}>{item.title}</Text>
-        <Text style={styles.benefitDescription}>{item.description}</Text>
+        <Text style={[styles.benefitTitle, showFourAcross && styles.benefitTitleCompact]}>
+          {item.title}
+        </Text>
+        <Text
+          style={[styles.benefitDescription, showFourAcross && styles.benefitDescriptionCompact]}
+        >
+          {item.description}
+        </Text>
       </View>
     </View>
   );
@@ -545,7 +569,7 @@ function FlightCard({ flight, isPhone, onToggleSaved, isSaved, onViewDetails }) 
         >
           <Ionicons
             name={isSaved ? "heart" : "heart-outline"}
-            size={24}
+            size={isPhone ? 20 : 22}
             color={isSaved ? "#FF5A4E" : COLORS.text}
           />
         </DimPressable>
@@ -616,7 +640,27 @@ export default function FlightsScreen({
   const bottomNavPadding = getBottomNavContentPadding(insets);
   const { width } = useWindowDimensions();
   const isPhone = width < 520;
+  const isCompactPhone = width < 400;
   const isNarrow = width < 760;
+  const showFourBenefits = width >= 700;
+  const pageMaxWidth = width >= 1100 ? 1040 : 980;
+  const pagePaddingHorizontal = isCompactPhone ? 14 : isPhone ? 16 : 18;
+
+  // Flights hero art is 444×172 — size near natural resolution (avoid soft upscaling).
+  const heroAspectRatio = 444 / 172;
+  const heroArtworkWidth = isCompactPhone
+    ? Math.min(Math.round(width * 0.46), 168)
+    : isPhone
+      ? Math.min(Math.round(width * 0.44), 196)
+      : width < 900
+        ? Math.min(Math.round(width * 0.36), 280)
+        : Math.min(Math.round(width * 0.3), 340);
+  const heroTitleSize = isCompactPhone ? 30 : isPhone ? 34 : width < 900 ? 40 : 44;
+  const heroSubtitleSize = isCompactPhone ? 13 : isPhone ? 14 : 16;
+  const backButtonSize = isCompactPhone ? 40 : isPhone ? 44 : 48;
+  const headerIconSize = isPhone ? 24 : 26;
+  const profileIconSize = isPhone ? 30 : 32;
+  const trackerBotSize = isPhone ? 42 : 48;
   const defaultDestinationPreset = getDefaultDestinationPreset(params.destination);
 
   const [fromQuery, setFromQuery] = useState(DEFAULT_ORIGIN.code);
@@ -704,61 +748,89 @@ export default function FlightsScreen({
       <View style={styles.screen}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavPadding }]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingBottom: bottomNavPadding,
+              paddingHorizontal: pagePaddingHorizontal,
+              paddingTop: isPhone ? 12 : 16,
+            },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
         >
-          <View style={styles.page}>
+          <View style={[styles.page, { maxWidth: pageMaxWidth }]}>
             <View style={styles.headerRow}>
               <DimPressable
                 accessibilityRole="button"
                 accessibilityLabel="Go back"
                 onPress={handleGoBack}
-                style={[styles.backButton, styles.headerBackButton]}
+                style={[
+                  styles.backButton,
+                  styles.headerBackButton,
+                  {
+                    width: backButtonSize,
+                    height: backButtonSize,
+                    borderRadius: backButtonSize / 2,
+                  },
+                ]}
               >
-                <Ionicons name="arrow-back" size={28} color={COLORS.text} />
+                <Ionicons name="arrow-back" size={isPhone ? 22 : 26} color={COLORS.text} />
               </DimPressable>
-
-              <View style={styles.brandSlot}>
-                <WayfinderBrand
-                  containerStyle={styles.headerBrandRow}
-                  textStyle={styles.headerBrandText}
-                />
-              </View>
 
               <View style={styles.headerActions}>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Notifications"
                   onPress={() => onNavigate?.("notifications")}
-                  style={styles.headerActionButton}
+                  style={[styles.headerActionButton, isPhone && styles.headerActionButtonPhone]}
                 >
-                  <Ionicons name="notifications-outline" size={28} color="#111827" />
-                  <View style={styles.notificationDot} />
+                  <Ionicons name="notifications-outline" size={headerIconSize} color="#111827" />
+                  <View style={[styles.notificationDot, isPhone && styles.notificationDotPhone]} />
                 </Pressable>
 
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Profile"
                   onPress={() => onNavigate?.("profile")}
-                  style={styles.headerActionButton}
+                  style={[styles.headerActionButton, isPhone && styles.headerActionButtonPhone]}
                 >
-                  <Ionicons name="person-circle-outline" size={33} color="#111827" />
+                  <Ionicons name="person-circle-outline" size={profileIconSize} color="#111827" />
                 </Pressable>
               </View>
             </View>
 
-            <View style={styles.heroSection}>
-              <View style={styles.heroCopyColumn}>
-                <Text style={styles.heading}>Flights</Text>
-                <Text style={styles.subtitle}>
+            <View style={[styles.heroSection, isPhone && styles.heroSectionPhone]}>
+              <View style={[styles.heroCopyColumn, isPhone && styles.heroCopyColumnPhone]}>
+                <Text
+                  style={[
+                    styles.heading,
+                    {
+                      fontSize: heroTitleSize,
+                      lineHeight: heroTitleSize + 4,
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  Flights
+                </Text>
+                <Text
+                  style={[
+                    styles.subtitle,
+                    {
+                      fontSize: heroSubtitleSize,
+                      lineHeight: heroSubtitleSize + 8,
+                      marginTop: isPhone ? 6 : 10,
+                    },
+                  ]}
+                >
                   Find the best flights for{" "}
                   <Text style={styles.subtitleAccent}>your next adventure.</Text>
                 </Text>
               </View>
 
-              <HeroArtwork />
+              <HeroArtwork width={heroArtworkWidth} aspectRatio={heroAspectRatio} />
             </View>
 
             <View style={[styles.searchCard, searchCardShadowStyle]}>
@@ -772,7 +844,7 @@ export default function FlightsScreen({
                 <View style={[styles.searchIconBadge, isPhone && styles.searchIconBadgePhone]}>
                   <MaterialCommunityIcons
                     name="airplane"
-                    size={isPhone ? 22 : 27}
+                    size={isPhone ? 20 : 24}
                     color={COLORS.blueDeep}
                   />
                 </View>
@@ -784,7 +856,7 @@ export default function FlightsScreen({
                     </Text>
                     <Ionicons
                       name="sparkles"
-                      size={18}
+                      size={isPhone ? 15 : 16}
                       color="#FFD86B"
                       style={styles.searchSparkles}
                     />
@@ -816,7 +888,7 @@ export default function FlightsScreen({
                     isNarrow ? styles.swapButtonStacked : styles.swapButtonInline,
                   ]}
                 >
-                  <Ionicons name="swap-horizontal" size={24} color={COLORS.blue} />
+                  <Ionicons name="swap-horizontal" size={isPhone ? 20 : 22} color={COLORS.blue} />
                 </DimPressable>
 
                 <AirportInputField
@@ -859,7 +931,7 @@ export default function FlightsScreen({
                   onPress={() => setActivePicker("travelers")}
                   accessibilityLabel="Choose travelers and cabin"
                   isPhone={isPhone}
-                  style={styles.travelerField}
+                  style={isPhone ? styles.travelerField : styles.metaField}
                 />
               </View>
 
@@ -867,21 +939,33 @@ export default function FlightsScreen({
                 accessibilityRole="button"
                 accessibilityLabel="Search flights"
                 onPress={handleSearch}
-                style={styles.searchButton}
+                style={[styles.searchButton, isPhone && styles.searchButtonPhone]}
               >
-                <Text style={styles.searchButtonText}>Search Flights</Text>
-                <Ionicons name="sparkles" size={18} color="#FFFFFF" style={styles.searchButtonSparkles} />
+                <Text style={[styles.searchButtonText, isPhone && styles.searchButtonTextPhone]}>
+                  Search Flights
+                </Text>
+                <Ionicons
+                  name="sparkles"
+                  size={isPhone ? 15 : 16}
+                  color="#FFFFFF"
+                  style={styles.searchButtonSparkles}
+                />
               </Pressable>
             </View>
 
             <View style={[styles.feedbackCard, cardShadowStyle]}>
-              <Ionicons name="information-circle-outline" size={20} color={COLORS.blue} />
+              <Ionicons name="information-circle-outline" size={18} color={COLORS.blue} />
               <Text style={styles.feedbackText}>{searchMessage}</Text>
             </View>
 
-            <View style={styles.benefitsGrid}>
+            <View style={[styles.benefitsGrid, showFourBenefits && styles.benefitsGridFourAcross]}>
               {BENEFITS.map((item) => (
-                <BenefitCard key={item.title} item={item} isPhone={isPhone} />
+                <BenefitCard
+                  key={item.title}
+                  item={item}
+                  isPhone={isPhone}
+                  showFourAcross={showFourBenefits}
+                />
               ))}
             </View>
 
@@ -967,13 +1051,25 @@ export default function FlightsScreen({
                 styles.trackerBanner,
                 cardShadowStyle,
                 isTrackingRoute && styles.trackerBannerActive,
+                !isPhone && styles.trackerBannerWide,
               ]}
             >
-              <View style={styles.trackerCopyRow}>
-                <Image source={trackerBotArt} resizeMode="contain" style={styles.trackerBotImage} />
+              <View style={[styles.trackerCopyRow, !isPhone && styles.trackerCopyRowWide]}>
+                <Image
+                  source={trackerBotArt}
+                  resizeMode="contain"
+                  style={[
+                    styles.trackerBotImage,
+                    { width: trackerBotSize, height: trackerBotSize },
+                  ]}
+                />
                 <View style={styles.trackerCopy}>
-                  <Text style={styles.trackerTitle}>Not sure when to book?</Text>
-                  <Text style={styles.trackerDescription}>
+                  <Text style={[styles.trackerTitle, isPhone && styles.trackerTitlePhone]}>
+                    Not sure when to book?
+                  </Text>
+                  <Text
+                    style={[styles.trackerDescription, isPhone && styles.trackerDescriptionPhone]}
+                  >
                     Wayfinder analyzes prices daily and will notify you when prices drop.
                   </Text>
                 </View>
@@ -983,11 +1079,16 @@ export default function FlightsScreen({
                 accessibilityRole="button"
                 accessibilityLabel={isTrackingRoute ? "Stop tracking this route" : "Track this route"}
                 onPress={handleToggleTracking}
-                style={[styles.trackButton, isTrackingRoute && styles.trackButtonActive]}
+                style={[
+                  styles.trackButton,
+                  isTrackingRoute && styles.trackButtonActive,
+                  !isPhone && styles.trackButtonWide,
+                  isPhone && styles.trackButtonPhone,
+                ]}
               >
                 <Ionicons
                   name={isTrackingRoute ? "checkmark-circle" : "notifications-outline"}
-                  size={20}
+                  size={18}
                   color={isTrackingRoute ? "#FFFFFF" : COLORS.blue}
                 />
                 <Text style={[styles.trackButtonText, isTrackingRoute && styles.trackButtonTextActive]}>
@@ -1140,7 +1241,7 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    paddingTop: 18,
+    paddingTop: 16,
     paddingHorizontal: 18,
     alignItems: "center",
   },
@@ -1160,117 +1261,107 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
 
-  brandSlot: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
-
-  headerBrandRow: {
-    alignSelf: "auto",
-    marginRight: 0,
-  },
-
-  headerBrandText: {
-    fontSize: 26,
-  },
-
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 0,
   },
 
   headerActionButton: {
-    width: 50,
-    height: 50,
-    marginLeft: 8,
+    width: 44,
+    height: 44,
+    marginLeft: 4,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
+  },
+
+  headerActionButtonPhone: {
+    width: 40,
+    height: 40,
+    marginLeft: 2,
   },
 
   notificationDot: {
     position: "absolute",
     top: 8,
     right: 8,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: COLORS.orange,
   },
 
+  notificationDotPhone: {
+    top: 6,
+    right: 6,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+  },
+
   heroSection: {
-    marginTop: 18,
+    marginTop: 10,
     flexDirection: "row",
-    flexWrap: "wrap",
+    flexWrap: "nowrap",
     alignItems: "flex-end",
     justifyContent: "space-between",
+    gap: 8,
+    overflow: "visible",
   },
 
   heroSectionPhone: {
+    marginTop: 8,
+    gap: 6,
     alignItems: "flex-end",
   },
 
   heroCopyColumn: {
+    flex: 1,
     flexGrow: 1,
     flexShrink: 1,
-    minWidth: 230,
+    minWidth: 0,
     maxWidth: 410,
-    paddingTop: 8,
-    paddingRight: 14,
+    paddingTop: 4,
+    paddingRight: 8,
+    paddingBottom: 2,
+    zIndex: 2,
   },
 
   heroCopyColumnPhone: {
-    maxWidth: 410,
-    paddingTop: 8,
-    paddingRight: 14,
+    maxWidth: "56%",
+    paddingTop: 0,
+    paddingRight: 4,
+    paddingBottom: 2,
   },
 
   backButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.card,
     shadowColor: "#9DB2CF",
     shadowOpacity: 0.2,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 7,
-  },
-
-  backButtonPhone: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
 
   heading: {
-    fontSize: 52,
-    lineHeight: 56,
+    fontSize: 44,
+    lineHeight: 48,
     fontWeight: "800",
-    letterSpacing: -2,
+    letterSpacing: -1.8,
     color: COLORS.text,
   },
 
-  headingPhone: {
-    fontSize: 52,
-    lineHeight: 56,
-  },
-
   subtitle: {
-    marginTop: 12,
-    fontSize: 19,
-    lineHeight: 30,
+    marginTop: 10,
+    fontSize: 16,
+    lineHeight: 24,
     color: COLORS.subtext,
-  },
-
-  subtitlePhone: {
-    marginTop: 12,
-    fontSize: 19,
-    lineHeight: 30,
   },
 
   subtitleAccent: {
@@ -1279,24 +1370,12 @@ const styles = StyleSheet.create({
   },
 
   heroArtworkShell: {
-    flexGrow: 1,
-    minWidth: 220,
-    maxWidth: 430,
-    height: 212,
+    flexShrink: 0,
     justifyContent: "flex-end",
+    alignItems: "flex-end",
     position: "relative",
-    overflow: "hidden",
-  },
-
-  heroArtworkShellPhone: {
-    minWidth: 220,
-    maxWidth: 430,
-    height: 212,
-  },
-
-  heroArtworkFrame: {
-    width: "100%",
-    height: "100%",
+    overflow: "visible",
+    zIndex: 1,
   },
 
   heroArtworkImage: {
@@ -1357,11 +1436,11 @@ const styles = StyleSheet.create({
   },
 
   searchCard: {
-    marginTop: 10,
-    paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 16,
-    borderRadius: 28,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
+    borderRadius: 26,
     backgroundColor: COLORS.blue,
     overflow: "hidden",
   },
@@ -1370,12 +1449,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     right: 0,
-    width: 286,
+    width: 240,
     aspectRatio: SEARCH_DECOR_ART_ASPECT_RATIO,
   },
 
   searchDecorArtworkPhone: {
-    width: 212,
+    width: 180,
   },
 
   searchDecorLarge: {
@@ -1409,28 +1488,29 @@ const styles = StyleSheet.create({
   },
 
   searchIconBadge: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.card,
   },
 
   searchIconBadgePhone: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
 
   searchHeaderCopy: {
     flex: 1,
-    marginLeft: 12,
-    paddingRight: 18,
+    marginLeft: 10,
+    paddingRight: 14,
+    minWidth: 0,
   },
 
   searchHeaderCopyPhone: {
-    paddingRight: 8,
+    paddingRight: 6,
   },
 
   searchTitleRow: {
@@ -1440,37 +1520,38 @@ const styles = StyleSheet.create({
   },
 
   searchTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "800",
     color: "#FFFFFF",
-    letterSpacing: -0.8,
+    letterSpacing: -0.6,
   },
 
   searchTitlePhone: {
-    fontSize: 20,
+    fontSize: 18,
   },
 
   searchSparkles: {
-    marginLeft: 6,
+    marginLeft: 5,
   },
 
   searchSubtitle: {
-    marginTop: 5,
-    fontSize: 15,
-    lineHeight: 21,
+    marginTop: 3,
+    fontSize: 13,
+    lineHeight: 18,
     color: "rgba(255, 255, 255, 0.92)",
   },
 
   searchSubtitlePhone: {
-    fontSize: 14,
-    lineHeight: 19,
+    fontSize: 12,
+    lineHeight: 17,
   },
 
   airportRow: {
-    marginTop: 14,
+    marginTop: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 0,
   },
 
   airportRowStacked: {
@@ -1480,27 +1561,29 @@ const styles = StyleSheet.create({
 
   airportField: {
     flex: 1,
+    minWidth: 0,
   },
 
   swapButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.card,
     borderWidth: 2,
     borderColor: "#D9E8FF",
     zIndex: 2,
+    flexShrink: 0,
   },
 
   swapButtonInline: {
-    marginHorizontal: 10,
+    marginHorizontal: 8,
   },
 
   swapButtonStacked: {
     alignSelf: "center",
-    marginVertical: -4,
+    marginVertical: -2,
   },
 
   metaFieldGrid: {
@@ -1508,120 +1591,133 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    gap: 0,
   },
 
   metaFieldGridPhone: {
-    marginTop: 12,
+    marginTop: 10,
   },
 
   metaField: {
     width: "31.5%",
+    minWidth: 0,
   },
 
   metaFieldHalf: {
     width: "48.3%",
-    marginBottom: 12,
+    marginBottom: 10,
+    minWidth: 0,
   },
 
   travelerField: {
     width: "100%",
+    minWidth: 0,
   },
 
   fieldCard: {
-    minHeight: 76,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    borderRadius: 18,
+    minHeight: 68,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 16,
     backgroundColor: COLORS.card,
     justifyContent: "center",
   },
 
   fieldCardPhone: {
-    minHeight: 70,
+    minHeight: 64,
   },
 
   airportInputCard: {
-    minHeight: 82,
+    minHeight: 72,
   },
 
   fieldLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
     color: COLORS.muted,
   },
 
   fieldValueRow: {
-    marginTop: 6,
+    marginTop: 4,
     flexDirection: "row",
     alignItems: "center",
   },
 
   fieldIconWrap: {
-    width: 22,
+    width: 20,
     alignItems: "center",
     justifyContent: "center",
   },
 
   fieldTextWrap: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 6,
+    minWidth: 0,
   },
 
   fieldPrimaryText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
     color: COLORS.text,
-    lineHeight: 22,
+    lineHeight: 19,
   },
 
   fieldPrimaryTextPhone: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
 
   airportInput: {
     paddingVertical: 0,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
     color: COLORS.text,
   },
 
   airportInputPhone: {
-    fontSize: 15,
+    fontSize: 13,
   },
 
   fieldSecondaryText: {
-    marginTop: 2,
-    fontSize: 13,
-    lineHeight: 18,
+    marginTop: 1,
+    fontSize: 12,
+    lineHeight: 16,
     color: COLORS.subtext,
   },
 
   searchButton: {
     marginTop: 12,
-    minHeight: 50,
-    borderRadius: 16,
+    minHeight: 46,
+    borderRadius: 14,
     backgroundColor: COLORS.orange,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
   },
 
+  searchButtonPhone: {
+    minHeight: 44,
+  },
+
   searchButtonText: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "800",
     color: "#FFFFFF",
   },
 
+  searchButtonTextPhone: {
+    fontSize: 15,
+  },
+
   searchButtonSparkles: {
-    marginLeft: 8,
+    marginLeft: 6,
   },
 
   feedbackCard: {
-    marginTop: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
     backgroundColor: COLORS.card,
     flexDirection: "row",
     alignItems: "center",
@@ -1629,26 +1725,30 @@ const styles = StyleSheet.create({
 
   feedbackText: {
     flex: 1,
-    marginLeft: 10,
-    fontSize: 13,
-    lineHeight: 19,
+    marginLeft: 8,
+    fontSize: 12,
+    lineHeight: 17,
     color: COLORS.subtext,
   },
 
   benefitsGrid: {
-    marginTop: 16,
+    marginTop: 14,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
 
+  benefitsGridFourAcross: {
+    flexWrap: "nowrap",
+  },
+
   benefitCard: {
     width: "48.7%",
-    minHeight: 88,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 20,
+    minHeight: 78,
+    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRadius: 18,
     backgroundColor: COLORS.card,
     flexDirection: "row",
     alignItems: "flex-start",
@@ -1656,7 +1756,18 @@ const styles = StyleSheet.create({
 
   benefitCardPhone: {
     width: "48.4%",
-    minHeight: 98,
+    minHeight: 84,
+  },
+
+  benefitCardFourAcross: {
+    width: "24%",
+    flexGrow: 0,
+    flexShrink: 1,
+    minWidth: 0,
+    minHeight: 72,
+    marginBottom: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
   },
 
   benefitCardContentCentered: {
@@ -1664,34 +1775,51 @@ const styles = StyleSheet.create({
   },
 
   benefitIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+  },
+
+  benefitIconWrapCompact: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
 
   benefitCopy: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 8,
+    minWidth: 0,
   },
 
   benefitTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
     color: COLORS.text,
   },
 
-  benefitDescription: {
-    marginTop: 4,
+  benefitTitleCompact: {
     fontSize: 12,
-    lineHeight: 17,
+  },
+
+  benefitDescription: {
+    marginTop: 3,
+    fontSize: 11,
+    lineHeight: 15,
     color: COLORS.subtext,
   },
 
+  benefitDescriptionCompact: {
+    fontSize: 10,
+    lineHeight: 14,
+  },
+
   resultsHeader: {
-    marginTop: 18,
-    marginBottom: 6,
+    marginTop: 16,
+    marginBottom: 4,
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
@@ -1704,20 +1832,20 @@ const styles = StyleSheet.create({
   },
 
   resultsTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "800",
     color: COLORS.text,
-    letterSpacing: -0.8,
+    letterSpacing: -0.6,
   },
 
   resultsSubtitle: {
     marginTop: 2,
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.subtext,
   },
 
   sortDropdownWrap: {
-    minWidth: 210,
+    minWidth: 190,
     alignItems: "flex-end",
     position: "relative",
     zIndex: 8,
@@ -1726,15 +1854,15 @@ const styles = StyleSheet.create({
   sortDropdownWrapPhone: {
     width: "100%",
     minWidth: 0,
-    marginTop: 10,
+    marginTop: 8,
     alignItems: "stretch",
   },
 
   sortButton: {
-    minHeight: 42,
-    marginLeft: 14,
-    paddingHorizontal: 12,
-    borderRadius: 20,
+    minHeight: 38,
+    marginLeft: 12,
+    paddingHorizontal: 10,
+    borderRadius: 18,
     backgroundColor: COLORS.card,
     flexDirection: "row",
     alignItems: "center",
@@ -1746,19 +1874,19 @@ const styles = StyleSheet.create({
   },
 
   sortButtonText: {
-    marginHorizontal: 8,
-    fontSize: 14,
+    marginHorizontal: 6,
+    fontSize: 13,
     fontWeight: "700",
     color: COLORS.blue,
   },
 
   sortMenu: {
     position: "absolute",
-    top: 48,
+    top: 44,
     right: 0,
-    width: 210,
-    paddingVertical: 8,
-    borderRadius: 18,
+    width: 200,
+    paddingVertical: 6,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: "#FFFFFF",
@@ -1766,15 +1894,15 @@ const styles = StyleSheet.create({
   },
 
   sortMenuPhone: {
-    top: 48,
+    top: 44,
     left: 0,
     right: 0,
     width: "100%",
   },
 
   sortMenuItem: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1790,7 +1918,7 @@ const styles = StyleSheet.create({
   },
 
   sortMenuItemText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
     color: COLORS.text,
   },
@@ -1800,11 +1928,11 @@ const styles = StyleSheet.create({
   },
 
   flightCard: {
-    marginTop: 12,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 14,
-    borderRadius: 22,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderRadius: 20,
     backgroundColor: COLORS.card,
   },
 
@@ -1815,27 +1943,27 @@ const styles = StyleSheet.create({
   },
 
   flightBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
   },
 
   flightBadgeText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
   },
 
   favoriteButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
   },
 
   flightCardMainRow: {
-    marginTop: 10,
+    marginTop: 8,
     flexDirection: "row",
     alignItems: "stretch",
     justifyContent: "space-between",
@@ -1847,7 +1975,8 @@ const styles = StyleSheet.create({
 
   flightInfoColumn: {
     flex: 1,
-    paddingRight: 14,
+    minWidth: 0,
+    paddingRight: 10,
   },
 
   flightInfoColumnPhone: {
@@ -1855,7 +1984,7 @@ const styles = StyleSheet.create({
   },
 
   airlineWrap: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
 
   anaLogoRow: {
@@ -1864,7 +1993,7 @@ const styles = StyleSheet.create({
   },
 
   anaLogoText: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "800",
     color: "#1756D9",
     letterSpacing: -1,
@@ -1872,13 +2001,13 @@ const styles = StyleSheet.create({
   },
 
   anaLogoTextPhone: {
-    fontSize: 22,
+    fontSize: 20,
   },
 
   anaLogoWing: {
-    width: 24,
-    height: 9,
-    marginLeft: 6,
+    width: 20,
+    height: 8,
+    marginLeft: 5,
     backgroundColor: "#1756D9",
     transform: [{ skewX: "-28deg" }],
   },
@@ -1889,26 +2018,26 @@ const styles = StyleSheet.create({
   },
 
   airlineWordmark: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: "800",
     color: COLORS.text,
   },
 
   airlineWordmarkPhone: {
-    fontSize: 16,
+    fontSize: 14,
   },
 
   airlineSubtitle: {
-    marginTop: 5,
-    fontSize: 13,
+    marginTop: 3,
+    fontSize: 12,
     color: COLORS.subtext,
   },
 
   koreanBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    marginRight: 8,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1925,17 +2054,17 @@ const styles = StyleSheet.create({
   },
 
   jalBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    marginRight: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#E33935",
   },
 
   jalBadgeText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "800",
     color: "#FFFFFF",
   },
@@ -1943,6 +2072,7 @@ const styles = StyleSheet.create({
   routeSummaryWrap: {
     flexDirection: "row",
     alignItems: "center",
+    minWidth: 0,
   },
 
   routeSummaryWrapPhone: {
@@ -1950,7 +2080,8 @@ const styles = StyleSheet.create({
   },
 
   routeEndpoint: {
-    minWidth: 66,
+    minWidth: 58,
+    flexShrink: 0,
   },
 
   routeEndpointRight: {
@@ -1959,50 +2090,51 @@ const styles = StyleSheet.create({
 
   routeMiddle: {
     flex: 1,
-    paddingHorizontal: 10,
+    minWidth: 0,
+    paddingHorizontal: 8,
     alignItems: "center",
   },
 
   routeMiddlePhone: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
   },
 
   routeTimeText: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "800",
-    letterSpacing: -1,
+    letterSpacing: -0.8,
     color: "#0A0F16",
   },
 
   routeTimeTextPhone: {
-    fontSize: 18,
+    fontSize: 16,
   },
 
   routeCodeText: {
-    marginTop: 4,
-    fontSize: 15,
+    marginTop: 2,
+    fontSize: 13,
     color: "#314360",
   },
 
   routeDurationText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "700",
     color: "#314360",
   },
 
   routeLineRow: {
     width: "100%",
-    marginTop: 8,
-    marginBottom: 6,
+    marginTop: 5,
+    marginBottom: 4,
     flexDirection: "row",
     alignItems: "center",
   },
 
   routeDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    borderWidth: 2,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    borderWidth: 1.5,
     borderColor: "#7E90B0",
     backgroundColor: "#FFFFFF",
   },
@@ -2014,25 +2146,26 @@ const styles = StyleSheet.create({
   },
 
   routeStopText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
   },
 
   routeOffsetText: {
     color: "#FF3434",
-    fontSize: 16,
+    fontSize: 14,
   },
 
   flightPriceColumn: {
-    width: 132,
+    width: 118,
+    flexShrink: 0,
     alignItems: "flex-end",
     justifyContent: "space-between",
   },
 
   flightPriceColumnPhone: {
     width: "100%",
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: "#E6EEF9",
     flexDirection: "row",
@@ -2041,28 +2174,28 @@ const styles = StyleSheet.create({
   },
 
   flightPriceValue: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "800",
-    letterSpacing: -1,
+    letterSpacing: -0.8,
     color: COLORS.blue,
   },
 
   flightPriceValuePhone: {
-    fontSize: 24,
+    fontSize: 22,
   },
 
   flightPriceCaption: {
-    marginTop: 2,
-    fontSize: 13,
+    marginTop: 1,
+    fontSize: 12,
     color: COLORS.subtext,
   },
 
   detailsButton: {
-    minWidth: 118,
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 16,
+    minWidth: 108,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: "#C7DBFF",
     alignItems: "center",
@@ -2072,23 +2205,30 @@ const styles = StyleSheet.create({
 
   detailsButtonPhone: {
     marginTop: 0,
-    minWidth: 118,
+    minWidth: 108,
   },
 
   detailsButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
     color: COLORS.blue,
   },
 
   trackerBanner: {
-    marginTop: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 22,
+    marginTop: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 18,
     backgroundColor: "#E9F2FF",
     borderWidth: 1,
     borderColor: "#C8DBFF",
+  },
+
+  trackerBannerWide: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
   },
 
   trackerBannerActive: {
@@ -2099,42 +2239,71 @@ const styles = StyleSheet.create({
   trackerCopyRow: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+    minWidth: 0,
+  },
+
+  trackerCopyRowWide: {
+    flex: 1,
+    marginRight: 8,
   },
 
   trackerBotImage: {
-    width: 54,
-    height: 54,
+    width: 48,
+    height: 48,
+    flexShrink: 0,
   },
 
   trackerCopy: {
     flex: 1,
     marginLeft: 10,
+    minWidth: 0,
   },
 
   trackerTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
     color: COLORS.text,
   },
 
-  trackerDescription: {
-    marginTop: 4,
+  trackerTitlePhone: {
     fontSize: 14,
-    lineHeight: 20,
+  },
+
+  trackerDescription: {
+    marginTop: 3,
+    fontSize: 13,
+    lineHeight: 18,
     color: COLORS.subtext,
   },
 
+  trackerDescriptionPhone: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
   trackButton: {
-    minHeight: 46,
-    marginTop: 14,
-    paddingHorizontal: 16,
-    borderRadius: 16,
+    minHeight: 42,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: "#BFD4FF",
     backgroundColor: "#FFFFFF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+  },
+
+  trackButtonWide: {
+    marginTop: 0,
+    minWidth: 168,
+    paddingHorizontal: 14,
+  },
+
+  trackButtonPhone: {
+    minHeight: 40,
   },
 
   trackButtonActive: {
@@ -2143,8 +2312,8 @@ const styles = StyleSheet.create({
   },
 
   trackButtonText: {
-    marginLeft: 8,
-    fontSize: 14,
+    marginLeft: 6,
+    fontSize: 13,
     fontWeight: "700",
     color: COLORS.blue,
   },
