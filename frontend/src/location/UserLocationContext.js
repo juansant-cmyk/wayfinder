@@ -1,5 +1,5 @@
 import * as Location from "expo-location";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
 const UserLocationContext = createContext(null);
 
@@ -13,7 +13,7 @@ function buildLocation(lat, lng, source) {
 
 export function UserLocationProvider({ children }) {
   const [location, setLocation] = useState(null);
-  const [status, setStatus] = useState("loading");
+  const [status, setStatus] = useState("idle");
   const [error, setError] = useState(null);
 
   const refreshLocation = useCallback(async () => {
@@ -48,10 +48,6 @@ export function UserLocationProvider({ children }) {
       return null;
     }
   }, []);
-
-  useEffect(() => {
-    refreshLocation();
-  }, [refreshLocation]);
 
   const value = useMemo(
     () => ({

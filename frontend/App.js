@@ -667,7 +667,7 @@ export default function App() {
       />
     );
   } else if (currentScreen === "weather") {
-    screenContent = <WeatherScreen onNavigate={handleNavigate} />;
+    screenContent = <WeatherScreen onNavigate={handleNavigate} onBack={navigateBack} />;
   } else if (FEATURE_SCREENS.has(currentScreen)) {
     screenContent = (
       <DashboardFeatureScreen

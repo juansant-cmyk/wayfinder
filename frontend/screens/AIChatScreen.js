@@ -30,7 +30,6 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import * as dashboardApi from "../src/api/dashboard";
 import { getToken } from "../src/auth/tokenStorage";
 import MarkdownText from "../src/ui/MarkdownText";
-import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 
@@ -371,8 +370,10 @@ export default function AIChatScreen({ onNavigate, onBack }) {
   }, []);
 
   const isPhone = width < 430;
+  const isCompactPhone = width < 400;
   const isNarrowPhone = width < 390;
   const isShortPhone = isPhone && height < 740;
+  const backButtonSize = isCompactPhone ? 40 : isPhone ? 44 : 48;
   const useStructuredPhoneTop = isPhone;
   const useMobileTopBlock = !useStructuredPhoneTop && width < 520;
   const pageHorizontalPadding = isPhone ? 14 : 18;
@@ -634,32 +635,21 @@ export default function AIChatScreen({ onNavigate, onBack }) {
         >
           <View style={styles.page}>
             <View style={styles.headerRow}>
-              {isPhone ? (
-                <View style={styles.brandSlotPhone}>
-                  <WayfinderBrand
-                    containerStyle={styles.headerBrandRowPhone}
-                    textStyle={styles.headerBrandTextPhone}
-                  />
-                </View>
-              ) : (
-                <>
-                  <DimPressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Go back"
-                    onPress={onBack || (() => onNavigate?.("home"))}
-                    style={styles.roundHeaderButton}
-                  >
-                    <Ionicons name="arrow-back" size={28} color="#14253E" />
-                  </DimPressable>
-
-                  <View style={styles.brandSlot}>
-                    <WayfinderBrand
-                      containerStyle={styles.headerBrandRow}
-                      textStyle={styles.headerBrandText}
-                    />
-                  </View>
-                </>
-              )}
+              <DimPressable
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+                onPress={onBack || (() => onNavigate?.("home"))}
+                style={[
+                  styles.roundHeaderButton,
+                  {
+                    width: backButtonSize,
+                    height: backButtonSize,
+                    borderRadius: backButtonSize / 2,
+                  },
+                ]}
+              >
+                <Ionicons name="arrow-back" size={isPhone ? 22 : 26} color="#14253E" />
+              </DimPressable>
 
               <View style={styles.headerActions}>
                 <Pressable
@@ -1047,51 +1037,20 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
 
+  // Matches MapsScreen / ItineraryScreen circular back control.
   roundHeaderButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
     shadowColor: "#9DB2CF",
     shadowOpacity: 0.2,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 7,
-  },
-
-  brandSlot: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-    transform: [{ translateY: -5 }],
-  },
-
-  brandSlotPhone: {
-    flex: 1,
-    alignItems: "flex-start",
-    justifyContent: "center",
-    transform: [{ translateY: -5 }],
-  },
-
-  headerBrandRow: {
-    alignSelf: "auto",
-    marginRight: 0,
-  },
-
-  headerBrandRowPhone: {
-    alignSelf: "flex-start",
-    marginRight: 0,
-  },
-
-  headerBrandText: {
-    fontSize: 26,
-  },
-
-  headerBrandTextPhone: {
-    fontSize: 22,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+    flexShrink: 0,
   },
 
   headerActions: {

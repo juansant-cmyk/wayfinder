@@ -33,7 +33,6 @@ import DestinationSuggestField, {
 } from "../src/itinerary/DestinationSuggestField";
 import TripSwitcherSheet from "../src/itinerary/TripSwitcherSheet";
 import { useUserLocation } from "../src/location/UserLocationContext";
-import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 
@@ -524,7 +523,7 @@ function PillButton({ label, iconName, onPress, outlined = false, compact = fals
         style,
       ]}
     >
-      <Ionicons name={iconName} size={compact ? 18 : 20} color="#2463EB" />
+      <Ionicons name={iconName} size={compact ? 14 : 18} color="#2463EB" />
       <Text style={[styles.pillButtonText, compact && styles.pillButtonTextCompact]}>{label}</Text>
     </Button>
   );
@@ -586,9 +585,9 @@ function TagBadge({ tag, compact = false }) {
         { backgroundColor: tag.backgroundColor },
       ]}
     >
-      <Ionicons name={tag.iconName} size={11} color={tag.textColor} />
+      <Ionicons name={tag.iconName} size={compact ? 9 : 10} color={tag.textColor} />
       <Text
-        numberOfLines={compact ? 2 : 1}
+        numberOfLines={1}
         style={[styles.tagBadgeText, compact && styles.tagBadgeTextCompact, { color: tag.textColor }]}
       >
         {tag.label}
@@ -598,6 +597,10 @@ function TagBadge({ tag, compact = false }) {
 }
 
 function ActivityRow({ activity, compact = false, isFirst, isLast, onOpenDetails, onOpenMap, onDelete }) {
+  const iconSize = compact ? 18 : 22;
+  const markerIcon = compact ? 13 : 15;
+  const chevronSize = compact ? 16 : 18;
+
   return (
     <View style={[styles.activityRow, compact && styles.activityRowCompact, isFirst && styles.activityRowFirst]}>
       <View style={[styles.timeColumn, compact && styles.timeColumnCompact]}>
@@ -624,16 +627,16 @@ function ActivityRow({ activity, compact = false, isFirst, isLast, onOpenDetails
             { backgroundColor: activity.iconBackground },
           ]}
         >
-          {renderIcon(activity.iconLibrary, activity.iconName, compact ? 24 : 27, "#FFFFFF")}
+          {renderIcon(activity.iconLibrary, activity.iconName, iconSize, "#FFFFFF")}
         </View>
       </View>
 
       <Pressable style={[styles.detailsColumn, compact && styles.detailsColumnCompact]} onPress={onOpenDetails}>
-        <Text numberOfLines={compact ? 3 : 2} style={[styles.activityTitle, compact && styles.activityTitleCompact]}>
+        <Text numberOfLines={2} style={[styles.activityTitle, compact && styles.activityTitleCompact]}>
           {activity.title}
         </Text>
         <View style={styles.locationRow}>
-          <Ionicons name="location" size={compact ? 13 : 14} color="#2463EB" />
+          <Ionicons name="location" size={compact ? 11 : 13} color="#2463EB" />
           <Text numberOfLines={1} style={[styles.locationText, compact && styles.locationTextCompact]}>
             {activity.location}
           </Text>
@@ -643,9 +646,9 @@ function ActivityRow({ activity, compact = false, isFirst, isLast, onOpenDetails
 
       <View style={[styles.routeActionColumn, compact && styles.routeActionColumnCompact]}>
         <Pressable onPress={onOpenMap} style={styles.routeActionRow}>
-          <Ionicons name="location" size={compact ? 15 : 17} color="#2463EB" />
+          <Ionicons name="location" size={markerIcon} color="#2463EB" />
           <Text style={[styles.distanceText, compact && styles.distanceTextCompact]}>{activity.distance}</Text>
-          <Ionicons name="chevron-forward" size={compact ? 20 : 22} color="#627089" />
+          <Ionicons name="chevron-forward" size={chevronSize} color="#627089" />
         </Pressable>
 
         {onDelete ? (
@@ -655,7 +658,7 @@ function ActivityRow({ activity, compact = false, isFirst, isLast, onOpenDetails
             onPress={onDelete}
             style={styles.deleteActivityButton}
           >
-            <Ionicons name="trash-outline" size={16} color="#C2410C" />
+            <Ionicons name="trash-outline" size={15} color="#C2410C" />
           </Pressable>
         ) : null}
       </View>
@@ -675,7 +678,7 @@ function TipCard({ onPress, compact = false }) {
         <Text style={[styles.tipHeading, compact && styles.tipHeadingCompact]}>
           Wayfinder Tip <Text style={styles.tipSpark}>✦</Text>
         </Text>
-        <Text style={[styles.tipBody, compact && styles.tipBodyCompact]}>
+        <Text numberOfLines={compact ? 2 : 3} style={[styles.tipBody, compact && styles.tipBodyCompact]}>
           Consider using rideshare or public transit to avoid parking and traffic.
         </Text>
       </View>
@@ -683,7 +686,7 @@ function TipCard({ onPress, compact = false }) {
         <Text numberOfLines={1} style={[styles.tipLinkText, compact && styles.tipLinkTextCompact]}>
           View Tips
         </Text>
-        <Ionicons name="chevron-forward" size={compact ? 18 : 20} color="#2463EB" />
+        <Ionicons name="chevron-forward" size={compact ? 16 : 18} color="#2463EB" />
       </Pressable>
     </View>
   );
@@ -798,12 +801,25 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
   const { width } = useWindowDimensions();
   const { location } = useUserLocation();
   const skipApiLoadRef = useRef(false);
+  /** In-session demo edits — kept when exiting demo so re-opening Demo restores them. */
+  const demoSessionRef = useRef(null);
 
   const isPhone = width < 520;
   const isCompactPhone = width < 400;
-  const isHeroStacked = width < 760;
-  const isHeroCompact = width < 460;
   const pageMaxWidth = width >= 1100 ? 1040 : 980;
+
+  // Approved itinerary hero is 500×180 — size near natural resolution (avoid soft upscaling).
+  const heroAspectRatio = 500 / 180;
+  const heroArtworkWidth = isCompactPhone
+    ? Math.min(Math.round(width * 0.46), 188)
+    : isPhone
+      ? Math.min(Math.round(width * 0.44), 214)
+      : width < 900
+        ? Math.min(Math.round(width * 0.36), 300)
+        : Math.min(Math.round(width * 0.32), 360);
+  const heroTitleSize = isCompactPhone ? 30 : isPhone ? 34 : width < 900 ? 40 : 44;
+  const heroSubtitleSize = isCompactPhone ? 14 : isPhone ? 15 : 17;
+  const backButtonSize = isCompactPhone ? 40 : isPhone ? 44 : 48;
 
   const [viewMode, setViewMode] = useState("loading"); // loading | empty | demo | plan
   const [planId, setPlanId] = useState(null);
@@ -1183,12 +1199,58 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
   const startDemoItinerary = () => {
     skipApiLoadRef.current = true;
     setPlanId(null);
-    setTrip({ ...DEMO_TRIP });
-    setDays(DEMO_DAYS.map((day) => ({ ...day, activities: [...day.activities] })));
-    setSelectedDayId(DEMO_DAYS[0].id);
+
+    const saved = demoSessionRef.current;
+    if (saved?.trip && Array.isArray(saved.days) && saved.days.length > 0) {
+      setTrip(saved.trip);
+      setDays(saved.days);
+      setSelectedDayId(
+        saved.selectedDayId && saved.days.some((day) => day.id === saved.selectedDayId)
+          ? saved.selectedDayId
+          : saved.days[0].id
+      );
+    } else {
+      setTrip({ ...DEMO_TRIP });
+      setDays(DEMO_DAYS.map((day) => ({ ...day, activities: [...day.activities] })));
+      setSelectedDayId(DEMO_DAYS[0].id);
+    }
+
     setViewMode("demo");
     setLoadError("");
     setNotice("Demo itinerary loaded locally — not saved.");
+  };
+
+  const exitDemoItinerary = () => {
+    if (trip && days.length > 0) {
+      demoSessionRef.current = {
+        trip,
+        days,
+        selectedDayId,
+      };
+    }
+
+    // Stay on the Itinerary landing UI; do not navigate Home or reload an API plan.
+    skipApiLoadRef.current = true;
+    setPlanId(null);
+    setTrip(null);
+    setDays([]);
+    setSelectedDayId(null);
+    setViewMode("empty");
+    setLoadError("");
+    setNotice("");
+    setIsPlanFavorited(false);
+  };
+
+  const handleHeaderBack = () => {
+    if (viewMode === "demo") {
+      exitDemoItinerary();
+      return;
+    }
+    if (onBack) {
+      onBack();
+      return;
+    }
+    onNavigate?.("home");
   };
 
   const openCreateTrip = () => {
@@ -1504,34 +1566,32 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={[styles.page, { maxWidth: pageMaxWidth }]}>
-            <View style={styles.pageGlowTop} />
             <View style={styles.pageGlowBottom} />
 
             <View style={styles.headerRow}>
               <DimPressable
                 accessibilityRole="button"
                 accessibilityLabel="Go back"
-                onPress={onBack || (() => onNavigate?.("home"))}
-                style={styles.roundHeaderButton}
+                onPress={handleHeaderBack}
+                style={[
+                  styles.roundHeaderButton,
+                  { width: backButtonSize, height: backButtonSize, borderRadius: backButtonSize / 2 },
+                ]}
               >
-                <Ionicons name="arrow-back" size={28} color="#14253E" />
+                <Ionicons name="arrow-back" size={isPhone ? 22 : 26} color="#14253E" />
               </DimPressable>
-
-              <View style={styles.brandSlot}>
-                <WayfinderBrand containerStyle={styles.headerBrandRow} textStyle={styles.headerBrandText} />
-              </View>
 
               <View style={styles.headerActions}>
                 <HeaderActionButton
                   iconName="notifications-outline"
-                  iconSize={28}
+                  iconSize={isPhone ? 24 : 28}
                   accessibilityLabel="Notifications"
                   onPress={() => onNavigate?.("notifications")}
                   showDot
                 />
                 <HeaderActionButton
                   iconName="person-circle-outline"
-                  iconSize={33}
+                  iconSize={isPhone ? 30 : 33}
                   accessibilityLabel="Profile"
                   onPress={() => onNavigate?.("profile")}
                 />
@@ -1552,17 +1612,45 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
               </View>
             ) : null}
 
-            <View style={[styles.heroSection, isHeroStacked && styles.heroSectionStacked]}>
-              <View style={[styles.heroCopyColumn, isHeroStacked && styles.heroCopyColumnStacked]}>
-                <Text style={[styles.heroTitle, isHeroCompact && styles.heroTitleCompact]}>Itinerary</Text>
-                <Text style={[styles.heroSubtitle, isHeroCompact && styles.heroSubtitleCompact]}>
+            <View style={styles.heroSection}>
+              <View style={styles.heroCopyColumn}>
+                <Text
+                  style={[
+                    styles.heroTitle,
+                    { fontSize: heroTitleSize, lineHeight: heroTitleSize + 4 },
+                  ]}
+                  numberOfLines={1}
+                >
+                  Itinerary
+                </Text>
+                <Text
+                  style={[
+                    styles.heroSubtitle,
+                    {
+                      fontSize: heroSubtitleSize,
+                      lineHeight: heroSubtitleSize + 8,
+                    },
+                  ]}
+                >
                   Your trip, <Text style={styles.heroSubtitleAccent}>day by day.</Text>
                 </Text>
               </View>
 
-              <View style={[styles.heroArtworkWrap, isHeroStacked && styles.heroArtworkWrapStacked]}>
-                <View style={styles.heroArtworkGlow} />
-                <Image source={heroArtworkImage} resizeMode="cover" style={styles.heroArtworkImage} />
+              <View
+                style={[
+                  styles.heroArtworkWrap,
+                  {
+                    width: heroArtworkWidth,
+                    maxWidth: heroArtworkWidth,
+                    aspectRatio: heroAspectRatio,
+                  },
+                ]}
+              >
+                <Image
+                  source={heroArtworkImage}
+                  resizeMode="contain"
+                  style={styles.heroArtworkImage}
+                />
               </View>
             </View>
 
@@ -1596,7 +1684,7 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
               <>
                 {viewMode === "demo" ? (
                   <View style={styles.demoBanner}>
-                    <Ionicons name="flask-outline" size={18} color="#1849A9" />
+                    <Ionicons name="flask-outline" size={14} color="#1849A9" />
                     <Text style={styles.demoBannerText}>
                       Demo mode — edits stay on this device until you create a real trip.
                     </Text>
@@ -1605,19 +1693,19 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
 
                 {viewMode === "plan" && trip.status === "completed" ? (
                   <View style={styles.completedBanner}>
-                    <Ionicons name="checkmark-circle" size={18} color="#8A5A00" />
+                    <Ionicons name="checkmark-circle" size={16} color="#8A5A00" />
                     <Text style={styles.completedBannerText}>Completed</Text>
                   </View>
                 ) : null}
 
-                <View style={[styles.tripCard, cardShadowStyle, isPhone && styles.tripCardPhone]}>
+                <View style={[styles.tripCard, cardShadowStyle, isCompactPhone && styles.tripCardNarrow]}>
                   <TripCoverImage
                     uri={trip.coverImageUrl}
                     fallback={tripPreviewImage}
                     style={[styles.tripImage, isPhone && styles.tripImagePhone]}
                   />
 
-                  <View style={[styles.tripCardBody, isPhone && styles.tripCardBodyPhone]}>
+                  <View style={[styles.tripCardBody, isCompactPhone && styles.tripCardBodyNarrow]}>
                     <View style={styles.tripDetailsColumn}>
                       <View style={styles.tripTitleRow}>
                         {viewMode === "plan" ? (
@@ -1628,19 +1716,19 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
                             style={styles.tripTitleButton}
                           >
                             <Text
-                              numberOfLines={2}
+                              numberOfLines={1}
                               style={[styles.tripTitle, isPhone && styles.tripTitlePhone]}
                             >
                               {trip.title}
                             </Text>
-                            <Ionicons name="chevron-down" size={18} color="#14253E" />
+                            <Ionicons name="chevron-down" size={16} color="#14253E" />
                           </DimPressable>
                         ) : (
-                          <Text numberOfLines={2} style={[styles.tripTitle, isPhone && styles.tripTitlePhone]}>
+                          <Text numberOfLines={1} style={[styles.tripTitle, isPhone && styles.tripTitlePhone]}>
                             {trip.title}
                           </Text>
                         )}
-                        <Ionicons name="sparkles" size={18} color="#F5A623" />
+                        <Ionicons name="sparkles" size={isPhone ? 14 : 16} color="#F5A623" />
                         {viewMode === "plan" ? (
                           <DimPressable
                             accessibilityRole="button"
@@ -1656,7 +1744,7 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
                           >
                             <Ionicons
                               name={isPlanFavorited ? "heart" : "heart-outline"}
-                              size={22}
+                              size={18}
                               color={isPlanFavorited ? "#FF5A4E" : "#14253E"}
                             />
                           </DimPressable>
@@ -1664,39 +1752,49 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
                       </View>
 
                       <View style={styles.tripMetaRow}>
-                        <Ionicons name="location" size={18} color="#2463EB" />
-                        <Text style={[styles.tripMetaText, isPhone && styles.tripMetaTextPhone]}>
+                        <Ionicons name="location" size={isPhone ? 13 : 15} color="#2463EB" />
+                        <Text
+                          numberOfLines={1}
+                          style={[styles.tripMetaText, isPhone && styles.tripMetaTextPhone]}
+                        >
                           {trip.destination}
                         </Text>
                       </View>
 
                       <View style={styles.tripMetaRow}>
-                        <Ionicons name="calendar-outline" size={18} color="#2463EB" />
-                        <Text style={[styles.tripMetaText, isPhone && styles.tripMetaTextPhone]}>{trip.dates}</Text>
-                        <Text style={[styles.tripMetaDot, isPhone && styles.tripMetaDotPhone]}>•</Text>
-                        <Text style={[styles.tripMetaText, isPhone && styles.tripMetaTextPhone]}>{trip.nights}</Text>
+                        <Ionicons name="calendar-outline" size={isPhone ? 13 : 15} color="#2463EB" />
+                        <Text
+                          numberOfLines={1}
+                          style={[styles.tripMetaText, isPhone && styles.tripMetaTextPhone]}
+                        >
+                          {trip.dates}
+                          {trip.nights ? ` • ${trip.nights}` : ""}
+                        </Text>
                       </View>
 
                       {trip.hotelName ? (
                         <View style={styles.tripMetaRow}>
-                          <Ionicons name="bed-outline" size={18} color="#2463EB" />
-                          <Text style={[styles.tripMetaText, isPhone && styles.tripMetaTextPhone]}>
+                          <Ionicons name="bed-outline" size={isPhone ? 13 : 15} color="#2463EB" />
+                          <Text
+                            numberOfLines={1}
+                            style={[styles.tripMetaText, isPhone && styles.tripMetaTextPhone]}
+                          >
                             {trip.hotelName}
                           </Text>
                         </View>
                       ) : null}
                     </View>
 
-                    <View style={[styles.tripCardActions, isPhone && styles.tripCardActionsPhone]}>
+                    <View style={[styles.tripCardActions, isCompactPhone && styles.tripCardActionsNarrow]}>
                       {viewMode === "plan" ? (
                         <PillButton
                           label="My trips"
                           iconName="list-outline"
                           onPress={openTripSwitcher}
                           outlined
-                          compact={isPhone}
+                          compact
                           accessibilityLabel="Open trip switcher"
-                          style={[styles.editTripButton, isPhone && styles.editTripButtonPhone]}
+                          style={styles.editTripButton}
                         />
                       ) : null}
                       <PillButton
@@ -1704,8 +1802,8 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
                         iconName="pencil-outline"
                         onPress={openTripEditor}
                         outlined
-                        compact={isPhone}
-                        style={[styles.editTripButton, isPhone && styles.editTripButtonPhone]}
+                        compact
+                        style={styles.editTripButton}
                       />
                     </View>
                   </View>
@@ -1713,11 +1811,11 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
 
                 {selectedDay ? (
                   <>
-                    <View style={[styles.selectorRow, isPhone && styles.selectorRowPhone]}>
+                    <View style={[styles.selectorRow, isCompactPhone && styles.selectorRowNarrow]}>
                       <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
-                        style={[styles.tabsScroller, isPhone && styles.tabsScrollerPhone]}
+                        style={styles.tabsScroller}
                         contentContainerStyle={styles.tabsRow}
                       >
                         {days.map((day) => (
@@ -1736,8 +1834,8 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
                         iconName="map-outline"
                         onPress={openDayRoute}
                         outlined
-                        compact={isPhone}
-                        style={[styles.viewMapButton, isPhone && styles.viewMapButtonPhone]}
+                        compact
+                        style={[styles.viewMapButton, isCompactPhone && styles.viewMapButtonNarrow]}
                       />
                     </View>
 
@@ -1747,13 +1845,16 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
                         <View style={styles.headerGradientBubbleLarge} />
                         <View style={styles.headerGradientBubbleSmall} />
 
-                        <View style={[styles.itineraryHeaderCopy, isPhone && styles.itineraryHeaderCopyPhone]}>
-                          <Text style={[styles.itineraryHeaderTitle, isPhone && styles.itineraryHeaderTitlePhone]}>
+                        <View style={styles.itineraryHeaderCopy}>
+                          <Text
+                            numberOfLines={1}
+                            style={[styles.itineraryHeaderTitle, isPhone && styles.itineraryHeaderTitlePhone]}
+                          >
                             {selectedDay.label} <Text style={styles.itineraryHeaderDot}>•</Text>{" "}
                             {selectedDay.fullDate}
                           </Text>
                           <View style={styles.weatherRow}>
-                            <Ionicons name={selectedDay.weather.icon} size={19} color="#FDBB2C" />
+                            <Ionicons name={selectedDay.weather.icon} size={isPhone ? 14 : 16} color="#FDBB2C" />
                             <Text style={[styles.weatherText, isPhone && styles.weatherTextPhone]}>
                               {selectedDay.weather.label} <Text style={styles.weatherDot}>•</Text>{" "}
                               {selectedDay.weather.temperature}
@@ -1765,7 +1866,7 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
                           label="Add Activity"
                           iconName="add"
                           onPress={openAddActivity}
-                          compact={isPhone}
+                          compact
                           style={[styles.addActivityButton, isPhone && styles.addActivityButtonPhone]}
                         />
                       </View>
@@ -1775,7 +1876,7 @@ export default function ItineraryScreen({ onNavigate, onBack, params = {} }) {
                           <ActivityRow
                             key={activity.id}
                             activity={activity}
-                            compact={isCompactPhone}
+                            compact={isPhone}
                             isFirst={index === 0}
                             isLast={index === activities.length - 1}
                             onOpenDetails={() => openDetails(activity)}
@@ -2110,22 +2211,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     alignItems: "center",
     paddingHorizontal: 18,
-    paddingTop: 18,
+    paddingTop: 12,
   },
 
   page: {
     width: "100%",
     position: "relative",
-  },
-
-  pageGlowTop: {
-    position: "absolute",
-    top: 40,
-    left: -40,
-    width: 186,
-    height: 186,
-    borderRadius: 93,
-    backgroundColor: "rgba(255, 222, 170, 0.16)",
   },
 
   pageGlowBottom: {
@@ -2145,34 +2236,17 @@ const styles = StyleSheet.create({
   },
 
   roundHeaderButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
     shadowColor: "#9DB2CF",
     shadowOpacity: 0.2,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 7,
-  },
-
-  brandSlot: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
-
-  headerBrandRow: {
-    alignSelf: "auto",
-    marginRight: 0,
-  },
-
-  headerBrandText: {
-    fontSize: 26,
-    color: "#16284A",
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
 
   headerActions: {
@@ -2181,9 +2255,9 @@ const styles = StyleSheet.create({
   },
 
   headerActionButton: {
-    width: 50,
-    height: 50,
-    marginLeft: 8,
+    width: 44,
+    height: 44,
+    marginLeft: 4,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
@@ -2193,14 +2267,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 8,
     right: 8,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: "#FF7A26",
   },
 
   noticeBanner: {
-    marginTop: 16,
+    marginTop: 12,
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
@@ -2220,7 +2294,7 @@ const styles = StyleSheet.create({
   },
 
   errorBanner: {
-    marginTop: 16,
+    marginTop: 12,
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
@@ -2241,35 +2315,36 @@ const styles = StyleSheet.create({
   },
 
   demoBanner: {
-    marginBottom: 16,
+    marginBottom: 10,
     alignSelf: "stretch",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
-    backgroundColor: "rgba(234, 242, 255, 0.95)",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: "rgba(234, 242, 255, 0.9)",
     borderWidth: 1,
     borderColor: "#D1E0FB",
   },
 
   demoBannerText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
+    lineHeight: 16,
     color: "#1849A9",
   },
 
   completedBanner: {
-    marginBottom: 16,
+    marginBottom: 10,
     alignSelf: "stretch",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
     backgroundColor: "#FFF6E0",
     borderWidth: 1,
     borderColor: "#F0D79A",
@@ -2277,7 +2352,7 @@ const styles = StyleSheet.create({
 
   completedBannerText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "700",
     color: "#8A5A00",
   },
@@ -2301,6 +2376,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#DDE8F8",
+    marginTop: 4,
     marginBottom: 24,
     gap: 12,
   },
@@ -2325,55 +2401,33 @@ const styles = StyleSheet.create({
   },
 
   heroSection: {
-    marginTop: 18,
+    marginTop: 12,
+    marginBottom: 10,
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
-    gap: 18,
-  },
-
-  heroSectionStacked: {
-    flexDirection: "column",
-    alignItems: "flex-start",
+    gap: 8,
+    overflow: "visible",
   },
 
   heroCopyColumn: {
     flex: 1,
-    minWidth: 230,
-    maxWidth: 430,
-    paddingTop: 6,
-  },
-
-  heroCopyColumnStacked: {
-    width: "100%",
     minWidth: 0,
-    maxWidth: 480,
+    paddingBottom: 4,
+    paddingRight: 4,
+    zIndex: 2,
   },
 
   heroTitle: {
-    fontSize: 54,
-    lineHeight: 58,
+    flexShrink: 1,
     fontWeight: "800",
-    letterSpacing: -2,
+    letterSpacing: -1.2,
     color: "#10213B",
   },
 
-  heroTitleCompact: {
-    fontSize: 42,
-    lineHeight: 46,
-  },
-
   heroSubtitle: {
-    marginTop: 14,
-    maxWidth: 380,
-    fontSize: 18,
-    lineHeight: 30,
+    marginTop: 4,
     color: "#51607D",
-  },
-
-  heroSubtitleCompact: {
-    fontSize: 17,
-    lineHeight: 28,
   },
 
   heroSubtitleAccent: {
@@ -2382,63 +2436,46 @@ const styles = StyleSheet.create({
   },
 
   heroArtworkWrap: {
-    flex: 1,
-    minWidth: 260,
-    maxWidth: 430,
-    height: 212,
+    flexShrink: 0,
     justifyContent: "flex-end",
-    position: "relative",
-    overflow: "hidden",
-  },
-
-  heroArtworkWrapStacked: {
-    alignSelf: "stretch",
-    width: "100%",
-    maxWidth: 1000,
-    height: 196,
-  },
-
-  heroArtworkGlow: {
-    position: "absolute",
-    right: 26,
-    bottom: 22,
-    width: 178,
-    height: 178,
-    borderRadius: 89,
-    backgroundColor: "rgba(111, 170, 255, 0.14)",
+    alignItems: "flex-end",
+    overflow: "visible",
+    zIndex: 1,
   },
 
   heroArtworkImage: {
     width: "100%",
     height: "100%",
-    borderRadius: 26,
   },
 
   tripCard: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    gap: 14,
-    borderRadius: 28,
+    padding: 12,
+    gap: 12,
+    borderRadius: 20,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#DDE8F8",
-    marginBottom: 20,
+    marginBottom: 14,
   },
 
-  tripCardPhone: {
+  tripCardNarrow: {
     alignItems: "flex-start",
+    padding: 10,
+    gap: 10,
   },
 
   tripImage: {
-    width: 246,
-    height: 132,
-    borderRadius: 18,
+    width: 118,
+    height: 72,
+    borderRadius: 12,
   },
 
   tripImagePhone: {
-    width: 104,
-    height: 92,
+    width: 88,
+    height: 58,
+    borderRadius: 10,
   },
 
   tripCardBody: {
@@ -2446,13 +2483,13 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: 10,
   },
 
-  tripCardBodyPhone: {
+  tripCardBodyNarrow: {
     flexDirection: "column",
     alignItems: "stretch",
-    gap: 12,
+    gap: 8,
   },
 
   tripDetailsColumn: {
@@ -2464,68 +2501,67 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "nowrap",
-    gap: 8,
+    gap: 6,
   },
 
   tripTitleButton: {
     flexShrink: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    maxWidth: "72%",
+    gap: 4,
+    maxWidth: "78%",
   },
 
   tripFavoriteButton: {
     marginLeft: "auto",
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
   },
 
   tripTitle: {
     flexShrink: 1,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "800",
-    letterSpacing: -0.6,
+    letterSpacing: -0.4,
     color: "#16284A",
   },
 
   tripTitlePhone: {
-    fontSize: 18,
+    fontSize: 15,
   },
 
   tripMetaRow: {
     flexDirection: "row",
     alignItems: "center",
-    flexWrap: "wrap",
-    marginTop: 10,
+    marginTop: 4,
   },
 
   tripMetaText: {
-    marginLeft: 9,
-    fontSize: 15.5,
-    lineHeight: 22,
+    marginLeft: 6,
+    fontSize: 13.5,
+    lineHeight: 18,
     color: "#445574",
     fontWeight: "500",
     flexShrink: 1,
   },
 
   tripMetaTextPhone: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
   },
 
   tripMetaDot: {
-    marginHorizontal: 10,
-    fontSize: 16,
+    marginHorizontal: 8,
+    fontSize: 14,
     color: "#B7C1D0",
   },
 
   tripMetaDotPhone: {
-    marginHorizontal: 8,
-    fontSize: 14,
+    marginHorizontal: 6,
+    fontSize: 12,
   },
 
   editTripButton: {
@@ -2533,106 +2569,104 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
 
-  editTripButtonPhone: {
-    alignSelf: "flex-start",
-  },
-
   tripCardActions: {
     alignSelf: "center",
     flexShrink: 0,
     alignItems: "stretch",
-    gap: 10,
+    gap: 6,
   },
 
-  tripCardActionsPhone: {
+  tripCardActionsNarrow: {
     alignSelf: "stretch",
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 8,
   },
 
   selectorRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 18,
+    marginBottom: 12,
+    gap: 8,
   },
 
-  selectorRowPhone: {
-    flexDirection: "column",
-    alignItems: "stretch",
-    gap: 12,
+  selectorRowNarrow: {
+    flexWrap: "wrap",
+    alignItems: "center",
   },
 
   tabsScroller: {
-    flex: 1,
-    marginRight: 12,
-  },
-
-  tabsScrollerPhone: {
-    width: "100%",
-    marginRight: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
   },
 
   tabsRow: {
-    gap: 12,
-    paddingVertical: 4,
+    gap: 8,
+    paddingVertical: 2,
     paddingRight: 2,
+    alignItems: "center",
   },
 
   dayTab: {
-    width: 106,
-    minHeight: 68,
-    borderRadius: 22,
+    width: 84,
+    minHeight: 52,
+    paddingVertical: 8,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2EAF6",
     shadowColor: "#B0BED6",
-    shadowOpacity: 0.13,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
     position: "relative",
     overflow: "hidden",
   },
 
   dayTabCompact: {
-    width: 88,
-    minHeight: 60,
-    borderRadius: 18,
+    width: 72,
+    minHeight: 44,
+    paddingVertical: 6,
+    borderRadius: 14,
   },
 
   dayTabActive: {
     backgroundColor: "#2463EB",
+    borderColor: "#2463EB",
   },
 
   activeTabGlowLarge: {
     position: "absolute",
     right: -12,
     top: -18,
-    width: 84,
-    height: 84,
-    borderRadius: 42,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: "rgba(255, 255, 255, 0.16)",
   },
 
   activeTabGlowSmall: {
     position: "absolute",
-    left: 10,
-    bottom: -24,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    left: 8,
+    bottom: -20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(255, 255, 255, 0.12)",
   },
 
   dayTabTitle: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: "800",
     color: "#16284A",
   },
 
   dayTabTitleCompact: {
-    fontSize: 15,
+    fontSize: 13,
   },
 
   dayTabTitleActive: {
@@ -2640,14 +2674,14 @@ const styles = StyleSheet.create({
   },
 
   dayTabDate: {
-    marginTop: 4,
-    fontSize: 14,
+    marginTop: 2,
+    fontSize: 12,
     color: "#5F6F8A",
     fontWeight: "500",
   },
 
   dayTabDateCompact: {
-    fontSize: 12.5,
+    fontSize: 11,
   },
 
   dayTabDateActive: {
@@ -2656,30 +2690,28 @@ const styles = StyleSheet.create({
 
   viewMapButton: {
     flexShrink: 0,
-    minWidth: 146,
   },
 
-  viewMapButtonPhone: {
-    minWidth: 96,
-    alignSelf: "flex-end",
+  viewMapButtonNarrow: {
+    marginLeft: "auto",
   },
 
   pillButton: {
-    minHeight: 48,
-    borderRadius: 24,
-    paddingHorizontal: 18,
+    minHeight: 40,
+    borderRadius: 20,
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 6,
   },
 
   pillButtonSolid: {
     backgroundColor: "#FFFFFF",
     shadowColor: "#C0D2EE",
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
 
@@ -2690,44 +2722,45 @@ const styles = StyleSheet.create({
   },
 
   pillButtonCompact: {
-    minHeight: 38,
-    paddingHorizontal: 8,
+    minHeight: 32,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    gap: 4,
   },
 
   pillButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
     color: "#2463EB",
   },
 
   pillButtonTextCompact: {
-    fontSize: 13,
+    fontSize: 12,
   },
 
   itineraryCard: {
-    borderRadius: 30,
+    borderRadius: 22,
     overflow: "hidden",
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#DDE8F8",
-    marginBottom: 22,
+    marginBottom: 14,
   },
 
   itineraryHeader: {
-    paddingHorizontal: 18,
-    paddingVertical: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    flexWrap: "wrap",
-    rowGap: 12,
+    gap: 10,
     position: "relative",
     overflow: "hidden",
   },
 
   itineraryHeaderPhone: {
-    alignItems: "stretch",
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
 
   headerGradientFill: {
@@ -2739,19 +2772,19 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: -30,
     top: -34,
-    width: 250,
-    height: 190,
+    width: 200,
+    height: 150,
     borderRadius: 95,
     backgroundColor: "rgba(255, 255, 255, 0.14)",
   },
 
   headerGradientBubbleSmall: {
     position: "absolute",
-    left: 170,
-    top: -44,
-    width: 200,
-    height: 176,
-    borderRadius: 88,
+    left: 140,
+    top: -40,
+    width: 160,
+    height: 140,
+    borderRadius: 80,
     backgroundColor: "rgba(255, 255, 255, 0.10)",
   },
 
@@ -2759,23 +2792,18 @@ const styles = StyleSheet.create({
     zIndex: 1,
     flex: 1,
     minWidth: 0,
-    paddingRight: 12,
-  },
-
-  itineraryHeaderCopyPhone: {
-    minWidth: 0,
-    paddingRight: 0,
+    paddingRight: 8,
   },
 
   itineraryHeaderTitle: {
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: "800",
     color: "#FFFFFF",
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
   },
 
   itineraryHeaderTitlePhone: {
-    fontSize: 17,
+    fontSize: 14,
   },
 
   itineraryHeaderDot: {
@@ -2785,18 +2813,18 @@ const styles = StyleSheet.create({
   weatherRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 4,
   },
 
   weatherText: {
-    marginLeft: 10,
-    fontSize: 16,
+    marginLeft: 6,
+    fontSize: 13,
     color: "#FFFFFF",
     fontWeight: "500",
   },
 
   weatherTextPhone: {
-    fontSize: 14.5,
+    fontSize: 12,
   },
 
   weatherDot: {
@@ -2805,11 +2833,11 @@ const styles = StyleSheet.create({
 
   addActivityButton: {
     zIndex: 1,
+    flexShrink: 0,
   },
 
   addActivityButtonPhone: {
-    alignSelf: "flex-end",
-    maxWidth: 124,
+    maxWidth: 118,
   },
 
   activitiesList: {
@@ -2820,16 +2848,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    paddingVertical: 14,
+    paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "#E6EDF8",
-    minHeight: 92,
+    minHeight: 72,
   },
 
   activityRowCompact: {
     paddingHorizontal: 10,
-    paddingVertical: 13,
-    minHeight: 86,
+    paddingVertical: 8,
+    minHeight: 62,
   },
 
   activityRowFirst: {
@@ -2837,35 +2865,35 @@ const styles = StyleSheet.create({
   },
 
   timeColumn: {
-    width: 72,
+    width: 62,
     alignSelf: "stretch",
     justifyContent: "flex-start",
-    paddingTop: 5,
+    paddingTop: 2,
   },
 
   timeColumnCompact: {
-    width: 64,
+    width: 54,
   },
 
   timeText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
     color: "#16284A",
   },
 
   timeTextCompact: {
-    fontSize: 13,
+    fontSize: 12,
   },
 
   timelineColumn: {
-    width: 18,
+    width: 14,
     alignSelf: "stretch",
     alignItems: "center",
     justifyContent: "center",
   },
 
   timelineColumnCompact: {
-    width: 16,
+    width: 12,
   },
 
   timelineSegment: {
@@ -2879,144 +2907,147 @@ const styles = StyleSheet.create({
   },
 
   timelineMarker: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 3,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2.5,
     backgroundColor: "#FFFFFF",
-    marginVertical: 4,
+    marginVertical: 2,
   },
 
   timelineMarkerCompact: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2,
   },
 
   iconColumn: {
-    width: 62,
+    width: 44,
     alignItems: "center",
   },
 
   iconColumnCompact: {
-    width: 56,
+    width: 38,
   },
 
   activityIconCircle: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
   },
 
   activityIconCircleCompact: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
 
   detailsColumn: {
     flex: 1,
     minWidth: 0,
-    paddingRight: 10,
-  },
-
-  detailsColumnCompact: {
     paddingRight: 8,
   },
 
+  detailsColumnCompact: {
+    paddingRight: 6,
+  },
+
   activityTitle: {
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 14.5,
+    lineHeight: 18,
     fontWeight: "800",
     color: "#16284A",
     letterSpacing: -0.2,
   },
 
   activityTitleCompact: {
-    fontSize: 14.5,
-    lineHeight: 18.5,
+    fontSize: 13,
+    lineHeight: 16,
   },
 
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 7,
+    marginTop: 3,
   },
 
   locationText: {
-    marginLeft: 7,
-    fontSize: 15,
+    marginLeft: 4,
+    fontSize: 12.5,
     color: "#4B5D7A",
     flexShrink: 1,
   },
 
   locationTextCompact: {
-    fontSize: 13.5,
+    fontSize: 11.5,
   },
 
   tagBadge: {
-    marginTop: 9,
+    marginTop: 5,
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     maxWidth: "100%",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 14,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
 
   tagBadgeCompact: {
-    marginTop: 8,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    marginTop: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
 
   tagBadgeText: {
-    fontSize: 12.5,
+    fontSize: 11,
     fontWeight: "600",
     flexShrink: 1,
   },
 
   tagBadgeTextCompact: {
-    fontSize: 11.5,
-    lineHeight: 15,
+    fontSize: 10,
+    lineHeight: 13,
   },
 
   routeActionColumn: {
-    width: 78,
+    width: 68,
     alignItems: "flex-end",
     justifyContent: "center",
-    gap: 8,
+    gap: 6,
   },
 
   routeActionColumnCompact: {
-    width: 62,
+    width: 58,
   },
 
   routeActionRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
-    gap: 4,
+    gap: 2,
+    minHeight: 32,
   },
 
   distanceText: {
-    fontSize: 14.5,
+    fontSize: 12.5,
     color: "#3E4D68",
     fontWeight: "500",
   },
 
   distanceTextCompact: {
-    fontSize: 12.5,
+    fontSize: 11,
   },
 
   deleteActivityButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFF1E9",
@@ -3025,29 +3056,33 @@ const styles = StyleSheet.create({
   tipCard: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    borderRadius: 24,
-    backgroundColor: "rgba(255, 255, 255, 0.86)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 16,
+    backgroundColor: "#EEF4FF",
     borderWidth: 1,
     borderColor: "#D2E0FA",
-    columnGap: 14,
+    columnGap: 10,
+    marginBottom: 4,
   },
 
   tipCardCompact: {
-    paddingHorizontal: 14,
-    paddingVertical: 16,
-    columnGap: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    columnGap: 8,
+    borderRadius: 14,
   },
 
   tipRobotImage: {
-    width: 60,
-    height: 60,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
 
   tipRobotImageCompact: {
-    width: 48,
-    height: 48,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
   },
 
   tipCopyColumn: {
@@ -3056,13 +3091,13 @@ const styles = StyleSheet.create({
   },
 
   tipHeading: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: "800",
     color: "#16284A",
   },
 
   tipHeadingCompact: {
-    fontSize: 16,
+    fontSize: 13,
   },
 
   tipSpark: {
@@ -3070,33 +3105,34 @@ const styles = StyleSheet.create({
   },
 
   tipBody: {
-    marginTop: 7,
-    fontSize: 16,
-    lineHeight: 22,
+    marginTop: 2,
+    fontSize: 13,
+    lineHeight: 17,
     color: "#354968",
   },
 
   tipBodyCompact: {
-    fontSize: 14.5,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 16,
   },
 
   tipLinkButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    marginLeft: 12,
+    gap: 2,
+    marginLeft: 6,
     flexShrink: 0,
+    minHeight: 32,
   },
 
   tipLinkText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "700",
     color: "#2463EB",
   },
 
   tipLinkTextCompact: {
-    fontSize: 14,
+    fontSize: 12,
   },
 
   modalBackdrop: {

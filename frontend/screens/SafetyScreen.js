@@ -15,7 +15,6 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 import * as dashboardApi from "../src/api/dashboard";
@@ -28,6 +27,102 @@ const LIVE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 const heroRobotImage = require("../assets/images/safety/safety-shield-robot.png");
 const bannerRobotImage = require("../assets/images/itinerary-tip-bot-reference.png");
+
+const PERMANENT_SAFETY_CATEGORIES = [
+  {
+    id: "crime",
+    title: "Crime & Security",
+    status: "Low Risk",
+    description: "Exercise normal safety precautions and follow local guidance.",
+    iconFamily: "ion",
+    iconName: "shield-checkmark",
+    iconColor: "#1F78FF",
+    iconBackground: "#EAF3FF",
+  },
+  {
+    id: "health",
+    title: "Health",
+    status: "Low Risk",
+    description: "Follow standard health guidance and local medical recommendations.",
+    iconFamily: "ion",
+    iconName: "medkit",
+    iconColor: "#149647",
+    iconBackground: "#EAF9F0",
+  },
+  {
+    id: "transportation",
+    title: "Transportation",
+    status: "Low Risk",
+    description: "Check local transit updates before traveling.",
+    iconFamily: "ion",
+    iconName: "train",
+    iconColor: "#7D58F2",
+    iconBackground: "#F1EAFF",
+  },
+  {
+    id: "laws",
+    title: "Local Laws",
+    status: "Low Risk",
+    description: "Respect local laws and cultural norms while traveling.",
+    iconFamily: "material",
+    iconName: "bank",
+    iconColor: "#D98200",
+    iconBackground: "#FFF4DE",
+  },
+  {
+    id: "updates",
+    title: "Local Updates",
+    status: "None",
+    description: "No active local updates right now.",
+    iconFamily: "ion",
+    iconName: "megaphone",
+    iconColor: "#7D58F2",
+    iconBackground: "#F1EAFF",
+  },
+];
+
+const PERMANENT_SAFETY_TIPS = [
+  {
+    id: "tip-belongings",
+    title: "Secure your belongings",
+    description: "Keep bags zipped and wallets in front pockets, especially in crowded areas.",
+    detail: "Use hotel safes for passports and valuables when available.",
+    source: "Wayfinder safety tips",
+    iconFamily: "ion",
+    iconName: "lock-closed",
+    iconColor: "#1F78FF",
+    iconBackground: "#EAF3FF",
+  },
+  {
+    id: "tip-aware",
+    title: "Stay aware of your surroundings",
+    description: "Be mindful in busy places and avoid distractions while walking.",
+    detail: "Stay in well-lit areas and trust your instincts if a situation feels unsafe.",
+    source: "Wayfinder safety tips",
+    iconFamily: "ion",
+    iconName: "eye",
+    iconColor: "#149647",
+    iconBackground: "#EAF9F0",
+  },
+  {
+    id: "tip-contacts",
+    title: "Important Contacts",
+    description: "Police: 110 • Ambulance/Fire: 119 • Tourist Hotline: 03-3201-3331",
+    detail: "Save local emergency numbers and your consulate contacts before you travel.",
+    source: "Wayfinder safety tips",
+    iconFamily: "ion",
+    iconName: "call",
+    iconColor: "#7D58F2",
+    iconBackground: "#F1EAFF",
+  },
+];
+
+const RISK_STATUS_BY_LEVEL = {
+  low: "Low Risk",
+  moderate: "Moderate Risk",
+  high: "High Risk",
+  extreme: "Extreme Risk",
+};
 
 const MONTH_NAMES = [
   "January",
@@ -58,15 +153,15 @@ const RISK_SCALE_COLORS = [
 ];
 
 const SKYLINE_BUILDINGS = [
-  { left: "2%", width: 44, height: 62 },
-  { left: "11%", width: 34, height: 40 },
-  { left: "18%", width: 58, height: 88 },
-  { left: "29%", width: 42, height: 54 },
-  { left: "37%", width: 74, height: 126 },
-  { left: "51%", width: 52, height: 96 },
-  { left: "63%", width: 42, height: 68 },
-  { left: "72%", width: 64, height: 118 },
-  { left: "85%", width: 40, height: 76 },
+  { left: "2%", width: 28, height: 36 },
+  { left: "11%", width: 22, height: 24 },
+  { left: "18%", width: 36, height: 52 },
+  { left: "29%", width: 26, height: 32 },
+  { left: "37%", width: 46, height: 72 },
+  { left: "51%", width: 32, height: 56 },
+  { left: "63%", width: 26, height: 40 },
+  { left: "72%", width: 40, height: 68 },
+  { left: "85%", width: 24, height: 44 },
 ];
 
 const alertToneStyles = {
@@ -140,8 +235,140 @@ function formatDestinationLabel(value) {
     .join(", ");
 }
 
-function getCityFromLabel(label) {
-  return label.split(",")[0]?.trim() || label.trim();
+function toPlainText(value) {
+  if (value == null) {
+    return "";
+  }
+
+  return String(value)
+    .replace(/&#x([0-9a-fA-F]+);/gi, (_, hex) => {
+      const codePoint = Number.parseInt(hex, 16);
+      if (!Number.isFinite(codePoint)) {
+        return "";
+      }
+      try {
+        return String.fromCodePoint(codePoint);
+      } catch {
+        return "";
+      }
+    })
+    .replace(/&#(\d+);/g, (_, dec) => {
+      const codePoint = Number.parseInt(dec, 10);
+      if (!Number.isFinite(codePoint)) {
+        return "";
+      }
+      try {
+        return String.fromCodePoint(codePoint);
+      } catch {
+        return "";
+      }
+    })
+    .replace(/<\s*br\s*\/?\s*>/gi, " ")
+    .replace(/<\/\s*p\s*>/gi, " ")
+    .replace(/<\s*p[^>]*>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;|&ensp;|&emsp;|&thinsp;|&nnbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;|&rsquo;|&lsquo;/gi, "'")
+    .replace(/&rdquo;|&ldquo;/gi, '"')
+    .replace(/&mdash;/gi, "—")
+    .replace(/&ndash;/gi, "–")
+    .replace(/[\u00A0\u202F\u2007\u2060\u2009\u200A]/g, " ")
+    .replace(/&#\d+;|&#x[0-9a-fA-F]+;|&[a-zA-Z]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const ADVISORY_FALLBACK_MESSAGE =
+  "Safety advisory details are currently unavailable. Please refresh or review the official travel advisory.";
+
+function sanitizeAdvisoryDescription(value) {
+  const plain = toPlainText(value);
+  if (!plain || plain.length < 8) {
+    return ADVISORY_FALLBACK_MESSAGE;
+  }
+  if (/&#\d+;|&#x[0-9a-fA-F]+;|&[a-zA-Z]+;/i.test(plain)) {
+    return ADVISORY_FALLBACK_MESSAGE;
+  }
+  if (/^\s*[{[]/.test(plain) && /"(error|detail|message)"/i.test(plain)) {
+    return ADVISORY_FALLBACK_MESSAGE;
+  }
+  if (/TRAVEL_RISK_API_KEY|Traceback|Exception:|HTTPException/i.test(plain)) {
+    return ADVISORY_FALLBACK_MESSAGE;
+  }
+  return plain;
+}
+
+function dedupeRepeatedText(value) {
+  const text = toPlainText(value);
+  if (text.length < 40) {
+    return text;
+  }
+
+  const midpoint = Math.floor(text.length / 2);
+  const first = text.slice(0, midpoint).trim();
+  const second = text.slice(midpoint).trim();
+  if (first && first === second) {
+    return first;
+  }
+
+  if (text.length % 2 === 0) {
+    const left = text.slice(0, text.length / 2);
+    const right = text.slice(text.length / 2);
+    if (left === right) {
+      return left.trim();
+    }
+  }
+
+  return text;
+}
+
+function buildPermanentCategories(liveCategories, liveAlerts, riskLevel) {
+  const byId = Object.fromEntries((liveCategories || []).map((item) => [item.id, item]));
+  const alertCount = Array.isArray(liveAlerts) ? liveAlerts.length : 0;
+  const advisory = byId.advisory;
+  const disruptions = byId.disruptions;
+
+  return PERMANENT_SAFETY_CATEGORIES.map((base) => {
+    if (base.id === "crime") {
+      const status =
+        RISK_STATUS_BY_LEVEL[riskLevel] ||
+        (/\blevel\s*[01]\b/i.test(String(advisory?.status || ""))
+          ? "Low Risk"
+          : base.status);
+      return {
+        ...base,
+        status,
+        description: toPlainText(advisory?.description) || base.description,
+      };
+    }
+
+    if (base.id === "transportation") {
+      const rawStatus = String(disruptions?.status || "");
+      const status = !rawStatus || /none/i.test(rawStatus) ? "Low Risk" : "Caution";
+      return {
+        ...base,
+        status,
+        description: toPlainText(disruptions?.description) || base.description,
+      };
+    }
+
+    if (base.id === "updates") {
+      return {
+        ...base,
+        status: alertCount > 0 ? `${alertCount} Active` : "None",
+        description:
+          alertCount > 0
+            ? "Current country hazards and destination weather warnings."
+            : base.description,
+      };
+    }
+
+    return base;
+  });
 }
 
 function renderIcon(iconFamily, iconName, color, size) {
@@ -261,6 +488,11 @@ function SafetyScale({ indicatorLeft }) {
 
 function AlertCard({ alert, isSelected, onPress, onDismiss, isPhone }) {
   const tone = alertToneStyles[alert.tone];
+  const warningIconSize = isPhone ? 22 : 26;
+  const chevronSize = isPhone ? 20 : 22;
+  const description = dedupeRepeatedText(alert.description);
+  const details = dedupeRepeatedText(alert.details);
+  const showDetails = Boolean(isSelected && details && details !== description);
 
   return (
     <Pressable
@@ -269,64 +501,81 @@ function AlertCard({ alert, isSelected, onPress, onDismiss, isPhone }) {
       onPress={onPress}
       style={({ pressed }) => [
         styles.alertCard,
+        isPhone && styles.alertCardPhone,
         cardShadowStyle,
         { borderColor: tone.borderColor, backgroundColor: tone.backgroundColor },
         isSelected && styles.alertCardSelected,
         pressed && styles.alertCardPressed,
       ]}
     >
-      <View style={[styles.alertCardTopRow, isPhone && styles.alertCardTopRowCompact]}>
-        <View style={[styles.alertBadge, { backgroundColor: tone.badgeBackground }]}>
-          <Text style={[styles.alertBadgeText, { color: tone.badgeColor }]}>{alert.label}</Text>
+      <View style={styles.alertCardTopRow}>
+        <View style={[styles.alertBadge, isPhone && styles.alertBadgePhone, { backgroundColor: tone.badgeBackground }]}>
+          <Text style={[styles.alertBadgeText, isPhone && styles.alertBadgeTextPhone, { color: tone.badgeColor }]}>
+            {toPlainText(alert.label)}
+          </Text>
         </View>
-        <Text style={styles.alertTimestamp}>{alert.timestamp}</Text>
+        <Text style={[styles.alertTimestamp, isPhone && styles.alertTimestampPhone]} numberOfLines={1}>
+          {alert.timestamp}
+        </Text>
       </View>
 
-      <View style={styles.alertCardBody}>
-        <View style={[styles.alertIconWrap, { backgroundColor: tone.iconBackground }]}>
-          <Ionicons name="warning" size={34} color={tone.iconColor} />
+      <View style={[styles.alertCardBody, isPhone && styles.alertCardBodyPhone]}>
+        <View
+          style={[
+            styles.alertIconWrap,
+            isPhone && styles.alertIconWrapPhone,
+            { backgroundColor: tone.iconBackground },
+          ]}
+        >
+          <Ionicons name="warning" size={warningIconSize} color={tone.iconColor} />
         </View>
 
         <View style={styles.alertCopy}>
-          <Text style={styles.alertTitle}>{alert.title}</Text>
+          <Text style={[styles.alertTitle, isPhone && styles.alertTitlePhone]}>
+            {toPlainText(alert.title)}
+          </Text>
 
           <View style={styles.alertLocationRow}>
-            <Ionicons name="location" size={15} color="#1F78FF" />
-            <Text style={styles.alertLocationText}>{alert.location}</Text>
+            <Ionicons name="location" size={isPhone ? 13 : 14} color="#1F78FF" />
+            <Text style={[styles.alertLocationText, isPhone && styles.alertLocationTextPhone]}>
+              {alert.location}
+            </Text>
           </View>
 
-          <Text style={styles.alertDescription}>{alert.description}</Text>
+          <Text style={[styles.alertDescription, isPhone && styles.alertDescriptionPhone]}>
+            {description}
+          </Text>
+          {showDetails ? <Text style={styles.alertDetailText}>{details}</Text> : null}
           {isSelected ? (
-            <>
-              <Text style={styles.alertDetailText}>{alert.details}</Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Dismiss ${alert.title}`}
-                onPress={(event) => {
-                  event.stopPropagation?.();
-                  onDismiss();
-                }}
-                style={styles.alertDismissButton}
-              >
-                <Ionicons name="checkmark-circle-outline" size={18} color="#1F78FF" />
-                <Text style={styles.alertDismissText}>Dismiss alert</Text>
-              </Pressable>
-            </>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Dismiss ${alert.title}`}
+              onPress={(event) => {
+                event.stopPropagation?.();
+                onDismiss();
+              }}
+              style={styles.alertDismissButton}
+            >
+              <Ionicons name="checkmark-circle-outline" size={16} color="#1F78FF" />
+              <Text style={styles.alertDismissText}>Dismiss alert</Text>
+            </Pressable>
           ) : null}
         </View>
 
         <Ionicons
           name={isSelected ? "chevron-down" : "chevron-forward"}
-          size={26}
+          size={chevronSize}
           color="#0F2140"
-          style={styles.alertChevron}
+          style={[styles.alertChevron, isPhone && styles.alertChevronPhone]}
         />
       </View>
     </Pressable>
   );
 }
 
-function CategoryCard({ item, isSelected, onPress, width }) {
+function CategoryCard({ item, isSelected, onPress, width, compact }) {
+  const iconSize = compact ? 22 : 26;
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -334,18 +583,31 @@ function CategoryCard({ item, isSelected, onPress, width }) {
       onPress={onPress}
       style={({ pressed }) => [
         styles.categoryCard,
+        compact && styles.categoryCardCompact,
         cardShadowStyle,
         { width },
         isSelected && [styles.categoryCardSelected, { borderColor: item.iconColor }],
         pressed && styles.categoryCardPressed,
       ]}
     >
-      <View style={[styles.categoryIconWrap, { backgroundColor: item.iconBackground }]}>
-        {renderIcon(item.iconFamily, item.iconName, item.iconColor, 30)}
+      <View
+        style={[
+          styles.categoryIconWrap,
+          compact && styles.categoryIconWrapCompact,
+          { backgroundColor: item.iconBackground },
+        ]}
+      >
+        {renderIcon(item.iconFamily, item.iconName, item.iconColor, iconSize)}
       </View>
 
-      <Text style={styles.categoryTitle}>{item.title}</Text>
-      <Text style={[styles.categoryStatus, { color: getCategoryStatusColor(item.status) }]}>
+      <Text style={[styles.categoryTitle, compact && styles.categoryTitleCompact]}>{item.title}</Text>
+      <Text
+        style={[
+          styles.categoryStatus,
+          compact && styles.categoryStatusCompact,
+          { color: getCategoryStatusColor(item.status) },
+        ]}
+      >
         {item.status}
       </Text>
       {isSelected ? (
@@ -355,7 +617,9 @@ function CategoryCard({ item, isSelected, onPress, width }) {
   );
 }
 
-function TipRow({ tip, isSelected, isLast, onPress }) {
+function TipRow({ tip, isSelected, isLast, onPress, compact }) {
+  const iconSize = compact ? 20 : 22;
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -363,19 +627,28 @@ function TipRow({ tip, isSelected, isLast, onPress }) {
       onPress={onPress}
       style={({ pressed }) => [
         styles.tipRow,
+        compact && styles.tipRowCompact,
         !isLast && styles.tipRowDivider,
         isSelected && styles.tipRowSelected,
         pressed && styles.tipRowPressed,
       ]}
     >
-      <View style={styles.tipRowMain}>
-        <View style={[styles.tipIconWrap, { backgroundColor: tip.iconBackground }]}>
-          {renderIcon(tip.iconFamily, tip.iconName, tip.iconColor, 25)}
+      <View style={[styles.tipRowMain, compact && styles.tipRowMainCompact]}>
+        <View
+          style={[
+            styles.tipIconWrap,
+            compact && styles.tipIconWrapCompact,
+            { backgroundColor: tip.iconBackground },
+          ]}
+        >
+          {renderIcon(tip.iconFamily, tip.iconName, tip.iconColor, iconSize)}
         </View>
 
         <View style={styles.tipCopy}>
-          <Text style={styles.tipTitle}>{tip.title}</Text>
-          <Text style={styles.tipDescription}>{tip.description}</Text>
+          <Text style={[styles.tipTitle, compact && styles.tipTitleCompact]}>{tip.title}</Text>
+          <Text style={[styles.tipDescription, compact && styles.tipDescriptionCompact]}>
+            {tip.description}
+          </Text>
           {isSelected ? (
             <>
               <Text style={styles.tipDetail}>{tip.detail}</Text>
@@ -386,9 +659,9 @@ function TipRow({ tip, isSelected, isLast, onPress }) {
 
         <Ionicons
           name={isSelected ? "chevron-down" : "chevron-forward"}
-          size={22}
+          size={compact ? 18 : 20}
           color="#0F2140"
-          style={styles.tipChevron}
+          style={[styles.tipChevron, compact && styles.tipChevronCompact]}
         />
       </View>
     </Pressable>
@@ -400,9 +673,51 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
   const bottomNavPadding = getBottomNavContentPadding(insets);
   const { width } = useWindowDimensions();
   const { refreshLocation } = useUserLocation();
-  const isPhone = width < 560;
+  const isPhone = width < 520;
+  const isCompactPhone = width < 400;
+  const isHeroStacked = width < 360;
   const useScrollableCategories = width < 900;
-  const pageMaxWidth = width >= 1180 ? 1020 : 960;
+  const pageMaxWidth = width >= 1100 ? 780 : width >= 900 ? 740 : 700;
+  const pageWidth = Math.min(Math.max(width - (isCompactPhone ? 20 : isPhone ? 24 : 28), 280), pageMaxWidth);
+  const pagePaddingHorizontal = isCompactPhone ? 10 : isPhone ? 12 : 14;
+  const showBackButton = width < 760 && typeof (onGoBack || onNavigateHome) === "function";
+  // Hero art is 1084×402 — size near natural aspect ratio (avoid soft upscaling / cropping).
+  const heroAspectRatio = 1084 / 402;
+  const heroArtworkMaxWidth = isHeroStacked
+    ? Math.min(pageWidth * 0.9, 300)
+    : isCompactPhone
+      ? Math.min(pageWidth * 0.52, 190)
+      : isPhone
+        ? Math.min(pageWidth * 0.5, 220)
+        : width < 900
+          ? Math.min(pageWidth * 0.44, 280)
+          : Math.min(pageWidth * 0.42, 320);
+  const heroArtworkTargetHeight = isHeroStacked
+    ? 108
+    : isCompactPhone
+      ? 82
+      : isPhone
+        ? 92
+        : width < 900
+          ? 104
+          : 118;
+  const heroArtworkWidth = Math.min(
+    heroArtworkMaxWidth,
+    Math.round(heroArtworkTargetHeight * heroAspectRatio)
+  );
+  const heroArtworkHeight = Math.round(heroArtworkWidth / heroAspectRatio);
+  const heroTitleSize = isCompactPhone ? 32 : isPhone ? 36 : width < 900 ? 42 : 46;
+  const heroSubtitleSize = isCompactPhone ? 12 : isPhone ? 13 : 14;
+  const headerIconSize = isPhone ? 20 : 22;
+  const profileIconSize = isPhone ? 26 : 28;
+  const categoryCardWidth = useScrollableCategories
+    ? isCompactPhone
+      ? 118
+      : isPhone
+        ? 128
+        : 138
+    : "18.6%";
+  const compactCards = isPhone;
 
   const initialDestinationLabel = "Bali, Indonesia";
   const [destinationInput, setDestinationInput] = useState("");
@@ -434,25 +749,32 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
       about:
         "Risk information is country-level and does not represent a city crime, health, or transportation score.",
     },
-    categories: liveReport?.categories || [],
-    tips: liveReport?.tips || [],
+    categories: buildPermanentCategories(
+      liveReport?.categories,
+      liveAlerts,
+      liveReport?.risk?.level
+    ),
+    tips: PERMANENT_SAFETY_TIPS,
   };
   const displayDestinationLabel = liveReport?.destinationLabel || appliedDestinationLabel;
-  const displayCityLabel = getCityFromLabel(displayDestinationLabel);
+  const displayCountryLabel =
+    liveReport?.countryName && liveReport.countryName !== "Unknown country"
+      ? liveReport.countryName
+      : displayDestinationLabel.split(",")[0]?.trim() || displayDestinationLabel;
   const visibleAlerts = liveAlerts;
   const safetyOverview = destination.overall;
-  const overallDescription = safetyOverview.description;
+  const overallDescription = sanitizeAdvisoryDescription(safetyOverview.description);
   const overallStyles = getOverallStyles(safetyOverview.level);
-  const categoryCardWidth = useScrollableCategories ? 154 : "18.6%";
+  const overallIconSize = isPhone ? 24 : 28;
+  const overallCircleSize = isPhone ? 72 : 88;
+  const overallInnerSize = isPhone ? 42 : 52;
 
   const loadSafety = useCallback(async (query = activeQueryRef.current, initial = false) => {
     if (requestInFlightRef.current) {
       return;
     }
     requestInFlightRef.current = true;
-    if (initial) {
-      setSafetyLoading(true);
-    }
+    setSafetyLoading(true);
     setSafetyError("");
     try {
       const token = await getToken();
@@ -472,18 +794,19 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
       setLiveAlerts(mapped);
       setAppliedDestinationLabel(mappedReport.destinationLabel);
       setSelectedCategoryId((currentId) =>
-        mappedReport.categories.some((item) => item.id === currentId)
-          ? currentId
-          : mappedReport.categories[0]?.id ?? null
+        PERMANENT_SAFETY_CATEGORIES.some((item) => item.id === currentId) ? currentId : null
       );
       setSelectedAlertId((currentId) =>
-        mapped.some((alert) => alert.id === currentId) ? currentId : mapped[0]?.id ?? null
+        mapped.some((alert) => alert.id === currentId) ? currentId : null
+      );
+      setSelectedTipId((currentId) =>
+        PERMANENT_SAFETY_TIPS.some((tip) => tip.id === currentId) ? currentId : null
       );
       setLastUpdated(mappedReport.fetchedAt);
       setIsStale(mappedReport.isStale);
     } catch (error) {
       if (!mountedRef.current) return;
-      setSafetyError(error?.message || "Couldn't refresh safety alerts.");
+      setSafetyError("Couldn't refresh safety updates. Please try again.");
       setIsStale(true);
     } finally {
       requestInFlightRef.current = false;
@@ -656,86 +979,143 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
       <View style={styles.screen}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavPadding }]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingBottom: bottomNavPadding,
+              paddingHorizontal: pagePaddingHorizontal,
+              paddingTop: isPhone ? 8 : 10,
+            },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={[styles.pageInner, { maxWidth: pageMaxWidth }]}>
+          <View style={[styles.pageInner, { width: pageWidth, maxWidth: pageMaxWidth }]}>
             <View style={styles.headerRow}>
-              <DimPressable
-                accessibilityRole="button"
-                accessibilityLabel="Go back"
-                onPress={onGoBack || onNavigateHome}
-                style={styles.roundHeaderButton}
-              >
-                <Ionicons name="arrow-back" size={28} color="#14253E" />
-              </DimPressable>
-
-              <View style={styles.brandSlot}>
-                <WayfinderBrand
-                  containerStyle={styles.headerBrandRow}
-                  textStyle={styles.headerBrandText}
-                />
-              </View>
+              {showBackButton ? (
+                <DimPressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Go back"
+                  onPress={onGoBack || onNavigateHome}
+                  style={styles.headerBackButton}
+                >
+                  <Ionicons name="arrow-back" size={isPhone ? 18 : 20} color="#14253E" />
+                </DimPressable>
+              ) : null}
 
               <View style={styles.headerActions}>
                 <HeaderIconButton
                   accessibilityLabel="Notifications"
                   iconName="notifications-outline"
-                  iconSize={28}
+                  iconSize={headerIconSize}
                   onPress={() => onNavigate?.("notifications")}
                   showDot
                 />
                 <HeaderIconButton
                   accessibilityLabel="Profile"
                   iconName="person-circle-outline"
-                  iconSize={32}
+                  iconSize={profileIconSize}
                   onPress={() => onNavigate?.("profile")}
                 />
               </View>
             </View>
 
-            <View style={[styles.heroSection, heroShadowStyle, isPhone && styles.heroSectionPhone]}>
+            <View
+              style={[
+                styles.heroSection,
+                isHeroStacked && styles.heroSectionStacked,
+                isPhone && styles.heroSectionPhone,
+              ]}
+            >
               <SkylineBackdrop />
 
-              <View style={[styles.heroCopy, isPhone && styles.heroCopyPhone]}>
+              <View
+                style={[
+                  styles.heroCopy,
+                  isHeroStacked && styles.heroCopyStacked,
+                  isPhone && styles.heroCopyPhone,
+                ]}
+              >
                 <View style={styles.heroTitleRow}>
-                  <Text style={[styles.heroTitle, isPhone && styles.heroTitlePhone]}>Safety</Text>
+                  <Text
+                    style={[
+                      styles.heroTitle,
+                      {
+                        fontSize: heroTitleSize,
+                        lineHeight: heroTitleSize + 4,
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    Safety
+                  </Text>
                   <Ionicons
                     name="shield-checkmark"
-                    size={isPhone ? 34 : 44}
+                    size={isCompactPhone ? 26 : isPhone ? 30 : 34}
                     color="#1F78FF"
+                    style={styles.heroTitleIcon}
                   />
                 </View>
-                <Text style={[styles.heroSubtitle, isPhone && styles.heroSubtitlePhone]}>
-                  Safety updates and alerts{"\n"}
-                  for your destination.
+                <Text
+                  style={[
+                    styles.heroSubtitle,
+                    {
+                      fontSize: heroSubtitleSize,
+                      lineHeight: heroSubtitleSize + 6,
+                      marginTop: isPhone ? 4 : 6,
+                    },
+                  ]}
+                >
+                  Safety updates and alerts for your destination.
                 </Text>
               </View>
 
-              <View style={[styles.heroArtworkWrap, isPhone && styles.heroArtworkWrapPhone]}>
+              <View
+                style={[
+                  styles.heroArtworkWrap,
+                  isHeroStacked && styles.heroArtworkWrapStacked,
+                  {
+                    width: heroArtworkWidth,
+                    height: heroArtworkHeight,
+                  },
+                ]}
+              >
                 <Image
                   source={heroRobotImage}
-                  resizeMode="cover"
+                  resizeMode="contain"
                   style={styles.heroArtworkImage}
                 />
               </View>
             </View>
 
-            <View style={[styles.destinationPanel, heroShadowStyle, isPhone && styles.destinationPanelCompact]}>
+            <View
+              style={[
+                styles.destinationPanel,
+                heroShadowStyle,
+                isPhone && styles.destinationPanelCompact,
+              ]}
+            >
               <View style={styles.destinationPanelGlow} />
 
               <View style={[styles.destinationPanelCopy, isPhone && styles.destinationPanelCopyCompact]}>
-                <Text style={styles.destinationPanelTitle}>Where are you going?</Text>
-                <Text style={styles.destinationPanelSubtitle}>
-                  Get real-time safety updates{"\n"}
-                  for your destination.
+                <Text style={[styles.destinationPanelTitle, isPhone && styles.destinationPanelTitlePhone]}>
+                  Where are you going?
+                </Text>
+                <Text
+                  style={[styles.destinationPanelSubtitle, isPhone && styles.destinationPanelSubtitlePhone]}
+                >
+                  Get real-time safety updates for your destination.
                 </Text>
               </View>
 
-              <View style={[styles.destinationPanelControls, isPhone && styles.destinationPanelControlsCompact]}>
-                <View style={styles.destinationSelector}>
-                  <Ionicons name="search-outline" size={22} color="#1F78FF" />
+              <View
+                style={[
+                  styles.destinationPanelControls,
+                  isPhone && styles.destinationPanelControlsCompact,
+                ]}
+              >
+                <View style={[styles.destinationSelector, isPhone && styles.destinationSelectorPhone]}>
+                  <Ionicons name="search-outline" size={isPhone ? 18 : 20} color="#1F78FF" />
                   <TextInput
                     accessibilityLabel="Search for a destination"
                     value={destinationInput}
@@ -746,7 +1126,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                     returnKeyType="search"
                     autoCapitalize="words"
                     autoCorrect={false}
-                    style={styles.destinationInput}
+                    style={[styles.destinationInput, isPhone && styles.destinationInputPhone]}
                     onSubmitEditing={handleSubmitDestination}
                     onFocus={() => {
                       if (destinationSuggestions.length > 0) {
@@ -764,7 +1144,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                         pressed && styles.destinationClearButtonPressed,
                       ]}
                     >
-                      <Ionicons name="close-circle" size={22} color="#94A3B8" />
+                      <Ionicons name="close-circle" size={20} color="#94A3B8" />
                     </Pressable>
                   ) : null}
                 </View>
@@ -779,7 +1159,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                         onPress={() => handleSelectDestinationSuggestion(suggestion)}
                         style={styles.destinationSuggestionItem}
                       >
-                        <Ionicons name="location-outline" size={19} color="#1F78FF" />
+                        <Ionicons name="location-outline" size={17} color="#1F78FF" />
                         <Text style={styles.destinationSuggestionText} numberOfLines={1}>
                           {suggestion.label}
                         </Text>
@@ -794,38 +1174,54 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                   </View>
                 ) : null}
 
-                <Text style={styles.destinationScopeText}>
+                <Text style={[styles.destinationScopeText, isPhone && styles.destinationScopeTextPhone]}>
                   {liveReport?.scopeLabel || "Country-level risk information"}
                 </Text>
 
-                <View style={[styles.destinationUpdatedRow, isPhone && styles.destinationUpdatedRowCompact]}>
-                  <Text style={styles.destinationUpdatedText}>
-                    Last updated: {formatTimestamp(lastUpdated)}{isStale ? " (stale)" : ""}
+                <View
+                  style={[
+                    styles.destinationUpdatedRow,
+                    isPhone && styles.destinationUpdatedRowCompact,
+                  ]}
+                >
+                  <Text
+                    style={[styles.destinationUpdatedText, isPhone && styles.destinationUpdatedTextPhone]}
+                  >
+                    Last updated: {formatTimestamp(lastUpdated)}
+                    {isStale ? " (stale)" : ""}
                   </Text>
 
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Refresh safety updates"
                     onPress={handleRefreshTimestamp}
-                    style={({ pressed }) => [styles.refreshButton, pressed && styles.refreshButtonPressed]}
+                    style={({ pressed }) => [
+                      styles.refreshButton,
+                      isPhone && styles.refreshButtonPhone,
+                      pressed && styles.refreshButtonPressed,
+                    ]}
                   >
-                    <Ionicons name="refresh" size={22} color="#FFFFFF" />
+                    <Ionicons name="refresh" size={isPhone ? 18 : 20} color="#FFFFFF" />
                   </Pressable>
                 </View>
               </View>
             </View>
 
-            <View style={[styles.sectionCard, cardShadowStyle]}>
+            <View style={[styles.sectionCard, cardShadowStyle, isPhone && styles.sectionCardPhone]}>
               <View style={[styles.sectionHeaderRow, isPhone && styles.sectionHeaderRowCompact]}>
-                <Text style={styles.sectionHeaderTitle}>Overall Safety Level</Text>
+                <Text style={[styles.sectionHeaderTitle, isPhone && styles.sectionHeaderTitlePhone]}>
+                  Overall Safety Level
+                </Text>
 
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => setShowSafetyInfo((currentValue) => !currentValue)}
                   style={({ pressed }) => [styles.sectionLinkButton, pressed && styles.linkPressed]}
                 >
-                  <Text style={styles.sectionLinkText}>About safety levels</Text>
-                  <Ionicons name="information-circle-outline" size={20} color="#1F78FF" />
+                  <Text style={[styles.sectionLinkText, isPhone && styles.sectionLinkTextPhone]}>
+                    About safety levels
+                  </Text>
+                  <Ionicons name="information-circle-outline" size={isPhone ? 16 : 18} color="#1F78FF" />
                 </Pressable>
               </View>
 
@@ -837,31 +1233,65 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
 
               <View style={[styles.overallRow, isPhone && styles.overallRowCompact]}>
                 <View style={styles.overallCopyBlock}>
-                  <View style={[styles.overallIconCircle, { backgroundColor: overallStyles.softBackground }]}>
-                    <View style={[styles.overallIconInner, { backgroundColor: overallStyles.color }]}>
-                      <Ionicons name={overallStyles.iconName} size={34} color="#FFFFFF" />
+                  <View
+                    style={[
+                      styles.overallIconCircle,
+                      {
+                        backgroundColor: overallStyles.softBackground,
+                        width: overallCircleSize,
+                        height: overallCircleSize,
+                        borderRadius: overallCircleSize / 2,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.overallIconInner,
+                        {
+                          backgroundColor: overallStyles.color,
+                          width: overallInnerSize,
+                          height: overallInnerSize,
+                          borderRadius: isPhone ? 14 : 16,
+                        },
+                      ]}
+                    >
+                      <Ionicons name={overallStyles.iconName} size={overallIconSize} color="#FFFFFF" />
                     </View>
                   </View>
 
                   <View style={styles.overallCopy}>
-                    <Text style={[styles.overallLabel, { color: overallStyles.color }]}>
+                    <Text
+                      style={[
+                        styles.overallLabel,
+                        isPhone && styles.overallLabelPhone,
+                        { color: overallStyles.color },
+                      ]}
+                    >
                       {safetyOverview.label}
                     </Text>
-                    <Text style={styles.overallDescription}>{overallDescription}</Text>
+                    <Text
+                      style={[styles.overallDescription, isPhone && styles.overallDescriptionPhone]}
+                    >
+                      {overallDescription}
+                    </Text>
                   </View>
                 </View>
 
-                <View style={styles.overallScaleBlock}>
+                <View style={[styles.overallScaleBlock, isPhone && styles.overallScaleBlockPhone]}>
                   <SafetyScale indicatorLeft={safetyOverview.indicatorLeft} />
                 </View>
               </View>
             </View>
 
-            <View style={styles.sectionTopRow}>
+            <View style={[styles.sectionTopRow, isPhone && styles.sectionTopRowPhone]}>
               <View style={styles.activeAlertsTitleWrap}>
-                <Text style={styles.largeSectionTitle}>Active Alerts</Text>
-                <View style={styles.countBadge}>
-                  <Text style={styles.countBadgeText}>{visibleAlerts.length}</Text>
+                <Text style={[styles.largeSectionTitle, isPhone && styles.largeSectionTitlePhone]}>
+                  Active Alerts
+                </Text>
+                <View style={[styles.countBadge, isPhone && styles.countBadgePhone]}>
+                  <Text style={[styles.countBadgeText, isPhone && styles.countBadgeTextPhone]}>
+                    {visibleAlerts.length}
+                  </Text>
                 </View>
               </View>
 
@@ -870,18 +1300,22 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                 onPress={() => setSelectedAlertId(null)}
                 style={({ pressed }) => [styles.sectionLinkButton, pressed && styles.linkPressed]}
               >
-                <Text style={styles.sectionLinkText}>View all alerts</Text>
-                <Ionicons name="chevron-forward" size={18} color="#1F78FF" />
+                <Text style={[styles.sectionLinkText, isPhone && styles.sectionLinkTextPhone]}>
+                  View all alerts
+                </Text>
+                <Ionicons name="chevron-forward" size={isPhone ? 14 : 16} color="#1F78FF" />
               </Pressable>
             </View>
 
-            <View style={styles.alertsList}>
+            <View style={[styles.alertsList, isPhone && styles.alertsListPhone]}>
               {safetyError ? <Text style={styles.liveStateText}>{safetyError}</Text> : null}
               {safetyLoading && visibleAlerts.length === 0 ? (
                 <Text style={styles.liveStateText}>Loading current safety report...</Text>
               ) : null}
-              {!safetyLoading && visibleAlerts.length === 0 ? (
-                <Text style={styles.liveStateText}>No active country or weather alerts were reported.</Text>
+              {!safetyLoading && visibleAlerts.length === 0 && !safetyError ? (
+                <Text style={styles.liveStateText}>
+                  No current active alerts for {displayCountryLabel}.
+                </Text>
               ) : null}
               {visibleAlerts.map((alert) => (
                 <AlertCard
@@ -897,14 +1331,16 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
               ))}
             </View>
 
-            <View style={styles.sectionTopRow}>
-              <Text style={styles.largeSectionTitle}>Safety Categories</Text>
+            <View style={[styles.sectionTopRow, isPhone && styles.sectionTopRowPhone]}>
+              <Text style={[styles.largeSectionTitle, isPhone && styles.largeSectionTitlePhone]}>
+                Safety Categories
+              </Text>
               <Pressable
                 accessibilityRole="button"
                 onPress={() => setSelectedCategoryId(null)}
                 style={({ pressed }) => [styles.sectionLinkButton, pressed && styles.linkPressed]}
               >
-                <Text style={styles.sectionLinkText}>View all</Text>
+                <Text style={[styles.sectionLinkText, isPhone && styles.sectionLinkTextPhone]}>View all</Text>
               </Pressable>
             </View>
 
@@ -919,6 +1355,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                     key={item.id}
                     item={item}
                     width={categoryCardWidth}
+                    compact={compactCards}
                     isSelected={selectedCategoryId === item.id}
                     onPress={() =>
                       setSelectedCategoryId((currentId) => (currentId === item.id ? null : item.id))
@@ -933,6 +1370,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                     key={item.id}
                     item={item}
                     width={categoryCardWidth}
+                    compact={compactCards}
                     isSelected={selectedCategoryId === item.id}
                     onPress={() =>
                       setSelectedCategoryId((currentId) => (currentId === item.id ? null : item.id))
@@ -942,16 +1380,18 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
               </View>
             )}
 
-            <View style={styles.sectionTopRow}>
-              <Text style={styles.largeSectionTitle}>
-                General Preparedness Guidance for {displayCityLabel}
+            <View style={[styles.sectionTopRow, isPhone && styles.sectionTopRowPhone]}>
+              <Text style={[styles.largeSectionTitle, isPhone && styles.largeSectionTitlePhone]}>
+                Safety Tips
               </Text>
               <Pressable
                 accessibilityRole="button"
                 onPress={() => setSelectedTipId(null)}
                 style={({ pressed }) => [styles.sectionLinkButton, pressed && styles.linkPressed]}
               >
-                <Text style={styles.sectionLinkText}>View all guidance</Text>
+                <Text style={[styles.sectionLinkText, isPhone && styles.sectionLinkTextPhone]}>
+                  View all tips
+                </Text>
               </Pressable>
             </View>
 
@@ -960,6 +1400,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                 <TipRow
                   key={tip.id}
                   tip={tip}
+                  compact={compactCards}
                   isSelected={selectedTipId === tip.id}
                   isLast={index === destination.tips.length - 1}
                   onPress={() =>
@@ -971,13 +1412,21 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
 
             <View style={[styles.pushBanner, cardShadowStyle, isPhone && styles.pushBannerCompact]}>
               <View style={styles.pushBannerMain}>
-                <View style={styles.pushRobotWrap}>
-                  <Image source={bannerRobotImage} resizeMode="contain" style={styles.pushRobotImage} />
+                <View style={[styles.pushRobotWrap, isPhone && styles.pushRobotWrapPhone]}>
+                  <Image
+                    source={bannerRobotImage}
+                    resizeMode="contain"
+                    style={[styles.pushRobotImage, isPhone && styles.pushRobotImagePhone]}
+                  />
                 </View>
 
                 <View style={styles.pushBannerCopy}>
-                  <Text style={styles.pushBannerTitle}>Live safety updates are active.</Text>
-                  <Text style={styles.pushBannerDescription}>
+                  <Text style={[styles.pushBannerTitle, isPhone && styles.pushBannerTitlePhone]}>
+                    Live safety updates are active.
+                  </Text>
+                  <Text
+                    style={[styles.pushBannerDescription, isPhone && styles.pushBannerDescriptionPhone]}
+                  >
                     Alerts refresh every five minutes while the app is open.
                   </Text>
                 </View>
@@ -989,6 +1438,7 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                 onPress={() => loadSafety()}
                 style={({ pressed }) => [
                   styles.pushBannerButton,
+                  isPhone && styles.pushBannerButtonPhone,
                   styles.pushBannerButtonEnabled,
                   pressed && styles.pushBannerButtonPressed,
                 ]}
@@ -996,16 +1446,13 @@ export default function SafetyScreen({ onGoBack, onNavigateHome, onNavigate }) {
                 <Text
                   style={[
                     styles.pushBannerButtonText,
+                    isPhone && styles.pushBannerButtonTextPhone,
                     styles.pushBannerButtonTextEnabled,
                   ]}
                 >
                   Refresh Alerts
                 </Text>
-                <Ionicons
-                  name="refresh"
-                  size={21}
-                  color="#FFFFFF"
-                />
+                <Ionicons name="refresh" size={isPhone ? 18 : 20} color="#FFFFFF" />
               </Pressable>
             </View>
           </View>
@@ -1030,9 +1477,9 @@ const styles = StyleSheet.create({
 
   liveStateText: {
     color: "#51607D",
-    fontSize: 15,
-    lineHeight: 22,
-    paddingVertical: 16,
+    fontSize: 14,
+    lineHeight: 20,
+    paddingVertical: 12,
   },
 
   alertDismissButton: {
@@ -1040,9 +1487,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginTop: 12,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
+    marginTop: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 9,
     borderWidth: 1,
     borderColor: "#B9D4FF",
     borderRadius: 7,
@@ -1051,7 +1498,7 @@ const styles = StyleSheet.create({
 
   alertDismissText: {
     color: "#1F78FF",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
   },
 
@@ -1061,60 +1508,47 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    paddingTop: 14,
-    paddingHorizontal: 18,
     alignItems: "center",
   },
 
   pageInner: {
     width: "100%",
+    maxWidth: 780,
   },
 
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
+    minHeight: 34,
+    gap: 8,
   },
 
-  roundHeaderButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+  headerBackButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
+    marginRight: "auto",
     shadowColor: "#9DB2CF",
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 7,
-  },
-
-  brandSlot: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
-
-  headerBrandRow: {
-    alignSelf: "auto",
-    marginRight: 0,
-  },
-
-  headerBrandText: {
-    fontSize: 26,
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
   },
 
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 0,
   },
 
   headerActionButton: {
-    width: 50,
-    height: 50,
-    marginLeft: 8,
+    width: 34,
+    height: 34,
+    marginLeft: 4,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
@@ -1126,142 +1560,149 @@ const styles = StyleSheet.create({
 
   notificationDot: {
     position: "absolute",
-    top: 8,
-    right: 8,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    top: 5,
+    right: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: "#FF7A32",
   },
 
   heroSection: {
     position: "relative",
-    marginTop: 16,
-    minHeight: 236,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 18,
-    borderRadius: 28,
-    overflow: "hidden",
+    marginTop: 2,
+    minHeight: 0,
+    paddingHorizontal: 0,
+    paddingTop: 2,
+    paddingBottom: 4,
+    borderRadius: 0,
+    overflow: "visible",
     flexDirection: "row",
-    alignItems: "center",
+    flexWrap: "nowrap",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    backgroundColor: "rgba(255, 255, 255, 0.88)",
+    gap: 6,
+    backgroundColor: "transparent",
   },
 
   heroSectionPhone: {
-    minHeight: 220,
-    paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 16,
+    marginTop: 0,
+    gap: 2,
+    alignItems: "flex-start",
+  },
+
+  heroSectionStacked: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    minHeight: 0,
   },
 
   skylineBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    bottom: 16,
-    left: 16,
-    right: 16,
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
 
   skylineBuilding: {
     position: "absolute",
     bottom: 2,
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
-    backgroundColor: "rgba(31, 120, 255, 0.08)",
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    backgroundColor: "rgba(31, 120, 255, 0.07)",
   },
 
   skylineCloud: {
     position: "absolute",
-    height: 16,
+    height: 12,
     borderRadius: 8,
-    backgroundColor: "rgba(31, 120, 255, 0.06)",
+    backgroundColor: "rgba(31, 120, 255, 0.05)",
   },
 
   skylineCloudLeft: {
-    top: 84,
+    top: 48,
     left: "8%",
-    width: 54,
+    width: 40,
   },
 
   skylineCloudMiddle: {
-    top: 60,
+    top: 28,
     left: "44%",
-    width: 70,
+    width: 54,
   },
 
   skylineCloudRight: {
-    top: 104,
+    top: 58,
     right: "10%",
-    width: 48,
+    width: 36,
   },
 
   heroCopy: {
     zIndex: 2,
     flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
     minWidth: 0,
-    maxWidth: "55%",
-    paddingRight: 14,
+    maxWidth: 360,
+    paddingTop: 8,
+    paddingRight: 8,
   },
 
   heroCopyPhone: {
     maxWidth: "56%",
-    paddingRight: 10,
+    paddingRight: 2,
+    paddingTop: 4,
+  },
+
+  heroCopyStacked: {
+    width: "100%",
+    maxWidth: "100%",
+    paddingBottom: 4,
   },
 
   heroTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
   },
 
   heroTitle: {
-    fontSize: 56,
-    lineHeight: 60,
+    fontSize: 46,
+    lineHeight: 50,
     fontWeight: "800",
     color: "#0F2140",
-    letterSpacing: -1.4,
+    letterSpacing: -1.2,
   },
 
-  heroTitlePhone: {
-    fontSize: 44,
-    lineHeight: 48,
+  heroTitleIcon: {
+    marginTop: 2,
   },
 
   heroSubtitle: {
-    marginTop: 12,
-    fontSize: 18,
-    lineHeight: 28,
+    marginTop: 6,
+    maxWidth: 320,
+    fontSize: 14,
+    lineHeight: 20,
     fontWeight: "500",
     color: "#3F4F6B",
-    letterSpacing: -0.3,
-  },
-
-  heroSubtitlePhone: {
-    marginTop: 10,
-    fontSize: 16,
-    lineHeight: 24,
+    letterSpacing: -0.2,
   },
 
   heroArtworkWrap: {
-    zIndex: 2,
-    position: "relative",
-    width: "41%",
-    minWidth: 252,
-    maxWidth: 376,
-    height: 168,
-    overflow: "hidden",
-    borderRadius: 24,
-    alignItems: "stretch",
-    justifyContent: "center",
+    zIndex: 1,
+    flexShrink: 0,
+    alignSelf: "flex-start",
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    marginTop: -2,
+    overflow: "visible",
+    backgroundColor: "transparent",
   },
 
-  heroArtworkWrapPhone: {
-    width: "42%",
-    minWidth: 148,
-    maxWidth: 176,
-    height: 136,
-    borderRadius: 18,
+  heroArtworkWrapStacked: {
+    maxWidth: 280,
+    alignSelf: "center",
+    alignItems: "center",
   },
 
   heroArtworkImage: {
@@ -1271,38 +1712,40 @@ const styles = StyleSheet.create({
 
   destinationPanel: {
     position: "relative",
-    marginTop: 12,
-    paddingVertical: 24,
-    paddingHorizontal: 22,
-    borderRadius: 28,
+    marginTop: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 20,
     overflow: "hidden",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 18,
+    gap: 14,
     backgroundColor: "#0D68F2",
   },
 
   destinationPanelCompact: {
-    paddingVertical: 22,
-    paddingHorizontal: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     flexDirection: "column",
     alignItems: "stretch",
+    gap: 12,
   },
 
   destinationPanelGlow: {
     position: "absolute",
     top: -84,
     right: -30,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
     backgroundColor: "rgba(255, 255, 255, 0.12)",
   },
 
   destinationPanelCopy: {
     flex: 1,
-    maxWidth: 320,
+    maxWidth: 280,
+    justifyContent: "center",
   },
 
   destinationPanelCopyCompact: {
@@ -1310,24 +1753,36 @@ const styles = StyleSheet.create({
   },
 
   destinationPanelTitle: {
-    fontSize: 28,
-    lineHeight: 32,
+    fontSize: 20,
+    lineHeight: 24,
     fontWeight: "700",
     color: "#FFFFFF",
-    letterSpacing: -0.7,
+    letterSpacing: -0.4,
+  },
+
+  destinationPanelTitlePhone: {
+    fontSize: 18,
+    lineHeight: 22,
   },
 
   destinationPanelSubtitle: {
-    marginTop: 10,
-    fontSize: 17,
-    lineHeight: 28,
+    marginTop: 6,
+    fontSize: 14,
+    lineHeight: 20,
     color: "rgba(255, 255, 255, 0.92)",
   },
 
+  destinationPanelSubtitlePhone: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+
   destinationPanelControls: {
-    width: "52%",
-    minWidth: 290,
+    width: "48%",
+    minWidth: 240,
     alignItems: "stretch",
+    justifyContent: "center",
   },
 
   destinationPanelControlsCompact: {
@@ -1336,26 +1791,41 @@ const styles = StyleSheet.create({
   },
 
   destinationSelector: {
-    minHeight: 72,
-    paddingLeft: 18,
-    paddingRight: 14,
-    borderRadius: 20,
+    minHeight: 48,
+    paddingLeft: 14,
+    paddingRight: 12,
+    borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
   },
 
+  destinationSelectorPhone: {
+    minHeight: 44,
+    paddingLeft: 12,
+    paddingRight: 10,
+    borderRadius: 12,
+  },
+
   destinationInput: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 18,
-    lineHeight: 24,
+    marginLeft: 10,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: "600",
     color: "#0F2140",
+    paddingVertical: 10,
+  },
+
+  destinationInputPhone: {
+    marginLeft: 8,
+    fontSize: 14,
+    lineHeight: 18,
+    paddingVertical: 8,
   },
 
   destinationClearButton: {
-    marginLeft: 8,
+    marginLeft: 6,
     padding: 2,
   },
 
@@ -1365,7 +1835,7 @@ const styles = StyleSheet.create({
 
   destinationSuggestionsList: {
     marginTop: 8,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#D7E4F7",
     backgroundColor: "#FFFFFF",
@@ -1373,63 +1843,80 @@ const styles = StyleSheet.create({
   },
 
   destinationSuggestionItem: {
-    minHeight: 46,
-    paddingHorizontal: 14,
+    minHeight: 42,
+    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#E5EDF8",
   },
 
   destinationSuggestionText: {
     flex: 1,
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: "600",
     color: "#223D69",
   },
 
   destinationSuggestionState: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
     color: "#6B7C99",
   },
 
   destinationUpdatedRow: {
-    marginTop: 14,
+    marginTop: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 14,
+    gap: 10,
   },
 
   destinationScopeText: {
-    marginTop: 12,
-    fontSize: 14,
-    lineHeight: 20,
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: "600",
     color: "rgba(255, 255, 255, 0.94)",
   },
 
+  destinationScopeTextPhone: {
+    marginTop: 6,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+
   destinationUpdatedRowCompact: {
-    alignItems: "flex-start",
+    alignItems: "center",
   },
 
   destinationUpdatedText: {
     flex: 1,
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 13,
+    lineHeight: 18,
     color: "rgba(255, 255, 255, 0.96)",
   },
 
+  destinationUpdatedTextPhone: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
   refreshButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  refreshButtonPhone: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
   },
 
   refreshButtonPressed: {
@@ -1437,48 +1924,68 @@ const styles = StyleSheet.create({
   },
 
   sectionCard: {
-    marginTop: 24,
-    paddingTop: 16,
-    paddingBottom: 20,
-    borderRadius: 24,
+    marginTop: 14,
+    paddingTop: 12,
+    paddingBottom: 14,
+    borderRadius: 18,
     backgroundColor: "#FFFFFF",
     overflow: "hidden",
   },
 
+  sectionCardPhone: {
+    marginTop: 12,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderRadius: 16,
+  },
+
   sectionHeaderRow: {
-    paddingHorizontal: 22,
-    paddingBottom: 14,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
     borderBottomColor: "#E6EEF9",
+    gap: 8,
   },
 
   sectionHeaderRowCompact: {
-    alignItems: "flex-start",
+    alignItems: "center",
+    flexWrap: "wrap",
   },
 
   sectionHeaderTitle: {
     flexShrink: 1,
-    fontSize: 20,
-    lineHeight: 26,
+    fontSize: 17,
+    lineHeight: 22,
     fontWeight: "700",
     color: "#0F2140",
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
+  },
+
+  sectionHeaderTitlePhone: {
+    fontSize: 16,
+    lineHeight: 20,
   },
 
   sectionLinkButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 3,
+    flexShrink: 0,
   },
 
   sectionLinkText: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: "600",
     color: "#1F78FF",
+  },
+
+  sectionLinkTextPhone: {
+    fontSize: 12,
+    lineHeight: 16,
   },
 
   linkPressed: {
@@ -1486,83 +1993,106 @@ const styles = StyleSheet.create({
   },
 
   safetyInfoBanner: {
-    marginHorizontal: 22,
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 16,
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
     backgroundColor: "#EEF5FF",
   },
 
   safetyInfoText: {
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 13,
+    lineHeight: 19,
     color: "#385173",
   },
 
   overallRow: {
-    paddingTop: 22,
-    paddingHorizontal: 22,
+    paddingTop: 14,
+    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 20,
+    gap: 14,
   },
 
   overallRowCompact: {
     flexDirection: "column",
     alignItems: "stretch",
+    gap: 12,
   },
 
   overallCopyBlock: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 18,
+    gap: 12,
+    minWidth: 0,
   },
 
   overallIconCircle: {
-    width: 118,
-    height: 118,
-    borderRadius: 59,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
 
   overallIconInner: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
 
   overallCopy: {
     flex: 1,
+    minWidth: 0,
+    flexShrink: 1,
   },
 
   overallLabel: {
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 22,
+    lineHeight: 26,
     fontWeight: "800",
-    letterSpacing: -0.6,
+    letterSpacing: -0.4,
+  },
+
+  overallLabelPhone: {
+    fontSize: 18,
+    lineHeight: 22,
   },
 
   overallDescription: {
-    marginTop: 10,
-    fontSize: 17,
-    lineHeight: 28,
+    marginTop: 6,
+    fontSize: 14,
+    lineHeight: 20,
     color: "#32435F",
+    flexShrink: 1,
+    flexWrap: "wrap",
+  },
+
+  overallDescriptionPhone: {
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 18,
   },
 
   overallScaleBlock: {
-    width: 320,
+    width: 240,
     maxWidth: "100%",
+    flexShrink: 0,
+  },
+
+  overallScaleBlockPhone: {
+    width: "100%",
   },
 
   scaleTrack: {
     position: "relative",
-    height: 12,
+    height: 10,
     flexDirection: "row",
     overflow: "hidden",
     borderRadius: 999,
@@ -1586,79 +2116,113 @@ const styles = StyleSheet.create({
 
   scaleIndicator: {
     position: "absolute",
-    top: -7,
-    width: 14,
-    height: 26,
-    borderRadius: 8,
+    top: -6,
+    width: 12,
+    height: 22,
+    borderRadius: 7,
     borderWidth: 2,
     borderColor: "#1E2D5A",
     backgroundColor: "#283F73",
-    transform: [{ translateX: -7 }],
+    transform: [{ translateX: -6 }],
   },
 
   scaleLabelsRow: {
-    marginTop: 14,
+    marginTop: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
 
   scaleLabelText: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: "600",
     color: "#21314F",
   },
 
   sectionTopRow: {
-    marginTop: 24,
-    marginBottom: 14,
+    marginTop: 16,
+    marginBottom: 10,
     paddingHorizontal: 2,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 10,
+  },
+
+  sectionTopRowPhone: {
+    marginTop: 14,
+    marginBottom: 8,
   },
 
   activeAlertsTitleWrap: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
+    flexShrink: 1,
+    minWidth: 0,
   },
 
   largeSectionTitle: {
-    fontSize: 20,
-    lineHeight: 26,
+    flexShrink: 1,
+    fontSize: 17,
+    lineHeight: 22,
     fontWeight: "700",
     color: "#0F2140",
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
+  },
+
+  largeSectionTitlePhone: {
+    fontSize: 16,
+    lineHeight: 20,
   },
 
   countBadge: {
-    minWidth: 31,
-    height: 31,
-    paddingHorizontal: 9,
-    borderRadius: 16,
+    minWidth: 24,
+    height: 24,
+    paddingHorizontal: 7,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F04D33",
   },
 
+  countBadgePhone: {
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+  },
+
   countBadgeText: {
-    fontSize: 16,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 15,
     fontWeight: "700",
     color: "#FFFFFF",
   },
 
+  countBadgeTextPhone: {
+    fontSize: 12,
+    lineHeight: 14,
+  },
+
   alertsList: {
-    gap: 14,
+    gap: 10,
+  },
+
+  alertsListPhone: {
+    gap: 8,
   },
 
   alertCard: {
     borderWidth: 1,
-    borderRadius: 24,
-    padding: 18,
+    borderRadius: 16,
+    padding: 12,
+  },
+
+  alertCardPhone: {
+    borderRadius: 14,
+    padding: 10,
   },
 
   alertCardSelected: {
@@ -1673,113 +2237,163 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
-  },
-
-  alertCardTopRowCompact: {
-    alignItems: "flex-start",
-    flexDirection: "column",
+    gap: 8,
   },
 
   alertBadge: {
-    paddingVertical: 7,
-    paddingHorizontal: 11,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
     borderRadius: 999,
     alignSelf: "flex-start",
   },
 
+  alertBadgePhone: {
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+  },
+
   alertBadgeText: {
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 15,
     fontWeight: "700",
   },
 
+  alertBadgeTextPhone: {
+    fontSize: 11,
+    lineHeight: 14,
+  },
+
   alertTimestamp: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 16,
     color: "#5B6D8A",
   },
 
+  alertTimestampPhone: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+
   alertCardBody: {
-    marginTop: 14,
+    marginTop: 10,
     flexDirection: "row",
     alignItems: "flex-start",
   },
 
+  alertCardBodyPhone: {
+    marginTop: 8,
+  },
+
   alertIconWrap: {
-    width: 66,
-    height: 66,
-    marginRight: 18,
-    borderRadius: 22,
+    width: 44,
+    height: 44,
+    marginRight: 12,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+  },
+
+  alertIconWrapPhone: {
+    width: 38,
+    height: 38,
+    marginRight: 10,
+    borderRadius: 12,
   },
 
   alertCopy: {
     flex: 1,
+    minWidth: 0,
   },
 
   alertTitle: {
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: "800",
     color: "#0F2140",
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
+  },
+
+  alertTitlePhone: {
+    fontSize: 14,
+    lineHeight: 18,
   },
 
   alertLocationRow: {
-    marginTop: 6,
+    marginTop: 4,
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 4,
   },
 
   alertLocationText: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 17,
     color: "#3366C5",
   },
 
+  alertLocationTextPhone: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
   alertDescription: {
-    marginTop: 8,
-    fontSize: 16,
-    lineHeight: 26,
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 19,
     color: "#2F405C",
   },
 
+  alertDescriptionPhone: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
   alertDetailText: {
-    marginTop: 10,
-    fontSize: 14,
-    lineHeight: 22,
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 18,
     color: "#51637E",
   },
 
   alertChevron: {
-    marginLeft: 12,
-    marginTop: 18,
+    marginLeft: 8,
+    marginTop: 10,
+  },
+
+  alertChevronPhone: {
+    marginLeft: 4,
+    marginTop: 8,
   },
 
   categoryScrollContent: {
     paddingHorizontal: 2,
     paddingVertical: 2,
-    gap: 14,
+    gap: 10,
   },
 
   categoryGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 10,
   },
 
   categoryCard: {
-    paddingVertical: 18,
-    paddingHorizontal: 12,
-    borderRadius: 22,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: "#E6EEF9",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
+  },
+
+  categoryCardCompact: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 14,
   },
 
   categoryCardSelected: {
@@ -1791,48 +2405,71 @@ const styles = StyleSheet.create({
   },
 
   categoryIconWrap: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
+    width: 46,
+    height: 46,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
 
+  categoryIconWrapCompact: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+  },
+
   categoryTitle: {
-    marginTop: 14,
+    marginTop: 10,
     textAlign: "center",
-    fontSize: 17,
-    lineHeight: 22,
+    fontSize: 13,
+    lineHeight: 17,
     fontWeight: "700",
     color: "#0F2140",
   },
 
-  categoryStatus: {
+  categoryTitleCompact: {
     marginTop: 8,
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 15,
+  },
+
+  categoryStatus: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: "600",
   },
 
+  categoryStatusCompact: {
+    marginTop: 4,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+
   categoryDescription: {
-    marginTop: 10,
+    marginTop: 8,
     textAlign: "center",
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 11,
+    lineHeight: 15,
     color: "#51637E",
   },
 
   tipsCard: {
     marginTop: 2,
-    borderRadius: 24,
+    borderRadius: 16,
     overflow: "hidden",
     backgroundColor: "#FFFFFF",
   },
 
   tipRow: {
-    paddingVertical: 18,
-    paddingHorizontal: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     backgroundColor: "#FFFFFF",
+  },
+
+  tipRowCompact: {
+    paddingVertical: 11,
+    paddingHorizontal: 12,
   },
 
   tipRowDivider: {
@@ -1850,125 +2487,187 @@ const styles = StyleSheet.create({
 
   tipRowMain: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
+  },
+
+  tipRowMainCompact: {
+    alignItems: "center",
   },
 
   tipIconWrap: {
-    width: 52,
-    height: 52,
-    marginRight: 16,
-    borderRadius: 18,
+    width: 42,
+    height: 42,
+    marginRight: 12,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+  },
+
+  tipIconWrapCompact: {
+    width: 36,
+    height: 36,
+    marginRight: 10,
+    borderRadius: 12,
   },
 
   tipCopy: {
     flex: 1,
+    minWidth: 0,
   },
 
   tipTitle: {
-    fontSize: 17,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 19,
     fontWeight: "800",
     color: "#0F2140",
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
+  },
+
+  tipTitleCompact: {
+    fontSize: 14,
+    lineHeight: 18,
   },
 
   tipDescription: {
-    marginTop: 6,
-    fontSize: 16,
-    lineHeight: 24,
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 18,
     color: "#32435F",
   },
 
+  tipDescriptionCompact: {
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
   tipDetail: {
-    marginTop: 8,
-    fontSize: 14,
-    lineHeight: 21,
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 17,
     color: "#587093",
   },
 
   tipSource: {
-    marginTop: 8,
-    fontSize: 12,
-    lineHeight: 17,
+    marginTop: 6,
+    fontSize: 11,
+    lineHeight: 15,
     color: "#6B7C99",
   },
 
   tipChevron: {
-    marginLeft: 10,
-    marginTop: 14,
+    marginLeft: 8,
+  },
+
+  tipChevronCompact: {
+    marginLeft: 4,
   },
 
   pushBanner: {
-    marginTop: 22,
-    marginBottom: 6,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 24,
+    marginTop: 16,
+    marginBottom: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 16,
+    gap: 12,
     backgroundColor: "#EEF5FF",
   },
 
   pushBannerCompact: {
     flexDirection: "column",
     alignItems: "stretch",
+    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
   },
 
   pushBannerMain: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    minWidth: 0,
   },
 
   pushRobotWrap: {
-    width: 62,
-    height: 62,
-    marginRight: 14,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    marginRight: 10,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
+    flexShrink: 0,
+  },
+
+  pushRobotWrapPhone: {
+    width: 42,
+    height: 42,
+    marginRight: 8,
+    borderRadius: 12,
   },
 
   pushRobotImage: {
-    width: 46,
-    height: 46,
+    width: 36,
+    height: 36,
+  },
+
+  pushRobotImagePhone: {
+    width: 30,
+    height: 30,
   },
 
   pushBannerCopy: {
     flex: 1,
+    minWidth: 0,
   },
 
   pushBannerTitle: {
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: "800",
     color: "#0F2140",
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
+  },
+
+  pushBannerTitlePhone: {
+    fontSize: 13,
+    lineHeight: 17,
   },
 
   pushBannerDescription: {
-    marginTop: 6,
-    fontSize: 15,
-    lineHeight: 22,
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 17,
     color: "#40516D",
   },
 
+  pushBannerDescriptionPhone: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+
   pushBannerButton: {
-    minHeight: 56,
-    paddingHorizontal: 18,
-    borderRadius: 18,
+    minHeight: 42,
+    paddingHorizontal: 14,
+    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: "#B9D3FF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
+    gap: 8,
     backgroundColor: "#FFFFFF",
+    flexShrink: 0,
+  },
+
+  pushBannerButtonPhone: {
+    minHeight: 40,
+    paddingHorizontal: 12,
+    borderRadius: 11,
   },
 
   pushBannerButtonEnabled: {
@@ -1981,10 +2680,15 @@ const styles = StyleSheet.create({
   },
 
   pushBannerButtonText: {
-    fontSize: 17,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: "700",
     color: "#1F78FF",
+  },
+
+  pushBannerButtonTextPhone: {
+    fontSize: 13,
+    lineHeight: 17,
   },
 
   pushBannerButtonTextEnabled: {

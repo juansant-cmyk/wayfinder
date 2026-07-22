@@ -15,7 +15,6 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 
@@ -69,8 +68,6 @@ const DESTINATION_PRESETS = [
 
 const AIRPORT_PRESETS = [DEFAULT_ORIGIN, ...DESTINATION_PRESETS];
 
-const DEPARTURE_OPTIONS = ["Jul 12, 2025", "Jul 14, 2025", "Jul 18, 2025"];
-const RETURN_OPTIONS = ["Jul 19, 2025", "Jul 21, 2025", "Jul 25, 2025"];
 const TRAVELER_OPTIONS = [
   {
     id: "solo-economy",
@@ -88,6 +85,108 @@ const TRAVELER_OPTIONS = [
     description: "Added comfort for a bigger trip.",
   },
 ];
+
+const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const MONTH_LABELS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const SHORT_MONTH_LABELS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+function startOfDay(date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function addDays(date, amount) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return startOfDay(next);
+}
+
+function isSameDay(left, right) {
+  if (!left || !right) {
+    return false;
+  }
+
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+}
+
+function isBeforeDay(left, right) {
+  return startOfDay(left).getTime() < startOfDay(right).getTime();
+}
+
+function formatDisplayDate(date) {
+  if (!date) {
+    return "Select date";
+  }
+
+  return `${SHORT_MONTH_LABELS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
+function createDefaultDepartDate() {
+  return addDays(new Date(), 1);
+}
+
+function createDefaultReturnDate(departDate) {
+  return addDays(departDate || createDefaultDepartDate(), 7);
+}
+
+function getMonthMatrix(monthDate) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const leadingBlanks = firstDay.getDay();
+  const cells = [];
+
+  for (let index = 0; index < leadingBlanks; index += 1) {
+    cells.push(null);
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push(new Date(year, month, day));
+  }
+
+  while (cells.length % 7 !== 0) {
+    cells.push(null);
+  }
+
+  const rows = [];
+  for (let index = 0; index < cells.length; index += 7) {
+    rows.push(cells.slice(index, index + 7));
+  }
+
+  return rows;
+}
 
 const BENEFITS = [
   {
@@ -337,16 +436,23 @@ function getSortedFlights(flights, sortKey) {
   return nextFlights;
 }
 
-function HeroArtwork() {
+function HeroArtwork({ width: artworkWidth, aspectRatio }) {
   return (
-    <View style={styles.heroArtworkShell}>
-      <View style={styles.heroArtworkFrame}>
-        <Image
-          source={flightsHeroArt}
-          resizeMode="contain"
-          style={styles.heroArtworkImage}
-        />
-      </View>
+    <View
+      style={[
+        styles.heroArtworkShell,
+        {
+          width: artworkWidth,
+          maxWidth: artworkWidth,
+          aspectRatio,
+        },
+      ]}
+    >
+      <Image
+        source={flightsHeroArt}
+        resizeMode="contain"
+        style={styles.heroArtworkImage}
+      />
     </View>
   );
 }
@@ -374,10 +480,10 @@ function SearchField({
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.fieldValueRow}>
         <View style={styles.fieldIconWrap}>
-          {renderIcon(iconFamily, iconName, COLORS.blue, isPhone ? 20 : 22)}
+          {renderIcon(iconFamily, iconName, COLORS.blue, isPhone ? 12 : 13)}
         </View>
         <View style={styles.fieldTextWrap}>
-          <Text style={[styles.fieldPrimaryText, isPhone && styles.fieldPrimaryTextPhone]}>
+          <Text style={[styles.fieldPrimaryText, isPhone && styles.fieldPrimaryTextPhone]} numberOfLines={1}>
             {primaryText}
           </Text>
           {secondaryText ? <Text style={styles.fieldSecondaryText}>{secondaryText}</Text> : null}
@@ -403,7 +509,7 @@ function AirportInputField({
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.fieldValueRow}>
         <View style={styles.fieldIconWrap}>
-          {renderIcon(iconFamily, iconName, COLORS.blue, isPhone ? 19 : 21)}
+          {renderIcon(iconFamily, iconName, COLORS.blue, isPhone ? 12 : 13)}
         </View>
         <View style={styles.fieldTextWrap}>
           <TextInput
@@ -416,32 +522,52 @@ function AirportInputField({
             selectionColor={COLORS.blue}
             style={[styles.airportInput, isPhone && styles.airportInputPhone]}
           />
-          {helperText ? <Text style={styles.fieldSecondaryText}>{helperText}</Text> : null}
+          {helperText ? (
+            <Text style={styles.fieldSecondaryText} numberOfLines={1}>
+              {helperText}
+            </Text>
+          ) : null}
         </View>
       </View>
     </View>
   );
 }
 
-function BenefitCard({ item, isPhone }) {
-  const shouldCenterCardContent =
-    item.title === "Best Prices" || item.title === "24/7 Support";
-
+function BenefitCard({ item, isPhone, showFourAcross }) {
   return (
     <View
       style={[
         styles.benefitCard,
-        shouldCenterCardContent && styles.benefitCardContentCentered,
         isPhone && styles.benefitCardPhone,
+        showFourAcross && styles.benefitCardFourAcross,
         cardShadowStyle,
       ]}
     >
-      <View style={[styles.benefitIconWrap, { backgroundColor: item.iconBackground }]}>
-        {renderIcon(item.iconFamily, item.icon, item.iconColor, 22)}
+      <View
+        style={[
+          styles.benefitIconWrap,
+          showFourAcross && styles.benefitIconWrapCompact,
+          { backgroundColor: item.iconBackground },
+        ]}
+      >
+        {renderIcon(
+          item.iconFamily,
+          item.icon,
+          item.iconColor,
+          showFourAcross ? 14 : isPhone ? 15 : 16
+        )}
       </View>
       <View style={styles.benefitCopy}>
-        <Text style={styles.benefitTitle}>{item.title}</Text>
-        <Text style={styles.benefitDescription}>{item.description}</Text>
+        <Text
+          style={[styles.benefitTitle, showFourAcross && styles.benefitTitleCompact]}
+        >
+          {item.title}
+        </Text>
+        <Text
+          style={[styles.benefitDescription, showFourAcross && styles.benefitDescriptionCompact]}
+        >
+          {item.description}
+        </Text>
       </View>
     </View>
   );
@@ -455,7 +581,9 @@ function AirlineMark({ flight, isPhone }) {
           <Text style={[styles.anaLogoText, isPhone && styles.anaLogoTextPhone]}>ANA</Text>
           <View style={styles.anaLogoWing} />
         </View>
-        <Text style={styles.airlineSubtitle}>{flight.airline}</Text>
+        <Text style={styles.airlineSubtitle} numberOfLines={1}>
+          {flight.airline}
+        </Text>
       </View>
     );
   }
@@ -464,15 +592,20 @@ function AirlineMark({ flight, isPhone }) {
     return (
       <View style={styles.airlineWrap}>
         <View style={styles.airlineBrandRow}>
-          <View style={styles.koreanBadge}>
+          <View style={[styles.koreanBadge, isPhone && styles.koreanBadgePhone]}>
             <View style={styles.koreanBadgeTop} />
             <View style={styles.koreanBadgeBottom} />
           </View>
-          <Text style={[styles.airlineWordmark, isPhone && styles.airlineWordmarkPhone]}>
+          <Text
+            style={[styles.airlineWordmark, isPhone && styles.airlineWordmarkPhone]}
+            numberOfLines={1}
+          >
             {flight.displayName}
           </Text>
         </View>
-        <Text style={styles.airlineSubtitle}>{flight.airline}</Text>
+        <Text style={styles.airlineSubtitle} numberOfLines={1}>
+          {flight.airline}
+        </Text>
       </View>
     );
   }
@@ -480,43 +613,78 @@ function AirlineMark({ flight, isPhone }) {
   return (
     <View style={styles.airlineWrap}>
       <View style={styles.airlineBrandRow}>
-        <View style={styles.jalBadge}>
+        <View style={[styles.jalBadge, isPhone && styles.jalBadgePhone]}>
           <Text style={styles.jalBadgeText}>JAL</Text>
         </View>
-        <Text style={[styles.airlineWordmark, isPhone && styles.airlineWordmarkPhone]}>
+        <Text
+          style={[styles.airlineWordmark, isPhone && styles.airlineWordmarkPhone]}
+          numberOfLines={1}
+        >
           {flight.displayName}
         </Text>
       </View>
-      <Text style={styles.airlineSubtitle}>{flight.airline}</Text>
+      <Text style={styles.airlineSubtitle} numberOfLines={1}>
+        {flight.airline}
+      </Text>
     </View>
   );
 }
 
 function RouteSummary({ flight, isPhone }) {
   return (
-    <View style={[styles.routeSummaryWrap, isPhone && styles.routeSummaryWrapPhone]}>
-      <View style={styles.routeEndpoint}>
-        <Text style={[styles.routeTimeText, isPhone && styles.routeTimeTextPhone]}>
+    <View style={styles.routeSummaryWrap}>
+      <View style={[styles.routeEndpoint, isPhone && styles.routeEndpointPhone]}>
+        <Text
+          style={[styles.routeTimeText, isPhone && styles.routeTimeTextPhone]}
+          numberOfLines={1}
+        >
           {flight.departureTime}
         </Text>
-        <Text style={styles.routeCodeText}>{flight.originCode}</Text>
+        <Text style={[styles.routeCodeText, isPhone && styles.routeCodeTextPhone]}>
+          {flight.originCode}
+        </Text>
       </View>
 
       <View style={[styles.routeMiddle, isPhone && styles.routeMiddlePhone]}>
-        <Text style={styles.routeDurationText}>{flight.duration}</Text>
+        <Text style={[styles.routeDurationText, isPhone && styles.routeDurationTextPhone]}>
+          {flight.duration}
+        </Text>
         <View style={styles.routeLineRow}>
           <View style={styles.routeDot} />
           <View style={styles.routeLine} />
           <View style={styles.routeDot} />
         </View>
-        <Text style={[styles.routeStopText, { color: flight.stopColor }]}>{flight.stopInfo}</Text>
+        <Text
+          style={[
+            styles.routeStopText,
+            isPhone && styles.routeStopTextPhone,
+            { color: flight.stopColor },
+          ]}
+          numberOfLines={1}
+        >
+          {flight.stopInfo}
+        </Text>
       </View>
 
-      <View style={[styles.routeEndpoint, styles.routeEndpointRight]}>
-        <Text style={[styles.routeTimeText, isPhone && styles.routeTimeTextPhone]}>
-          {flight.arrivalTime} <Text style={styles.routeOffsetText}>{flight.arrivalOffset}</Text>
+      <View
+        style={[
+          styles.routeEndpoint,
+          styles.routeEndpointRight,
+          isPhone && styles.routeEndpointPhone,
+        ]}
+      >
+        <Text
+          style={[styles.routeTimeText, isPhone && styles.routeTimeTextPhone]}
+          numberOfLines={1}
+        >
+          {flight.arrivalTime}{" "}
+          <Text style={[styles.routeOffsetText, isPhone && styles.routeOffsetTextPhone]}>
+            {flight.arrivalOffset}
+          </Text>
         </Text>
-        <Text style={styles.routeCodeText}>{flight.destinationCode}</Text>
+        <Text style={[styles.routeCodeText, isPhone && styles.routeCodeTextPhone]}>
+          {flight.destinationCode}
+        </Text>
       </View>
     </View>
   );
@@ -545,20 +713,23 @@ function FlightCard({ flight, isPhone, onToggleSaved, isSaved, onViewDetails }) 
         >
           <Ionicons
             name={isSaved ? "heart" : "heart-outline"}
-            size={24}
+            size={isPhone ? 15 : 16}
             color={isSaved ? "#FF5A4E" : COLORS.text}
           />
         </DimPressable>
       </View>
 
-      <View style={[styles.flightCardMainRow, isPhone && styles.flightCardMainRowPhone]}>
-        <View style={[styles.flightInfoColumn, isPhone && styles.flightInfoColumnPhone]}>
+      <View style={styles.flightCardMainRow}>
+        <View style={[styles.flightAirlineColumn, isPhone && styles.flightAirlineColumnPhone]}>
           <AirlineMark flight={flight} isPhone={isPhone} />
+        </View>
+
+        <View style={styles.flightRouteColumn}>
           <RouteSummary flight={flight} isPhone={isPhone} />
         </View>
 
         <View style={[styles.flightPriceColumn, isPhone && styles.flightPriceColumnPhone]}>
-          <View>
+          <View style={styles.flightPriceBlock}>
             <Text style={[styles.flightPriceValue, isPhone && styles.flightPriceValuePhone]}>
               ${flight.price}
             </Text>
@@ -571,7 +742,9 @@ function FlightCard({ flight, isPhone, onToggleSaved, isSaved, onViewDetails }) 
             onPress={onViewDetails}
             style={[styles.detailsButton, isPhone && styles.detailsButtonPhone]}
           >
-            <Text style={styles.detailsButtonText}>View Details</Text>
+            <Text style={[styles.detailsButtonText, isPhone && styles.detailsButtonTextPhone]}>
+              View Details
+            </Text>
           </DimPressable>
         </View>
       </View>
@@ -606,6 +779,197 @@ function SheetModal({ visible, title, subtitle, onClose, children }) {
   );
 }
 
+function DatePickerModal({
+  visible,
+  mode,
+  value,
+  minimumDate,
+  onCancel,
+  onConfirm,
+}) {
+  const today = startOfDay(new Date());
+  const effectiveMinimum = startOfDay(minimumDate || today);
+  const initialValue =
+    value && !isBeforeDay(value, effectiveMinimum) ? startOfDay(value) : effectiveMinimum;
+
+  const [visibleMonth, setVisibleMonth] = useState(
+    () => new Date(initialValue.getFullYear(), initialValue.getMonth(), 1)
+  );
+  const [draftDate, setDraftDate] = useState(initialValue);
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    const todayStart = startOfDay(new Date());
+    const minDate = startOfDay(minimumDate || todayStart);
+    const nextValue =
+      value && !isBeforeDay(value, minDate) ? startOfDay(value) : minDate;
+    setDraftDate(nextValue);
+    setVisibleMonth(new Date(nextValue.getFullYear(), nextValue.getMonth(), 1));
+  }, [visible, value, mode, minimumDate]);
+
+  const monthRows = getMonthMatrix(visibleMonth);
+  const fieldLabel = mode === "return" ? "Return" : "Depart";
+  const canGoPreviousMonth =
+    visibleMonth.getFullYear() > effectiveMinimum.getFullYear() ||
+    (visibleMonth.getFullYear() === effectiveMinimum.getFullYear() &&
+      visibleMonth.getMonth() > effectiveMinimum.getMonth());
+
+  const handleConfirm = () => {
+    if (!draftDate || isBeforeDay(draftDate, effectiveMinimum)) {
+      return;
+    }
+
+    onConfirm(startOfDay(draftDate));
+  };
+
+  return (
+    <Modal animationType="fade" transparent visible={visible} onRequestClose={onCancel}>
+      <View style={styles.modalBackdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
+        <View style={[styles.datePickerCard, cardShadowStyle]}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalCopy}>
+              <Text style={styles.modalTitle}>Select {fieldLabel} Date</Text>
+              <Text style={styles.modalSubtitle}>
+                Choosing a {fieldLabel.toLowerCase()} date for your trip.
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close date picker"
+              onPress={onCancel}
+              style={styles.modalCloseButton}
+            >
+              <Ionicons name="close" size={20} color={COLORS.text} />
+            </Pressable>
+          </View>
+
+          <View style={styles.datePickerFieldChip}>
+            <Ionicons name="calendar-outline" size={16} color={COLORS.blue} />
+            <Text style={styles.datePickerFieldChipText}>{fieldLabel}</Text>
+          </View>
+
+          <View style={styles.datePickerMonthRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Previous month"
+              disabled={!canGoPreviousMonth}
+              onPress={() =>
+                setVisibleMonth(
+                  (current) => new Date(current.getFullYear(), current.getMonth() - 1, 1)
+                )
+              }
+              style={[
+                styles.datePickerNavButton,
+                !canGoPreviousMonth && styles.datePickerNavButtonDisabled,
+              ]}
+            >
+              <Ionicons
+                name="chevron-back"
+                size={18}
+                color={canGoPreviousMonth ? COLORS.text : COLORS.muted}
+              />
+            </Pressable>
+
+            <Text style={styles.datePickerMonthLabel}>
+              {MONTH_LABELS[visibleMonth.getMonth()]} {visibleMonth.getFullYear()}
+            </Text>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Next month"
+              onPress={() =>
+                setVisibleMonth(
+                  (current) => new Date(current.getFullYear(), current.getMonth() + 1, 1)
+                )
+              }
+              style={styles.datePickerNavButton}
+            >
+              <Ionicons name="chevron-forward" size={18} color={COLORS.text} />
+            </Pressable>
+          </View>
+
+          <View style={styles.datePickerWeekRow}>
+            {WEEKDAY_LABELS.map((label) => (
+              <Text key={label} style={styles.datePickerWeekday}>
+                {label}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.datePickerGrid}>
+            {monthRows.map((row, rowIndex) => (
+              <View key={`week-${rowIndex}`} style={styles.datePickerWeek}>
+                {row.map((day, dayIndex) => {
+                  if (!day) {
+                    return <View key={`empty-${rowIndex}-${dayIndex}`} style={styles.datePickerDay} />;
+                  }
+
+                  const disabled = isBeforeDay(day, effectiveMinimum);
+                  const selected = isSameDay(day, draftDate);
+                  const isToday = isSameDay(day, today);
+
+                  return (
+                    <Pressable
+                      key={`${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled, selected }}
+                      disabled={disabled}
+                      onPress={() => setDraftDate(startOfDay(day))}
+                      style={[
+                        styles.datePickerDay,
+                        isToday && !selected && styles.datePickerDayToday,
+                        selected && styles.datePickerDaySelected,
+                        disabled && styles.datePickerDayDisabled,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.datePickerDayText,
+                          selected && styles.datePickerDayTextSelected,
+                          disabled && styles.datePickerDayTextDisabled,
+                        ]}
+                      >
+                        {day.getDate()}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+
+          <Text style={styles.datePickerSelectedLabel}>
+            Selected: {formatDisplayDate(draftDate)}
+          </Text>
+
+          <View style={styles.datePickerActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Cancel date selection"
+              onPress={onCancel}
+              style={styles.datePickerCancelButton}
+            >
+              <Text style={styles.datePickerCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Confirm ${fieldLabel.toLowerCase()} date`}
+              onPress={handleConfirm}
+              style={styles.datePickerConfirmButton}
+            >
+              <Text style={styles.datePickerConfirmText}>Done</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function FlightsScreen({
   onGoBack,
   onNavigateHome,
@@ -616,13 +980,37 @@ export default function FlightsScreen({
   const bottomNavPadding = getBottomNavContentPadding(insets);
   const { width } = useWindowDimensions();
   const isPhone = width < 520;
-  const isNarrow = width < 760;
+  const isCompactPhone = width < 400;
+  const isNarrow = width < 360;
+  const showFourBenefits = width >= 700;
+  const keepResultsHeaderInline = width >= 340;
+  const keepTrackerInline = width >= 360;
+  const pageMaxWidth = width >= 1100 ? 780 : width >= 900 ? 720 : 680;
+  const pagePaddingHorizontal = isCompactPhone ? 10 : isPhone ? 12 : 14;
+
+  // Flights hero art is 444×172 — size near natural resolution (avoid soft upscaling).
+  const heroAspectRatio = 444 / 172;
+  const heroArtworkWidth = isCompactPhone
+    ? Math.min(Math.round(width * 0.4), 132)
+    : isPhone
+      ? Math.min(Math.round(width * 0.38), 150)
+      : width < 900
+        ? Math.min(Math.round(width * 0.28), 200)
+        : Math.min(Math.round(width * 0.24), 230);
+  const heroTitleSize = isCompactPhone ? 24 : isPhone ? 28 : width < 900 ? 32 : 34;
+  const heroSubtitleSize = isCompactPhone ? 11 : isPhone ? 12 : 13;
+  const backButtonSize = isCompactPhone ? 34 : isPhone ? 38 : 40;
+  const headerIconSize = isPhone ? 20 : 22;
+  const profileIconSize = isPhone ? 26 : 28;
+  const trackerBotSize = isPhone ? 30 : 34;
   const defaultDestinationPreset = getDefaultDestinationPreset(params.destination);
 
   const [fromQuery, setFromQuery] = useState(DEFAULT_ORIGIN.code);
   const [toQuery, setToQuery] = useState(() => defaultDestinationPreset.code);
-  const [departDate, setDepartDate] = useState(DEPARTURE_OPTIONS[0]);
-  const [returnDate, setReturnDate] = useState(RETURN_OPTIONS[0]);
+  const [departDate, setDepartDate] = useState(() => createDefaultDepartDate());
+  const [returnDate, setReturnDate] = useState(() =>
+    createDefaultReturnDate(createDefaultDepartDate())
+  );
   const [travelerOption, setTravelerOption] = useState(TRAVELER_OPTIONS[0]);
   const [selectedSortKey, setSelectedSortKey] = useState(SORT_OPTIONS[0].key);
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
@@ -682,9 +1070,24 @@ export default function FlightsScreen({
 
   const handleSearch = () => {
     setSearchMessage(
-      `Refreshed 3 mock flight options for ${fromAirport.code} to ${toAirport.code} • ${travelerOption.label}.`
+      `Refreshed 3 mock flight options for ${fromAirport.code} to ${toAirport.code} • ${formatDisplayDate(departDate)} – ${formatDisplayDate(returnDate)} • ${travelerOption.label}.`
     );
     setIsSortMenuOpen(false);
+  };
+
+  const handleConfirmDepartDate = (nextDepartDate) => {
+    setDepartDate(nextDepartDate);
+    setReturnDate((currentReturnDate) =>
+      !currentReturnDate || isBeforeDay(currentReturnDate, nextDepartDate)
+        ? nextDepartDate
+        : currentReturnDate
+    );
+    setActivePicker(null);
+  };
+
+  const handleConfirmReturnDate = (nextReturnDate) => {
+    setReturnDate(nextReturnDate);
+    setActivePicker(null);
   };
 
   const handleToggleTracking = () => {
@@ -704,61 +1107,89 @@ export default function FlightsScreen({
       <View style={styles.screen}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomNavPadding }]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingBottom: bottomNavPadding,
+              paddingHorizontal: pagePaddingHorizontal,
+              paddingTop: isPhone ? 8 : 10,
+            },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
         >
-          <View style={styles.page}>
+          <View style={[styles.page, { maxWidth: pageMaxWidth }]}>
             <View style={styles.headerRow}>
               <DimPressable
                 accessibilityRole="button"
                 accessibilityLabel="Go back"
                 onPress={handleGoBack}
-                style={[styles.backButton, styles.headerBackButton]}
+                style={[
+                  styles.backButton,
+                  styles.headerBackButton,
+                  {
+                    width: backButtonSize,
+                    height: backButtonSize,
+                    borderRadius: backButtonSize / 2,
+                  },
+                ]}
               >
-                <Ionicons name="arrow-back" size={28} color={COLORS.text} />
+                <Ionicons name="arrow-back" size={isPhone ? 18 : 20} color={COLORS.text} />
               </DimPressable>
-
-              <View style={styles.brandSlot}>
-                <WayfinderBrand
-                  containerStyle={styles.headerBrandRow}
-                  textStyle={styles.headerBrandText}
-                />
-              </View>
 
               <View style={styles.headerActions}>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Notifications"
                   onPress={() => onNavigate?.("notifications")}
-                  style={styles.headerActionButton}
+                  style={[styles.headerActionButton, isPhone && styles.headerActionButtonPhone]}
                 >
-                  <Ionicons name="notifications-outline" size={28} color="#111827" />
-                  <View style={styles.notificationDot} />
+                  <Ionicons name="notifications-outline" size={headerIconSize} color="#111827" />
+                  <View style={[styles.notificationDot, isPhone && styles.notificationDotPhone]} />
                 </Pressable>
 
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Profile"
                   onPress={() => onNavigate?.("profile")}
-                  style={styles.headerActionButton}
+                  style={[styles.headerActionButton, isPhone && styles.headerActionButtonPhone]}
                 >
-                  <Ionicons name="person-circle-outline" size={33} color="#111827" />
+                  <Ionicons name="person-circle-outline" size={profileIconSize} color="#111827" />
                 </Pressable>
               </View>
             </View>
 
-            <View style={styles.heroSection}>
-              <View style={styles.heroCopyColumn}>
-                <Text style={styles.heading}>Flights</Text>
-                <Text style={styles.subtitle}>
+            <View style={[styles.heroSection, isPhone && styles.heroSectionPhone]}>
+              <View style={[styles.heroCopyColumn, isPhone && styles.heroCopyColumnPhone]}>
+                <Text
+                  style={[
+                    styles.heading,
+                    {
+                      fontSize: heroTitleSize,
+                      lineHeight: heroTitleSize + 4,
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  Flights
+                </Text>
+                <Text
+                  style={[
+                    styles.subtitle,
+                    {
+                      fontSize: heroSubtitleSize,
+                      lineHeight: heroSubtitleSize + 8,
+                      marginTop: isPhone ? 2 : 4,
+                    },
+                  ]}
+                >
                   Find the best flights for{" "}
                   <Text style={styles.subtitleAccent}>your next adventure.</Text>
                 </Text>
               </View>
 
-              <HeroArtwork />
+              <HeroArtwork width={heroArtworkWidth} aspectRatio={heroAspectRatio} />
             </View>
 
             <View style={[styles.searchCard, searchCardShadowStyle]}>
@@ -772,7 +1203,7 @@ export default function FlightsScreen({
                 <View style={[styles.searchIconBadge, isPhone && styles.searchIconBadgePhone]}>
                   <MaterialCommunityIcons
                     name="airplane"
-                    size={isPhone ? 22 : 27}
+                    size={isPhone ? 14 : 15}
                     color={COLORS.blueDeep}
                   />
                 </View>
@@ -784,7 +1215,7 @@ export default function FlightsScreen({
                     </Text>
                     <Ionicons
                       name="sparkles"
-                      size={18}
+                      size={isPhone ? 10 : 11}
                       color="#FFD86B"
                       style={styles.searchSparkles}
                     />
@@ -816,7 +1247,7 @@ export default function FlightsScreen({
                     isNarrow ? styles.swapButtonStacked : styles.swapButtonInline,
                   ]}
                 >
-                  <Ionicons name="swap-horizontal" size={24} color={COLORS.blue} />
+                  <Ionicons name="swap-horizontal" size={isPhone ? 14 : 15} color={COLORS.blue} />
                 </DimPressable>
 
                 <AirportInputField
@@ -835,21 +1266,21 @@ export default function FlightsScreen({
                 <SearchField
                   label="Depart"
                   iconName="calendar-outline"
-                  primaryText={departDate}
+                  primaryText={formatDisplayDate(departDate)}
                   onPress={() => setActivePicker("depart")}
                   accessibilityLabel="Select departure date"
                   isPhone={isPhone}
-                  style={isPhone ? styles.metaFieldHalf : styles.metaField}
+                  style={isNarrow ? styles.metaFieldHalf : styles.metaField}
                 />
 
                 <SearchField
                   label="Return"
                   iconName="calendar-outline"
-                  primaryText={returnDate}
+                  primaryText={formatDisplayDate(returnDate)}
                   onPress={() => setActivePicker("return")}
                   accessibilityLabel="Select return date"
                   isPhone={isPhone}
-                  style={isPhone ? styles.metaFieldHalf : styles.metaField}
+                  style={isNarrow ? styles.metaFieldHalf : styles.metaField}
                 />
 
                 <SearchField
@@ -859,7 +1290,7 @@ export default function FlightsScreen({
                   onPress={() => setActivePicker("travelers")}
                   accessibilityLabel="Choose travelers and cabin"
                   isPhone={isPhone}
-                  style={styles.travelerField}
+                  style={isNarrow ? styles.travelerField : styles.metaField}
                 />
               </View>
 
@@ -867,42 +1298,69 @@ export default function FlightsScreen({
                 accessibilityRole="button"
                 accessibilityLabel="Search flights"
                 onPress={handleSearch}
-                style={styles.searchButton}
+                style={[styles.searchButton, isPhone && styles.searchButtonPhone]}
               >
-                <Text style={styles.searchButtonText}>Search Flights</Text>
-                <Ionicons name="sparkles" size={18} color="#FFFFFF" style={styles.searchButtonSparkles} />
+                <Text style={[styles.searchButtonText, isPhone && styles.searchButtonTextPhone]}>
+                  Search Flights
+                </Text>
+                <Ionicons
+                  name="sparkles"
+                  size={isPhone ? 10 : 11}
+                  color="#FFFFFF"
+                  style={styles.searchButtonSparkles}
+                />
               </Pressable>
             </View>
 
             <View style={[styles.feedbackCard, cardShadowStyle]}>
-              <Ionicons name="information-circle-outline" size={20} color={COLORS.blue} />
+              <Ionicons name="information-circle-outline" size={14} color={COLORS.blue} />
               <Text style={styles.feedbackText}>{searchMessage}</Text>
             </View>
 
-            <View style={styles.benefitsGrid}>
+            <View style={[styles.benefitsGrid, showFourBenefits && styles.benefitsGridFourAcross]}>
               {BENEFITS.map((item) => (
-                <BenefitCard key={item.title} item={item} isPhone={isPhone} />
+                <BenefitCard
+                  key={item.title}
+                  item={item}
+                  isPhone={isPhone}
+                  showFourAcross={showFourBenefits}
+                />
               ))}
             </View>
 
-            <View style={[styles.resultsHeader, isPhone && styles.resultsHeaderPhone]}>
-              <View>
+            <View
+              style={[
+                styles.resultsHeader,
+                !keepResultsHeaderInline && styles.resultsHeaderPhone,
+              ]}
+            >
+              <View style={styles.resultsCopy}>
                 <Text style={styles.resultsTitle}>Best Flights</Text>
                 <Text style={styles.resultsSubtitle}>Top picks for your search</Text>
               </View>
 
-              <View style={[styles.sortDropdownWrap, isPhone && styles.sortDropdownWrapPhone]}>
+              <View
+                style={[
+                  styles.sortDropdownWrap,
+                  !keepResultsHeaderInline && styles.sortDropdownWrapPhone,
+                ]}
+              >
                 <DimPressable
                   accessibilityRole="button"
                   accessibilityLabel="Change flight sort"
                   onPress={() => setIsSortMenuOpen((currentValue) => !currentValue)}
-                  style={[styles.sortButton, isPhone && styles.sortButtonPhone]}
+                  style={[
+                    styles.sortButton,
+                    !keepResultsHeaderInline && styles.sortButtonPhone,
+                  ]}
                 >
-                  <Ionicons name="funnel-outline" size={17} color={COLORS.blue} />
-                  <Text style={styles.sortButtonText}>Sort by: {selectedSortOption.label}</Text>
+                  <Ionicons name="funnel-outline" size={12} color={COLORS.blue} />
+                  <Text style={styles.sortButtonText} numberOfLines={1}>
+                    Sort by: {selectedSortOption.label}
+                  </Text>
                   <Ionicons
                     name={isSortMenuOpen ? "chevron-up" : "chevron-down"}
-                    size={16}
+                    size={12}
                     color={COLORS.blue}
                   />
                 </DimPressable>
@@ -967,13 +1425,27 @@ export default function FlightsScreen({
                 styles.trackerBanner,
                 cardShadowStyle,
                 isTrackingRoute && styles.trackerBannerActive,
+                keepTrackerInline && styles.trackerBannerWide,
               ]}
             >
-              <View style={styles.trackerCopyRow}>
-                <Image source={trackerBotArt} resizeMode="contain" style={styles.trackerBotImage} />
+              <View
+                style={[styles.trackerCopyRow, keepTrackerInline && styles.trackerCopyRowWide]}
+              >
+                <Image
+                  source={trackerBotArt}
+                  resizeMode="contain"
+                  style={[
+                    styles.trackerBotImage,
+                    { width: trackerBotSize, height: trackerBotSize },
+                  ]}
+                />
                 <View style={styles.trackerCopy}>
-                  <Text style={styles.trackerTitle}>Not sure when to book?</Text>
-                  <Text style={styles.trackerDescription}>
+                  <Text style={[styles.trackerTitle, isPhone && styles.trackerTitlePhone]}>
+                    Not sure when to book?
+                  </Text>
+                  <Text
+                    style={[styles.trackerDescription, isPhone && styles.trackerDescriptionPhone]}
+                  >
                     Wayfinder analyzes prices daily and will notify you when prices drop.
                   </Text>
                 </View>
@@ -983,14 +1455,22 @@ export default function FlightsScreen({
                 accessibilityRole="button"
                 accessibilityLabel={isTrackingRoute ? "Stop tracking this route" : "Track this route"}
                 onPress={handleToggleTracking}
-                style={[styles.trackButton, isTrackingRoute && styles.trackButtonActive]}
+                style={[
+                  styles.trackButton,
+                  isTrackingRoute && styles.trackButtonActive,
+                  keepTrackerInline && styles.trackButtonWide,
+                  !keepTrackerInline && styles.trackButtonPhone,
+                ]}
               >
                 <Ionicons
                   name={isTrackingRoute ? "checkmark-circle" : "notifications-outline"}
-                  size={20}
+                  size={14}
                   color={isTrackingRoute ? "#FFFFFF" : COLORS.blue}
                 />
-                <Text style={[styles.trackButtonText, isTrackingRoute && styles.trackButtonTextActive]}>
+                <Text
+                  style={[styles.trackButtonText, isTrackingRoute && styles.trackButtonTextActive]}
+                  numberOfLines={1}
+                >
                   {isTrackingRoute ? "Tracking Route" : "Track This Route"}
                 </Text>
               </DimPressable>
@@ -998,64 +1478,26 @@ export default function FlightsScreen({
           </View>
         </ScrollView>
 
-        <BottomNav activeLabel={null} onNavigate={onNavigate} />
+        <BottomNav activeLabel="Flights" onNavigate={onNavigate} />
       </View>
 
-      <SheetModal
+      <DatePickerModal
         visible={activePicker === "depart"}
-        title="Departure Date"
-        subtitle="Choose a mock departure date for this placeholder flow."
-        onClose={() => setActivePicker(null)}
-      >
-        {DEPARTURE_OPTIONS.map((option) => {
-          const isSelected = option === departDate;
+        mode="depart"
+        value={departDate}
+        minimumDate={startOfDay(new Date())}
+        onCancel={() => setActivePicker(null)}
+        onConfirm={handleConfirmDepartDate}
+      />
 
-          return (
-            <DimPressable
-              key={option}
-              accessibilityRole="button"
-              onPress={() => {
-                setDepartDate(option);
-                setActivePicker(null);
-              }}
-              style={[styles.optionRow, isSelected && styles.optionRowSelected]}
-            >
-              <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
-                {option}
-              </Text>
-              {isSelected ? <Ionicons name="checkmark" size={20} color={COLORS.blue} /> : null}
-            </DimPressable>
-          );
-        })}
-      </SheetModal>
-
-      <SheetModal
+      <DatePickerModal
         visible={activePicker === "return"}
-        title="Return Date"
-        subtitle="Choose a mock return date for the round-trip search card."
-        onClose={() => setActivePicker(null)}
-      >
-        {RETURN_OPTIONS.map((option) => {
-          const isSelected = option === returnDate;
-
-          return (
-            <DimPressable
-              key={option}
-              accessibilityRole="button"
-              onPress={() => {
-                setReturnDate(option);
-                setActivePicker(null);
-              }}
-              style={[styles.optionRow, isSelected && styles.optionRowSelected]}
-            >
-              <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
-                {option}
-              </Text>
-              {isSelected ? <Ionicons name="checkmark" size={20} color={COLORS.blue} /> : null}
-            </DimPressable>
-          );
-        })}
-      </SheetModal>
+        mode="return"
+        value={returnDate}
+        minimumDate={departDate || startOfDay(new Date())}
+        onCancel={() => setActivePicker(null)}
+        onConfirm={handleConfirmReturnDate}
+      />
 
       <SheetModal
         visible={activePicker === "travelers"}
@@ -1140,14 +1582,14 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    paddingTop: 18,
-    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingHorizontal: 14,
     alignItems: "center",
   },
 
   page: {
     width: "100%",
-    maxWidth: 1040,
+    maxWidth: 780,
   },
 
   headerRow: {
@@ -1160,117 +1602,107 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
 
-  brandSlot: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
-
-  headerBrandRow: {
-    alignSelf: "auto",
-    marginRight: 0,
-  },
-
-  headerBrandText: {
-    fontSize: 26,
-  },
-
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 0,
   },
 
   headerActionButton: {
-    width: 50,
-    height: 50,
-    marginLeft: 8,
+    width: 34,
+    height: 34,
+    marginLeft: 0,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
   },
 
+  headerActionButtonPhone: {
+    width: 32,
+    height: 32,
+    marginLeft: 0,
+  },
+
   notificationDot: {
     position: "absolute",
-    top: 8,
-    right: 8,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    top: 5,
+    right: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: COLORS.orange,
   },
 
+  notificationDotPhone: {
+    top: 4,
+    right: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+
   heroSection: {
-    marginTop: 18,
+    marginTop: 6,
     flexDirection: "row",
-    flexWrap: "wrap",
+    flexWrap: "nowrap",
     alignItems: "flex-end",
     justifyContent: "space-between",
+    gap: 4,
+    overflow: "visible",
   },
 
   heroSectionPhone: {
+    marginTop: 4,
+    gap: 2,
     alignItems: "flex-end",
   },
 
   heroCopyColumn: {
+    flex: 1,
     flexGrow: 1,
     flexShrink: 1,
-    minWidth: 230,
-    maxWidth: 410,
-    paddingTop: 8,
-    paddingRight: 14,
+    minWidth: 0,
+    maxWidth: 340,
+    paddingTop: 0,
+    paddingRight: 4,
+    paddingBottom: 0,
+    zIndex: 2,
   },
 
   heroCopyColumnPhone: {
-    maxWidth: 410,
-    paddingTop: 8,
-    paddingRight: 14,
+    maxWidth: "58%",
+    paddingTop: 0,
+    paddingRight: 2,
+    paddingBottom: 0,
   },
 
   backButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.card,
     shadowColor: "#9DB2CF",
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 7,
-  },
-
-  backButtonPhone: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
   },
 
   heading: {
-    fontSize: 52,
-    lineHeight: 56,
+    fontSize: 34,
+    lineHeight: 38,
     fontWeight: "800",
-    letterSpacing: -2,
+    letterSpacing: -1.4,
     color: COLORS.text,
   },
 
-  headingPhone: {
-    fontSize: 52,
-    lineHeight: 56,
-  },
-
   subtitle: {
-    marginTop: 12,
-    fontSize: 19,
-    lineHeight: 30,
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 18,
     color: COLORS.subtext,
-  },
-
-  subtitlePhone: {
-    marginTop: 12,
-    fontSize: 19,
-    lineHeight: 30,
   },
 
   subtitleAccent: {
@@ -1279,24 +1711,12 @@ const styles = StyleSheet.create({
   },
 
   heroArtworkShell: {
-    flexGrow: 1,
-    minWidth: 220,
-    maxWidth: 430,
-    height: 212,
+    flexShrink: 0,
     justifyContent: "flex-end",
+    alignItems: "flex-end",
     position: "relative",
-    overflow: "hidden",
-  },
-
-  heroArtworkShellPhone: {
-    minWidth: 220,
-    maxWidth: 430,
-    height: 212,
-  },
-
-  heroArtworkFrame: {
-    width: "100%",
-    height: "100%",
+    overflow: "visible",
+    zIndex: 1,
   },
 
   heroArtworkImage: {
@@ -1357,11 +1777,11 @@ const styles = StyleSheet.create({
   },
 
   searchCard: {
-    marginTop: 10,
-    paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 16,
-    borderRadius: 28,
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 8,
+    borderRadius: 18,
     backgroundColor: COLORS.blue,
     overflow: "hidden",
   },
@@ -1370,12 +1790,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     right: 0,
-    width: 286,
+    width: 160,
     aspectRatio: SEARCH_DECOR_ART_ASPECT_RATIO,
   },
 
   searchDecorArtworkPhone: {
-    width: 212,
+    width: 120,
   },
 
   searchDecorLarge: {
@@ -1409,28 +1829,29 @@ const styles = StyleSheet.create({
   },
 
   searchIconBadge: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.card,
   },
 
   searchIconBadgePhone: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
   },
 
   searchHeaderCopy: {
     flex: 1,
-    marginLeft: 12,
-    paddingRight: 18,
+    marginLeft: 6,
+    paddingRight: 8,
+    minWidth: 0,
   },
 
   searchHeaderCopyPhone: {
-    paddingRight: 8,
+    paddingRight: 2,
   },
 
   searchTitleRow: {
@@ -1440,37 +1861,38 @@ const styles = StyleSheet.create({
   },
 
   searchTitle: {
-    fontSize: 22,
+    fontSize: 14,
     fontWeight: "800",
     color: "#FFFFFF",
-    letterSpacing: -0.8,
+    letterSpacing: -0.3,
   },
 
   searchTitlePhone: {
-    fontSize: 20,
+    fontSize: 13,
   },
 
   searchSparkles: {
-    marginLeft: 6,
+    marginLeft: 3,
   },
 
   searchSubtitle: {
-    marginTop: 5,
-    fontSize: 15,
-    lineHeight: 21,
+    marginTop: 0,
+    fontSize: 10,
+    lineHeight: 13,
     color: "rgba(255, 255, 255, 0.92)",
   },
 
   searchSubtitlePhone: {
-    fontSize: 14,
-    lineHeight: 19,
+    fontSize: 9,
+    lineHeight: 12,
   },
 
   airportRow: {
-    marginTop: 14,
+    marginTop: 6,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 0,
   },
 
   airportRowStacked: {
@@ -1480,148 +1902,166 @@ const styles = StyleSheet.create({
 
   airportField: {
     flex: 1,
+    minWidth: 0,
   },
 
   swapButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.card,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: "#D9E8FF",
     zIndex: 2,
+    flexShrink: 0,
   },
 
   swapButtonInline: {
-    marginHorizontal: 10,
+    marginHorizontal: 4,
   },
 
   swapButtonStacked: {
     alignSelf: "center",
-    marginVertical: -4,
+    marginVertical: -1,
   },
 
   metaFieldGrid: {
-    marginTop: 10,
+    marginTop: 5,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    gap: 0,
   },
 
   metaFieldGridPhone: {
-    marginTop: 12,
+    marginTop: 5,
   },
 
   metaField: {
     width: "31.5%",
+    minWidth: 0,
   },
 
   metaFieldHalf: {
-    width: "48.3%",
-    marginBottom: 12,
+    width: "48.5%",
+    marginBottom: 5,
+    minWidth: 0,
   },
 
   travelerField: {
     width: "100%",
+    minWidth: 0,
   },
 
   fieldCard: {
-    minHeight: 76,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    borderRadius: 18,
+    minHeight: 42,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
     backgroundColor: COLORS.card,
     justifyContent: "center",
   },
 
   fieldCardPhone: {
-    minHeight: 70,
+    minHeight: 40,
   },
 
   airportInputCard: {
-    minHeight: 82,
+    minHeight: 44,
   },
 
   fieldLabel: {
-    fontSize: 14,
+    fontSize: 9,
     fontWeight: "600",
     color: COLORS.muted,
   },
 
   fieldValueRow: {
-    marginTop: 6,
+    marginTop: 1,
     flexDirection: "row",
     alignItems: "center",
   },
 
   fieldIconWrap: {
-    width: 22,
+    width: 14,
     alignItems: "center",
     justifyContent: "center",
   },
 
   fieldTextWrap: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 4,
+    minWidth: 0,
   },
 
   fieldPrimaryText: {
-    fontSize: 16,
+    fontSize: 11,
     fontWeight: "700",
     color: COLORS.text,
-    lineHeight: 22,
+    lineHeight: 14,
   },
 
   fieldPrimaryTextPhone: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 10,
+    lineHeight: 13,
   },
 
   airportInput: {
     paddingVertical: 0,
-    fontSize: 16,
+    fontSize: 11,
     fontWeight: "700",
     color: COLORS.text,
+    lineHeight: 14,
   },
 
   airportInputPhone: {
-    fontSize: 15,
+    fontSize: 10,
   },
 
   fieldSecondaryText: {
-    marginTop: 2,
-    fontSize: 13,
-    lineHeight: 18,
+    marginTop: 0,
+    fontSize: 9,
+    lineHeight: 11,
     color: COLORS.subtext,
   },
 
   searchButton: {
-    marginTop: 12,
-    minHeight: 50,
-    borderRadius: 16,
+    marginTop: 6,
+    minHeight: 30,
+    paddingVertical: 6,
+    borderRadius: 10,
     backgroundColor: COLORS.orange,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
   },
 
+  searchButtonPhone: {
+    minHeight: 28,
+    paddingVertical: 5,
+  },
+
   searchButtonText: {
-    fontSize: 17,
+    fontSize: 12,
     fontWeight: "800",
     color: "#FFFFFF",
   },
 
+  searchButtonTextPhone: {
+    fontSize: 11,
+  },
+
   searchButtonSparkles: {
-    marginLeft: 8,
+    marginLeft: 4,
   },
 
   feedbackCard: {
-    marginTop: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
     backgroundColor: COLORS.card,
     flexDirection: "row",
     alignItems: "center",
@@ -1629,72 +2069,108 @@ const styles = StyleSheet.create({
 
   feedbackText: {
     flex: 1,
-    marginLeft: 10,
-    fontSize: 13,
-    lineHeight: 19,
+    marginLeft: 6,
+    fontSize: 10,
+    lineHeight: 13,
     color: COLORS.subtext,
   },
 
   benefitsGrid: {
-    marginTop: 16,
+    marginTop: 8,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    alignItems: "stretch",
+  },
+
+  benefitsGridFourAcross: {
+    flexWrap: "nowrap",
+    gap: 6,
   },
 
   benefitCard: {
     width: "48.7%",
-    minHeight: 88,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 20,
+    minHeight: 58,
+    marginBottom: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 12,
     backgroundColor: COLORS.card,
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
   },
 
   benefitCardPhone: {
-    width: "48.4%",
-    minHeight: 98,
+    width: "48.5%",
+    minHeight: 60,
   },
 
-  benefitCardContentCentered: {
-    alignItems: "center",
+  benefitCardFourAcross: {
+    width: "24%",
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    minHeight: 56,
+    marginBottom: 0,
+    paddingHorizontal: 7,
+    paddingVertical: 8,
   },
 
   benefitIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+  },
+
+  benefitIconWrapCompact: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
   },
 
   benefitCopy: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 6,
+    minWidth: 0,
+    justifyContent: "center",
   },
 
   benefitTitle: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: "800",
     color: COLORS.text,
+    lineHeight: 13,
+  },
+
+  benefitTitleCompact: {
+    fontSize: 10,
+    lineHeight: 12,
   },
 
   benefitDescription: {
-    marginTop: 4,
-    fontSize: 12,
-    lineHeight: 17,
+    marginTop: 2,
+    fontSize: 9,
+    lineHeight: 12,
     color: COLORS.subtext,
+    flexShrink: 1,
+  },
+
+  benefitDescriptionCompact: {
+    fontSize: 8,
+    lineHeight: 11,
   },
 
   resultsHeader: {
-    marginTop: 18,
-    marginBottom: 6,
+    marginTop: 10,
+    marginBottom: 2,
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
+    gap: 8,
     zIndex: 6,
   },
 
@@ -1703,38 +2179,46 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
   },
 
+  resultsCopy: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+
   resultsTitle: {
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: "800",
     color: COLORS.text,
-    letterSpacing: -0.8,
+    letterSpacing: -0.4,
   },
 
   resultsSubtitle: {
-    marginTop: 2,
-    fontSize: 14,
+    marginTop: 0,
+    fontSize: 11,
     color: COLORS.subtext,
   },
 
   sortDropdownWrap: {
-    minWidth: 210,
+    minWidth: 0,
+    maxWidth: "52%",
     alignItems: "flex-end",
     position: "relative",
     zIndex: 8,
+    flexShrink: 1,
   },
 
   sortDropdownWrapPhone: {
     width: "100%",
+    maxWidth: "100%",
     minWidth: 0,
-    marginTop: 10,
+    marginTop: 5,
     alignItems: "stretch",
   },
 
   sortButton: {
-    minHeight: 42,
-    marginLeft: 14,
-    paddingHorizontal: 12,
-    borderRadius: 20,
+    minHeight: 28,
+    marginLeft: 6,
+    paddingHorizontal: 7,
+    borderRadius: 12,
     backgroundColor: COLORS.card,
     flexDirection: "row",
     alignItems: "center",
@@ -1746,19 +2230,20 @@ const styles = StyleSheet.create({
   },
 
   sortButtonText: {
-    marginHorizontal: 8,
-    fontSize: 14,
+    marginHorizontal: 4,
+    fontSize: 11,
     fontWeight: "700",
     color: COLORS.blue,
+    flexShrink: 1,
   },
 
   sortMenu: {
     position: "absolute",
-    top: 48,
+    top: 32,
     right: 0,
-    width: 210,
-    paddingVertical: 8,
-    borderRadius: 18,
+    width: 160,
+    paddingVertical: 3,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: "#FFFFFF",
@@ -1766,15 +2251,15 @@ const styles = StyleSheet.create({
   },
 
   sortMenuPhone: {
-    top: 48,
+    top: 32,
     left: 0,
     right: 0,
     width: "100%",
   },
 
   sortMenuItem: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1790,7 +2275,7 @@ const styles = StyleSheet.create({
   },
 
   sortMenuItemText: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: "700",
     color: COLORS.text,
   },
@@ -1800,11 +2285,11 @@ const styles = StyleSheet.create({
   },
 
   flightCard: {
-    marginTop: 12,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 14,
-    borderRadius: 22,
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: 6,
+    borderRadius: 14,
     backgroundColor: COLORS.card,
   },
 
@@ -1815,47 +2300,51 @@ const styles = StyleSheet.create({
   },
 
   flightBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
 
   flightBadgeText: {
-    fontSize: 13,
+    fontSize: 9,
     fontWeight: "800",
   },
 
   favoriteButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
   },
 
   flightCardMainRow: {
-    marginTop: 10,
+    marginTop: 4,
     flexDirection: "row",
-    alignItems: "stretch",
+    alignItems: "center",
     justifyContent: "space-between",
+    gap: 6,
   },
 
-  flightCardMainRowPhone: {
-    flexDirection: "column",
+  flightAirlineColumn: {
+    width: 88,
+    flexShrink: 0,
+    minWidth: 0,
   },
 
-  flightInfoColumn: {
+  flightAirlineColumnPhone: {
+    width: 72,
+  },
+
+  flightRouteColumn: {
     flex: 1,
-    paddingRight: 14,
-  },
-
-  flightInfoColumnPhone: {
-    paddingRight: 0,
+    minWidth: 0,
   },
 
   airlineWrap: {
-    marginBottom: 12,
+    marginBottom: 0,
+    minWidth: 0,
   },
 
   anaLogoRow: {
@@ -1864,21 +2353,21 @@ const styles = StyleSheet.create({
   },
 
   anaLogoText: {
-    fontSize: 26,
+    fontSize: 14,
     fontWeight: "800",
     color: "#1756D9",
-    letterSpacing: -1,
+    letterSpacing: -0.6,
     fontStyle: "italic",
   },
 
   anaLogoTextPhone: {
-    fontSize: 22,
+    fontSize: 12,
   },
 
   anaLogoWing: {
-    width: 24,
-    height: 9,
-    marginLeft: 6,
+    width: 12,
+    height: 5,
+    marginLeft: 3,
     backgroundColor: "#1756D9",
     transform: [{ skewX: "-28deg" }],
   },
@@ -1886,32 +2375,42 @@ const styles = StyleSheet.create({
   airlineBrandRow: {
     flexDirection: "row",
     alignItems: "center",
+    minWidth: 0,
   },
 
   airlineWordmark: {
-    fontSize: 18,
+    flexShrink: 1,
+    fontSize: 10,
     fontWeight: "800",
     color: COLORS.text,
   },
 
   airlineWordmarkPhone: {
-    fontSize: 16,
+    fontSize: 9,
   },
 
   airlineSubtitle: {
-    marginTop: 5,
-    fontSize: 13,
+    marginTop: 1,
+    fontSize: 8,
     color: COLORS.subtext,
   },
 
   koreanBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 10,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    marginRight: 4,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: COLORS.border,
+    flexShrink: 0,
+  },
+
+  koreanBadgePhone: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 3,
   },
 
   koreanBadgeTop: {
@@ -1925,17 +2424,25 @@ const styles = StyleSheet.create({
   },
 
   jalBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    marginRight: 10,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginRight: 4,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#E33935",
+    flexShrink: 0,
+  },
+
+  jalBadgePhone: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    marginRight: 3,
   },
 
   jalBadgeText: {
-    fontSize: 10,
+    fontSize: 7,
     fontWeight: "800",
     color: "#FFFFFF",
   },
@@ -1943,14 +2450,16 @@ const styles = StyleSheet.create({
   routeSummaryWrap: {
     flexDirection: "row",
     alignItems: "center",
-  },
-
-  routeSummaryWrapPhone: {
-    alignItems: "flex-start",
+    minWidth: 0,
   },
 
   routeEndpoint: {
-    minWidth: 66,
+    minWidth: 48,
+    flexShrink: 0,
+  },
+
+  routeEndpointPhone: {
+    minWidth: 40,
   },
 
   routeEndpointRight: {
@@ -1959,111 +2468,127 @@ const styles = StyleSheet.create({
 
   routeMiddle: {
     flex: 1,
-    paddingHorizontal: 10,
+    minWidth: 0,
+    paddingHorizontal: 4,
     alignItems: "center",
   },
 
   routeMiddlePhone: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 2,
   },
 
   routeTimeText: {
-    fontSize: 24,
+    fontSize: 13,
     fontWeight: "800",
-    letterSpacing: -1,
+    letterSpacing: -0.4,
     color: "#0A0F16",
   },
 
   routeTimeTextPhone: {
-    fontSize: 18,
+    fontSize: 11,
   },
 
   routeCodeText: {
-    marginTop: 4,
-    fontSize: 15,
+    marginTop: 0,
+    fontSize: 10,
     color: "#314360",
   },
 
+  routeCodeTextPhone: {
+    fontSize: 9,
+  },
+
   routeDurationText: {
-    fontSize: 14,
+    fontSize: 9,
     fontWeight: "700",
     color: "#314360",
   },
 
+  routeDurationTextPhone: {
+    fontSize: 8,
+  },
+
   routeLineRow: {
     width: "100%",
-    marginTop: 8,
-    marginBottom: 6,
+    marginTop: 2,
+    marginBottom: 1,
     flexDirection: "row",
     alignItems: "center",
   },
 
   routeDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    borderWidth: 2,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    borderWidth: 1,
     borderColor: "#7E90B0",
     backgroundColor: "#FFFFFF",
   },
 
   routeLine: {
     flex: 1,
-    height: 2,
+    height: 1.5,
     backgroundColor: "#AFC1DD",
   },
 
   routeStopText: {
-    fontSize: 13,
+    fontSize: 9,
     fontWeight: "700",
+  },
+
+  routeStopTextPhone: {
+    fontSize: 8,
   },
 
   routeOffsetText: {
     color: "#FF3434",
-    fontSize: 16,
+    fontSize: 10,
+  },
+
+  routeOffsetTextPhone: {
+    fontSize: 9,
   },
 
   flightPriceColumn: {
-    width: 132,
+    width: 86,
+    flexShrink: 0,
     alignItems: "flex-end",
-    justifyContent: "space-between",
+    justifyContent: "center",
+    gap: 4,
   },
 
   flightPriceColumnPhone: {
-    width: "100%",
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#E6EEF9",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    width: 74,
+  },
+
+  flightPriceBlock: {
+    alignItems: "flex-end",
   },
 
   flightPriceValue: {
-    fontSize: 28,
+    fontSize: 16,
     fontWeight: "800",
-    letterSpacing: -1,
+    letterSpacing: -0.4,
     color: COLORS.blue,
   },
 
   flightPriceValuePhone: {
-    fontSize: 24,
+    fontSize: 14,
   },
 
   flightPriceCaption: {
-    marginTop: 2,
-    fontSize: 13,
+    marginTop: 0,
+    fontSize: 9,
     color: COLORS.subtext,
   },
 
   detailsButton: {
-    minWidth: 118,
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 16,
-    borderWidth: 2,
+    minWidth: 78,
+    marginTop: 0,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1.5,
     borderColor: "#C7DBFF",
     alignItems: "center",
     justifyContent: "center",
@@ -2071,24 +2596,36 @@ const styles = StyleSheet.create({
   },
 
   detailsButtonPhone: {
-    marginTop: 0,
-    minWidth: 118,
+    minWidth: 68,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
   },
 
   detailsButtonText: {
-    fontSize: 14,
+    fontSize: 10,
     fontWeight: "700",
     color: COLORS.blue,
   },
 
+  detailsButtonTextPhone: {
+    fontSize: 9,
+  },
+
   trackerBanner: {
-    marginTop: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 22,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
     backgroundColor: "#E9F2FF",
     borderWidth: 1,
     borderColor: "#C8DBFF",
+  },
+
+  trackerBannerWide: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
   },
 
   trackerBannerActive: {
@@ -2099,42 +2636,71 @@ const styles = StyleSheet.create({
   trackerCopyRow: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+    minWidth: 0,
+  },
+
+  trackerCopyRowWide: {
+    flex: 1,
+    marginRight: 4,
   },
 
   trackerBotImage: {
-    width: 54,
-    height: 54,
+    width: 34,
+    height: 34,
+    flexShrink: 0,
   },
 
   trackerCopy: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 6,
+    minWidth: 0,
   },
 
   trackerTitle: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: "800",
     color: COLORS.text,
   },
 
+  trackerTitlePhone: {
+    fontSize: 11,
+  },
+
   trackerDescription: {
-    marginTop: 4,
-    fontSize: 14,
-    lineHeight: 20,
+    marginTop: 1,
+    fontSize: 10,
+    lineHeight: 13,
     color: COLORS.subtext,
   },
 
+  trackerDescriptionPhone: {
+    fontSize: 9,
+    lineHeight: 12,
+  },
+
   trackButton: {
-    minHeight: 46,
-    marginTop: 14,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    borderWidth: 2,
+    minHeight: 30,
+    marginTop: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
     borderColor: "#BFD4FF",
     backgroundColor: "#FFFFFF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+  },
+
+  trackButtonWide: {
+    marginTop: 0,
+    minWidth: 132,
+    paddingHorizontal: 10,
+  },
+
+  trackButtonPhone: {
+    minHeight: 28,
   },
 
   trackButtonActive: {
@@ -2143,13 +2709,173 @@ const styles = StyleSheet.create({
   },
 
   trackButtonText: {
-    marginLeft: 8,
-    fontSize: 14,
+    marginLeft: 4,
+    fontSize: 11,
     fontWeight: "700",
     color: COLORS.blue,
   },
 
   trackButtonTextActive: {
+    color: "#FFFFFF",
+  },
+
+  datePickerCard: {
+    width: "100%",
+    maxWidth: 360,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
+  },
+
+  datePickerFieldChip: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: COLORS.blueLight,
+  },
+
+  datePickerFieldChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.blue,
+  },
+
+  datePickerMonthRow: {
+    marginTop: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  datePickerNavButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F4F7FC",
+  },
+
+  datePickerNavButtonDisabled: {
+    opacity: 0.45,
+  },
+
+  datePickerMonthLabel: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: COLORS.text,
+  },
+
+  datePickerWeekRow: {
+    marginTop: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+
+  datePickerWeekday: {
+    width: `${100 / 7}%`,
+    textAlign: "center",
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.muted,
+  },
+
+  datePickerGrid: {
+    marginTop: 6,
+  },
+
+  datePickerWeek: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+
+  datePickerDay: {
+    width: `${100 / 7}%`,
+    aspectRatio: 1,
+    maxHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+  },
+
+  datePickerDayToday: {
+    borderWidth: 1,
+    borderColor: "#C7DBFF",
+  },
+
+  datePickerDaySelected: {
+    backgroundColor: COLORS.blue,
+  },
+
+  datePickerDayDisabled: {
+    opacity: 0.35,
+  },
+
+  datePickerDayText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.text,
+  },
+
+  datePickerDayTextSelected: {
+    color: "#FFFFFF",
+  },
+
+  datePickerDayTextDisabled: {
+    color: COLORS.muted,
+  },
+
+  datePickerSelectedLabel: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.subtext,
+  },
+
+  datePickerActions: {
+    marginTop: 14,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+  },
+
+  datePickerCancelButton: {
+    minHeight: 38,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+
+  datePickerCancelText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.subtext,
+  },
+
+  datePickerConfirmButton: {
+    minHeight: 38,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.blue,
+  },
+
+  datePickerConfirmText: {
+    fontSize: 13,
+    fontWeight: "800",
     color: "#FFFFFF",
   },
 
