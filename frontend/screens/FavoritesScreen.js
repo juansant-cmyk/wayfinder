@@ -240,6 +240,7 @@ function IconButton({
   size = 20,
   color = COLORS.text,
   filled = false,
+  compact = false,
 }) {
   return (
     <Pressable
@@ -251,6 +252,7 @@ function IconButton({
       }}
       style={({ pressed }) => [
         styles.iconButton,
+        compact && styles.iconButtonCompact,
         filled && styles.iconButtonFilled,
         pressed && styles.iconButtonPressed,
       ]}
@@ -285,7 +287,7 @@ function FavoriteTabs({ activeTab, onSelect, compact = false, tight = false }) {
                 tab.iconFamily,
                 tab.iconName,
                 isActive ? "#FFFFFF" : COLORS.blue,
-                tight ? 16 : compact ? 18 : 21
+                tight ? 14 : compact ? 16 : 18
               )}
               <Text
                 numberOfLines={1}
@@ -319,7 +321,7 @@ function SectionHeader({
     <View style={[styles.sectionHeaderRow, compact && styles.sectionHeaderRowCompact]}>
       <View style={styles.sectionHeaderCopy}>
         <View style={styles.sectionHeaderIconWrap}>
-          {renderNavIcon(iconFamily, iconName, COLORS.blue, compact ? 18 : 21)}
+          {renderNavIcon(iconFamily, iconName, COLORS.blue, compact ? 16 : 18)}
         </View>
         <Text style={[styles.sectionTitle, compact && styles.sectionTitleCompact]}>{title}</Text>
       </View>
@@ -393,7 +395,7 @@ function HotelFavoriteCard({
   onPress,
   onToggleSaved,
 }) {
-  const amenityIconSize = compact ? 15 : 19;
+  const amenityIconSize = compact ? 14 : 16;
 
   return (
     <CardButton
@@ -413,7 +415,11 @@ function HotelFavoriteCard({
           isStacked && styles.hotelImageWrapStacked,
         ]}
       >
-        <Image source={hotel.image} resizeMode="cover" style={styles.hotelImage} />
+        <Image
+          source={hotel.image}
+          resizeMode="cover"
+          style={styles.hotelImage}
+        />
         <View
           style={[
             styles.hotelBadge,
@@ -517,12 +523,14 @@ function HotelFavoriteCard({
   );
 }
 
-function AirlineLogo({ flight }) {
+function AirlineLogo({ flight, compact = false }) {
   if (flight.id === "ana-lax-nrt") {
     return (
       <View style={styles.airlineLogoRow}>
-        <Text style={[styles.airlineLogoText, styles.anaLogoText]}>ANA</Text>
-        <View style={styles.anaStripe} />
+        <Text style={[styles.airlineLogoText, styles.anaLogoText, compact && styles.airlineLogoTextCompact]}>
+          ANA
+        </Text>
+        <View style={[styles.anaStripe, compact && styles.anaStripeCompact]} />
       </View>
     );
   }
@@ -530,21 +538,19 @@ function AirlineLogo({ flight }) {
   if (flight.id === "jal-lax-nrt") {
     return (
       <View style={styles.airlineLogoRow}>
-        <View style={styles.jalMark}>
-          <Text style={styles.jalMarkText}>JAL</Text>
+        <View style={[styles.jalMark, compact && styles.jalMarkCompact]}>
+          <Text style={[styles.jalMarkText, compact && styles.jalMarkTextCompact]}>JAL</Text>
         </View>
-        <Text numberOfLines={1} style={styles.airlineSecondaryText}>JAPAN AIRLINES</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.airlineLogoRow}>
-      <View style={styles.koreanMark}>
+      <View style={[styles.koreanMark, compact && styles.koreanMarkCompact]}>
         <View style={styles.koreanMarkTop} />
         <View style={styles.koreanMarkBottom} />
       </View>
-      <Text numberOfLines={1} style={styles.airlineSecondaryText}>KOREAN AIR</Text>
     </View>
   );
 }
@@ -556,112 +562,85 @@ function FlightFavoriteRow({
   onPress,
   onToggleSaved,
 }) {
-  const heartButton = (
-    <IconButton
-      accessibilityLabel={isSaved ? `Remove ${flight.airline} flight from favorites` : `Save ${flight.airline} flight`}
-      iconName={isSaved ? "heart" : "heart-outline"}
-      color={isSaved ? COLORS.coral : COLORS.text}
-      onPress={onToggleSaved}
-    />
-  );
-
-  const priceBlock = (
-    <View style={[styles.flightPriceBlock, compact && styles.flightPriceBlockCompact]}>
-      <Text style={styles.flightPriceText}>${flight.price}</Text>
-      <Text style={styles.flightPriceMeta}>round trip</Text>
-    </View>
-  );
-
-  if (compact) {
-    return (
-      <CardButton
-        accessibilityLabel={`Open saved flight with ${flight.airline}`}
-        onPress={onPress}
-        style={[styles.flightRowCard, cardShadowStyle]}
-      >
-        <View style={styles.flightCompactTopRow}>
-          <View style={styles.flightAirlineBlockCompact}>
-            <AirlineLogo flight={flight} />
-            <Text numberOfLines={1} style={styles.flightAirlineName}>{flight.airline}</Text>
-          </View>
-
-          <View style={styles.flightCompactTopActions}>
-            {priceBlock}
-            {heartButton}
-          </View>
-        </View>
-
-        <View style={styles.flightScheduleBlockCompact}>
-          <View style={styles.flightTimeColumn}>
-            <Text style={styles.flightTimeText}>{flight.departureTime}</Text>
-            <Text style={styles.flightCodeText}>{flight.departureCode}</Text>
-          </View>
-
-          <View style={styles.flightRouteBlockCompact}>
-            <Text style={styles.flightDurationText}>{flight.duration}</Text>
-            <View style={styles.routeTrackRow}>
-              <View style={styles.routeDot} />
-              <View style={styles.routeLine} />
-              <View style={styles.routeMidDot} />
-              <View style={styles.routeLine} />
-              <View style={styles.routeDot} />
-            </View>
-            <Text style={[styles.flightStopText, { color: flight.stopColor }]}>{flight.stopInfo}</Text>
-          </View>
-
-          <View style={[styles.flightTimeColumn, styles.flightTimeColumnArrival]}>
-            <View style={styles.arrivalTimeRow}>
-              <Text style={styles.flightTimeText}>{flight.arrivalTime}</Text>
-              <Text style={styles.flightOffsetText}>{flight.arrivalOffset}</Text>
-            </View>
-            <Text style={styles.flightCodeText}>{flight.arrivalCode}</Text>
-          </View>
-        </View>
-      </CardButton>
-    );
-  }
-
   return (
     <CardButton
       accessibilityLabel={`Open saved flight with ${flight.airline}`}
       onPress={onPress}
-      style={[styles.flightRowCard, cardShadowStyle]}
+      style={[styles.flightRowCard, compact && styles.flightRowCardCompact, cardShadowStyle]}
     >
       <View style={styles.flightRowMain}>
-        <View style={styles.flightAirlineBlock}>
-          <AirlineLogo flight={flight} />
-          <Text numberOfLines={1} style={styles.flightAirlineName}>{flight.airline}</Text>
+        <View style={[styles.flightAirlineCol, compact && styles.flightAirlineColCompact]}>
+          <AirlineLogo flight={flight} compact={compact} />
+          <Text numberOfLines={1} style={[styles.flightAirlineName, compact && styles.flightAirlineNameCompact]}>
+            {flight.airline}
+          </Text>
         </View>
 
-        <View style={styles.flightScheduleBlock}>
-          <View style={styles.flightTimeColumn}>
-            <Text style={styles.flightTimeText}>{flight.departureTime}</Text>
-            <Text style={styles.flightCodeText}>{flight.departureCode}</Text>
-          </View>
-
-          <View style={styles.flightRouteBlock}>
-            <Text style={styles.flightDurationText}>{flight.duration}</Text>
-            <View style={styles.routeTrackRow}>
-              <View style={styles.routeDot} />
-              <View style={styles.routeLine} />
-              <View style={styles.routeMidDot} />
-              <View style={styles.routeLine} />
-              <View style={styles.routeDot} />
-            </View>
-            <Text style={[styles.flightStopText, { color: flight.stopColor }]}>{flight.stopInfo}</Text>
-          </View>
-
-          <View style={styles.flightTimeColumn}>
-            <View style={styles.arrivalTimeRow}>
-              <Text style={styles.flightTimeText}>{flight.arrivalTime}</Text>
-              <Text style={styles.flightOffsetText}>{flight.arrivalOffset}</Text>
-            </View>
-            <Text style={styles.flightCodeText}>{flight.arrivalCode}</Text>
-          </View>
+        <View style={[styles.flightDepCol, compact && styles.flightTimeColCompact]}>
+          <Text numberOfLines={1} style={[styles.flightTimeText, compact && styles.flightTimeTextCompact]}>
+            {flight.departureTime}
+          </Text>
+          <Text style={[styles.flightCodeText, compact && styles.flightCodeTextCompact]}>
+            {flight.departureCode}
+          </Text>
         </View>
 
-        {priceBlock}
-        {heartButton}
+        <View style={[styles.flightRouteCol, compact && styles.flightRouteColCompact]}>
+          <Text numberOfLines={1} style={[styles.flightDurationText, compact && styles.flightDurationTextCompact]}>
+            {flight.duration}
+          </Text>
+          <View style={styles.routeTrackRow}>
+            <View style={styles.routeDot} />
+            <View style={styles.routeLine} />
+            <View style={styles.routeMidDot} />
+            <View style={styles.routeLine} />
+            <View style={styles.routeDot} />
+          </View>
+          <Text
+            numberOfLines={1}
+            style={[styles.flightStopText, compact && styles.flightStopTextCompact, { color: flight.stopColor }]}
+          >
+            {flight.stopInfo}
+          </Text>
+        </View>
+
+        <View style={[styles.flightArrCol, compact && styles.flightTimeColCompact]}>
+          <View style={styles.arrivalTimeRow}>
+            <Text numberOfLines={1} style={[styles.flightTimeText, compact && styles.flightTimeTextCompact]}>
+              {flight.arrivalTime}
+            </Text>
+            <Text style={[styles.flightOffsetText, compact && styles.flightOffsetTextCompact]}>
+              {flight.arrivalOffset}
+            </Text>
+          </View>
+          <Text style={[styles.flightCodeText, compact && styles.flightCodeTextCompact]}>
+            {flight.arrivalCode}
+          </Text>
+        </View>
+
+        <View style={[styles.flightPriceCol, compact && styles.flightPriceColCompact]}>
+          <Text numberOfLines={1} style={[styles.flightPriceText, compact && styles.flightPriceTextCompact]}>
+            ${flight.price}
+          </Text>
+          <Text numberOfLines={1} style={[styles.flightPriceMeta, compact && styles.flightPriceMetaCompact]}>
+            round trip
+          </Text>
+        </View>
+
+        <View style={styles.flightHeartCol}>
+          <IconButton
+            accessibilityLabel={
+              isSaved
+                ? `Remove ${flight.airline} flight from favorites`
+                : `Save ${flight.airline} flight`
+            }
+            iconName={isSaved ? "heart" : "heart-outline"}
+            color={isSaved ? COLORS.coral : COLORS.text}
+            size={compact ? 15 : 17}
+            compact={compact}
+            onPress={onToggleSaved}
+          />
+        </View>
       </View>
     </CardButton>
   );
@@ -842,44 +821,33 @@ function SavedPlaceCard({ place, isSaved, compact, onPress, onToggleSaved }) {
     <CardButton
       accessibilityLabel={`Open ${place.title}`}
       onPress={onPress}
-      style={[
-        styles.savedPlaceCard,
-        cardShadowStyle,
-        compact ? styles.savedPlaceCardCompact : styles.savedPlaceCardWide,
-      ]}
+      style={[styles.savedPlaceCard, cardShadowStyle, compact && styles.savedPlaceCardCompact]}
     >
-      <View
-        style={[
-          styles.savedPlaceImageShell,
-          compact && styles.savedPlaceImageShellCompact,
-        ]}
-      >
+      <View style={[styles.savedPlaceImageShell, compact && styles.savedPlaceImageShellCompact]}>
         <Image
           source={place.image}
           resizeMode="cover"
-          style={[styles.savedPlaceImage, compact && styles.savedPlaceImageCompact]}
+          style={styles.savedPlaceImage}
         />
-        <View style={styles.savedPlaceHeartWrap}>
-          <IconButton
-            accessibilityLabel={isSaved ? `Remove ${place.title} from favorites` : `Save ${place.title}`}
-            iconName={isSaved ? "heart" : "heart-outline"}
-            color={isSaved ? COLORS.coral : COLORS.text}
-            size={compact ? 18 : 20}
-            onPress={onToggleSaved}
-          />
-        </View>
       </View>
 
-      <View style={[styles.savedPlaceCopy, compact && styles.savedPlaceCopyCompact]}>
-        <Text
-          numberOfLines={2}
-          style={[styles.savedPlaceTitle, compact && styles.savedPlaceTitleCompact]}
-        >
+      <View style={styles.savedPlaceCopy}>
+        <Text numberOfLines={2} style={[styles.savedPlaceTitle, compact && styles.savedPlaceTitleCompact]}>
           {place.title}
         </Text>
-        <Text style={[styles.savedPlaceMeta, compact && styles.savedPlaceMetaCompact]}>
+        <Text numberOfLines={1} style={[styles.savedPlaceMeta, compact && styles.savedPlaceMetaCompact]}>
           {place.meta} <Text style={styles.savedPlaceDivider}>•</Text> {place.distance}
         </Text>
+      </View>
+
+      <View style={styles.savedPlaceHeartCol}>
+        <IconButton
+          accessibilityLabel={isSaved ? `Remove ${place.title} from favorites` : `Save ${place.title}`}
+          iconName={isSaved ? "heart" : "heart-outline"}
+          color={isSaved ? COLORS.coral : COLORS.text}
+          size={compact ? 16 : 18}
+          onPress={onToggleSaved}
+        />
       </View>
     </CardButton>
   );
@@ -894,26 +862,27 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
   const useTightTabs = width < 520;
   // Keep hotel cards side-by-side like the mockup; stack only on very narrow widths.
   const shouldStackHotelCards = width < 340;
-  const shouldCompactFlightRows = width < 520;
+  // Use compact flight column sizing on phone widths to prevent overlap.
+  const shouldCompactFlightRows = width < 700;
   const shouldCompactItineraryCards = width < 640;
-  const pageMaxWidth = width >= 1100 ? 1040 : 980;
+  const pageMaxWidth = width >= 1100 ? 980 : 900;
   const pagePaddingHorizontal = isCompactPhone ? 14 : isPhone ? 16 : 18;
 
   // Favorites hero art is 842×356 — size near natural resolution (avoid soft upscaling).
   const heroAspectRatio = 842 / 356;
   const heroArtworkWidth = isCompactPhone
-    ? Math.min(Math.round(width * 0.46), 168)
+    ? Math.min(Math.round(width * 0.44), 156)
     : isPhone
-      ? Math.min(Math.round(width * 0.44), 196)
+      ? Math.min(Math.round(width * 0.42), 184)
       : width < 900
-        ? Math.min(Math.round(width * 0.36), 300)
-        : Math.min(Math.round(width * 0.32), 380);
-  const heroTitleSize = isCompactPhone ? 30 : isPhone ? 34 : width < 900 ? 42 : 48;
-  const heroSubtitleSize = isCompactPhone ? 13 : isPhone ? 14 : 17;
+        ? Math.min(Math.round(width * 0.34), 280)
+        : Math.min(Math.round(width * 0.30), 340);
+  const heroTitleSize = isCompactPhone ? 28 : isPhone ? 32 : width < 900 ? 38 : 42;
+  const heroSubtitleSize = isCompactPhone ? 12 : isPhone ? 13 : 15;
   const backButtonSize = isCompactPhone ? 40 : isPhone ? 44 : 48;
-  const headerIconSize = isPhone ? 24 : 28;
-  const profileIconSize = isPhone ? 30 : 33;
-  const heroHeartSize = isCompactPhone ? 22 : isPhone ? 26 : 32;
+  const headerIconSize = isPhone ? 22 : 26;
+  const profileIconSize = isPhone ? 28 : 32;
+  const heroHeartSize = isCompactPhone ? 20 : isPhone ? 24 : 28;
 
   const scrollRef = useRef(null);
   const sectionOffsetsRef = useRef({});
@@ -1040,6 +1009,7 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
     setItinerariesSheetVisible(false);
     onNavigate?.("itinerary", { planId: itinerary.planId });
   };
+
   const handleGoBack = () => {
     if (onGoBack) {
       onGoBack();
@@ -1152,7 +1122,7 @@ export default function FavoritesScreen({ onGoBack, onNavigateHome, onNavigate }
                     {
                       fontSize: heroSubtitleSize,
                       lineHeight: heroSubtitleSize + 8,
-                      marginTop: isPhone ? 6 : 12,
+                      marginTop: isPhone ? 4 : 8,
                     },
                   ]}
                 >
@@ -1410,17 +1380,18 @@ const styles = StyleSheet.create({
   },
 
   roundHeaderButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
     shadowColor: "#9DB2CF",
     shadowOpacity: 0.2,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 7,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+    flexShrink: 0,
   },
 
   headerActions: {
@@ -1430,27 +1401,27 @@ const styles = StyleSheet.create({
   },
 
   headerActionButton: {
-    width: 50,
-    height: 50,
-    marginLeft: 8,
+    width: 44,
+    height: 44,
+    marginLeft: 4,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
   },
 
   headerActionButtonPhone: {
-    width: 42,
-    height: 42,
-    marginLeft: 4,
+    width: 40,
+    height: 40,
+    marginLeft: 2,
   },
 
   notificationDot: {
     position: "absolute",
     top: 7,
     right: 7,
-    width: 11,
-    height: 11,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: "#FF7A32",
   },
 
@@ -1463,34 +1434,34 @@ const styles = StyleSheet.create({
   },
 
   heroSection: {
-    marginTop: 14,
-    marginBottom: 2,
+    marginTop: 10,
+    marginBottom: 0,
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 8,
     overflow: "visible",
   },
 
   heroSectionPhone: {
-    marginTop: 10,
-    gap: 6,
+    marginTop: 8,
+    gap: 4,
   },
 
   heroCopyColumn: {
     flex: 1,
     minWidth: 0,
-    maxWidth: 430,
-    paddingTop: 4,
+    maxWidth: 400,
+    paddingTop: 2,
     paddingRight: 4,
-    paddingBottom: 4,
+    paddingBottom: 2,
     zIndex: 2,
   },
 
   heroCopyColumnPhone: {
-    maxWidth: "56%",
+    maxWidth: "54%",
     paddingTop: 0,
-    paddingBottom: 2,
+    paddingBottom: 0,
   },
 
   heroTitleRow: {
@@ -1503,12 +1474,12 @@ const styles = StyleSheet.create({
   heroTitle: {
     flexShrink: 1,
     fontWeight: "800",
-    letterSpacing: -1.6,
+    letterSpacing: -1.4,
     color: COLORS.text,
   },
 
   heroSubtitle: {
-    maxWidth: 380,
+    maxWidth: 340,
     color: COLORS.subtext,
   },
 
@@ -1523,11 +1494,11 @@ const styles = StyleSheet.create({
 
   heroArtworkGlow: {
     position: "absolute",
-    right: 18,
-    bottom: 14,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    right: 14,
+    bottom: 10,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     backgroundColor: "rgba(111, 170, 255, 0.14)",
   },
 
@@ -1537,21 +1508,21 @@ const styles = StyleSheet.create({
   },
 
   tabsShell: {
-    marginTop: 14,
-    marginBottom: 18,
-    padding: 6,
-    borderRadius: 28,
+    marginTop: 12,
+    marginBottom: 8,
+    padding: 5,
+    borderRadius: 24,
     backgroundColor: COLORS.card,
   },
 
   tabsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 4,
   },
 
   tabsRowTight: {
-    gap: 4,
+    gap: 3,
   },
 
   tabButton: {
@@ -1560,11 +1531,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    borderRadius: 22,
-    minHeight: 48,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    gap: 6,
+    borderRadius: 18,
+    minHeight: 42,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
     backgroundColor: "#FFFFFF",
   },
 
@@ -1573,23 +1544,23 @@ const styles = StyleSheet.create({
   },
 
   tabButtonCompact: {
-    gap: 5,
-    paddingHorizontal: 6,
-    paddingVertical: 10,
-    minHeight: 44,
-    borderRadius: 20,
+    gap: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+    minHeight: 40,
+    borderRadius: 16,
   },
 
   tabButtonTight: {
-    gap: 3,
-    borderRadius: 18,
-    minHeight: 42,
-    paddingHorizontal: 3,
-    paddingVertical: 9,
+    gap: 2,
+    borderRadius: 14,
+    minHeight: 38,
+    paddingHorizontal: 2,
+    paddingVertical: 8,
   },
 
   tabLabel: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
     color: COLORS.text,
     flexShrink: 1,
@@ -1601,26 +1572,26 @@ const styles = StyleSheet.create({
   },
 
   tabLabelCompact: {
-    fontSize: 13,
+    fontSize: 12,
   },
 
   tabLabelTight: {
-    fontSize: 10.5,
-    lineHeight: 13,
-    letterSpacing: -0.1,
+    fontSize: 10,
+    lineHeight: 12,
+    letterSpacing: -0.15,
   },
 
   sectionHeaderRow: {
-    marginTop: 8,
-    marginBottom: 12,
+    marginTop: 18,
+    marginBottom: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
 
   sectionHeaderRowCompact: {
-    marginTop: 6,
-    marginBottom: 10,
+    marginTop: 16,
+    marginBottom: 6,
   },
 
   sectionHeaderCopy: {
@@ -1632,19 +1603,19 @@ const styles = StyleSheet.create({
   },
 
   sectionHeaderIconWrap: {
-    width: 26,
+    width: 24,
     alignItems: "center",
   },
 
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "800",
     color: "#14253E",
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
   },
 
   sectionTitleCompact: {
-    fontSize: 16,
+    fontSize: 15,
   },
 
   sectionLinkButton: {
@@ -1655,42 +1626,42 @@ const styles = StyleSheet.create({
   },
 
   sectionLinkText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
     color: COLORS.blue,
   },
 
   sectionLinkTextCompact: {
-    fontSize: 14,
+    fontSize: 13,
   },
 
   sectionStack: {
-    gap: 14,
+    gap: 12,
   },
 
   sectionStackPhone: {
-    gap: 12,
+    gap: 10,
   },
 
   itinerariesStatusBlock: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    paddingVertical: 22,
-    paddingHorizontal: 18,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     alignItems: "center",
-    gap: 10,
+    gap: 6,
   },
 
   itinerariesStatusText: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 13,
+    lineHeight: 18,
     color: COLORS.subtext,
     textAlign: "center",
     fontWeight: "500",
   },
 
   itinerariesRetryText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "700",
     color: COLORS.blue,
   },
@@ -1770,15 +1741,21 @@ const styles = StyleSheet.create({
   },
 
   iconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E6EEF9",
     flexShrink: 0,
+  },
+
+  iconButtonCompact: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
   },
 
   iconButtonFilled: {
@@ -1791,18 +1768,19 @@ const styles = StyleSheet.create({
 
   hotelCard: {
     flexDirection: "row",
-    gap: 14,
-    padding: 14,
-    borderRadius: 24,
+    alignItems: "stretch",
+    gap: 12,
+    padding: 10,
+    borderRadius: 18,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: "#E3ECFA",
   },
 
   hotelCardCompact: {
-    gap: 12,
-    padding: 12,
-    borderRadius: 20,
+    gap: 10,
+    padding: 8,
+    borderRadius: 16,
   },
 
   hotelCardStacked: {
@@ -1810,61 +1788,66 @@ const styles = StyleSheet.create({
   },
 
   hotelImageWrap: {
-    width: 148,
-    minWidth: 148,
-    height: 148,
-    borderRadius: 18,
+    width: "34%",
+    minWidth: 118,
+    maxWidth: 148,
+    alignSelf: "stretch",
+    borderRadius: 14,
     overflow: "hidden",
     position: "relative",
     flexShrink: 0,
+    backgroundColor: "#E8EEF6",
   },
 
   hotelImageWrapCompact: {
-    width: 112,
+    width: "34%",
     minWidth: 112,
-    height: 112,
-    borderRadius: 14,
+    maxWidth: 132,
+    borderRadius: 12,
   },
 
   hotelImageWrapStacked: {
     width: "100%",
     minWidth: 0,
-    height: 180,
+    maxWidth: "100%",
+    height: 160,
+    alignSelf: "auto",
   },
 
   hotelImage: {
+    ...StyleSheet.absoluteFillObject,
     width: "100%",
     height: "100%",
   },
 
   hotelBadge: {
     position: "absolute",
-    top: 10,
-    left: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 14,
-  },
-
-  hotelBadgeCompact: {
     top: 8,
     left: 8,
+    flexDirection: "row",
+    alignItems: "center",
     gap: 3,
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 12,
   },
 
+  hotelBadgeCompact: {
+    top: 6,
+    left: 6,
+    gap: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+
   hotelBadgeText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "800",
   },
 
   hotelBadgeTextCompact: {
-    fontSize: 11,
+    fontSize: 10,
   },
 
   hotelContent: {
@@ -1876,7 +1859,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 8,
+    gap: 6,
   },
 
   cardHeadlineCopy: {
@@ -1885,83 +1868,83 @@ const styles = StyleSheet.create({
   },
 
   hotelName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "800",
     color: COLORS.text,
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
   },
 
   hotelNameCompact: {
-    fontSize: 16,
+    fontSize: 15,
   },
 
   metaRow: {
-    marginTop: 6,
+    marginTop: 4,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-  },
-
-  metaRowCompact: {
-    marginTop: 4,
     gap: 4,
   },
 
+  metaRowCompact: {
+    marginTop: 3,
+    gap: 3,
+  },
+
   metaText: {
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.subtext,
     flexShrink: 1,
   },
 
   metaTextCompact: {
-    fontSize: 13,
+    fontSize: 12,
   },
 
   hotelStatsRow: {
-    marginTop: 10,
+    marginTop: 8,
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 6,
   },
 
   hotelStatsRowCompact: {
-    marginTop: 8,
-    gap: 6,
+    marginTop: 6,
+    gap: 4,
   },
 
   ratingWrap: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 3,
   },
 
   ratingText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "800",
     color: COLORS.blue,
   },
 
   ratingTextCompact: {
-    fontSize: 13,
+    fontSize: 12,
   },
 
   reviewText: {
-    fontSize: 14,
+    fontSize: 12,
     color: COLORS.subtext,
   },
 
   reviewTextCompact: {
-    fontSize: 12,
+    fontSize: 11,
   },
 
   metaDivider: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#94A3B8",
   },
 
   metaDividerCompact: {
-    fontSize: 12,
+    fontSize: 11,
   },
 
   priceWrap: {
@@ -1972,101 +1955,101 @@ const styles = StyleSheet.create({
   },
 
   priceText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
     color: COLORS.blue,
   },
 
   priceTextCompact: {
-    fontSize: 15,
+    fontSize: 14,
   },
 
   priceSuffix: {
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.text,
   },
 
   priceSuffixCompact: {
-    fontSize: 13,
+    fontSize: 12,
   },
 
   amenitiesRow: {
-    marginTop: 12,
+    marginTop: 8,
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
+    gap: 10,
   },
 
   amenitiesRowCompact: {
-    marginTop: 8,
-    gap: 8,
+    marginTop: 6,
+    gap: 6,
   },
 
   amenityPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-  },
-
-  amenityPillCompact: {
     gap: 4,
   },
 
+  amenityPillCompact: {
+    gap: 3,
+  },
+
   amenityText: {
-    fontSize: 14,
+    fontSize: 12,
     color: COLORS.text,
   },
 
   amenityTextCompact: {
-    fontSize: 12,
+    fontSize: 11,
   },
 
   noteBox: {
-    marginTop: 12,
-    minHeight: 56,
-    borderRadius: 14,
+    marginTop: 10,
+    minHeight: 44,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#D9E7FB",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-
-  noteBoxCompact: {
-    marginTop: 10,
-    minHeight: 48,
-    borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
 
+  noteBoxCompact: {
+    marginTop: 8,
+    minHeight: 40,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 6,
+  },
+
   noteRobotImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     flexShrink: 0,
   },
 
   noteRobotImageCompact: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
   },
 
   noteText: {
     flex: 1,
     minWidth: 0,
-    fontSize: 13,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 17,
     color: COLORS.text,
   },
 
   noteTextCompact: {
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 11,
+    lineHeight: 15,
   },
 
   noteLabel: {
@@ -2074,58 +2057,56 @@ const styles = StyleSheet.create({
   },
 
   flightRowCard: {
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 14,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: "#E3ECFA",
   },
 
+  flightRowCardCompact: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+
   flightRowMain: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-
-  flightCompactTopRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-
-  flightAirlineBlock: {
-    width: 140,
-    flexShrink: 0,
-  },
-
-  flightAirlineBlockCompact: {
-    flex: 1,
+    gap: 4,
     minWidth: 0,
-    paddingRight: 6,
   },
 
-  flightCompactTopActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexShrink: 0,
+  flightAirlineCol: {
+    flexGrow: 0,
+    flexShrink: 1,
+    flexBasis: "20%",
+    minWidth: 0,
+    maxWidth: 86,
+  },
+
+  flightAirlineColCompact: {
+    flexBasis: "19%",
+    maxWidth: 72,
   },
 
   airlineLogoRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-start",
-    gap: 6,
+    gap: 3,
     minWidth: 0,
   },
 
   airlineLogoText: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "900",
-    letterSpacing: -0.6,
+    letterSpacing: -0.4,
+  },
+
+  airlineLogoTextCompact: {
+    fontSize: 12,
   },
 
   anaLogoText: {
@@ -2133,34 +2114,55 @@ const styles = StyleSheet.create({
   },
 
   anaStripe: {
-    width: 22,
-    height: 5,
-    borderRadius: 3,
+    width: 14,
+    height: 3,
+    borderRadius: 2,
     backgroundColor: "#2557D6",
     transform: [{ skewX: "-24deg" }],
   },
 
+  anaStripeCompact: {
+    width: 11,
+    height: 3,
+  },
+
   jalMark: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FEE2E2",
   },
 
+  jalMarkCompact: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+  },
+
   jalMarkText: {
-    fontSize: 10,
+    fontSize: 7,
     fontWeight: "800",
     color: "#D53032",
   },
 
+  jalMarkTextCompact: {
+    fontSize: 6,
+  },
+
   koreanMark: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     overflow: "hidden",
     backgroundColor: "#E8EEF9",
+  },
+
+  koreanMarkCompact: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
   },
 
   koreanMarkTop: {
@@ -2173,91 +2175,108 @@ const styles = StyleSheet.create({
     backgroundColor: "#2452D4",
   },
 
-  airlineSecondaryText: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: COLORS.text,
-    letterSpacing: -0.2,
-    flexShrink: 1,
-  },
-
   flightAirlineName: {
-    marginTop: 6,
-    fontSize: 12,
+    marginTop: 2,
+    fontSize: 9,
+    lineHeight: 11,
     color: COLORS.subtext,
   },
 
-  flightScheduleBlock: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
+  flightAirlineNameCompact: {
+    fontSize: 8,
+    lineHeight: 10,
   },
 
-  flightScheduleBlockCompact: {
-    marginTop: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-
-  flightTimeColumn: {
-    minWidth: 62,
-    alignItems: "flex-start",
+  flightDepCol: {
+    flexGrow: 0,
     flexShrink: 0,
+    flexBasis: "16%",
+    minWidth: 52,
+    maxWidth: 68,
+  },
+
+  flightArrCol: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: "16%",
+    minWidth: 56,
+    maxWidth: 72,
+    alignItems: "flex-end",
+  },
+
+  flightTimeColCompact: {
+    flexBasis: "15%",
+    minWidth: 48,
+    maxWidth: 60,
   },
 
   flightTimeText: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: "800",
     color: COLORS.text,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
+  },
+
+  flightTimeTextCompact: {
+    fontSize: 11,
   },
 
   arrivalTimeRow: {
     flexDirection: "row",
     alignItems: "baseline",
-    gap: 4,
+    gap: 2,
+    flexShrink: 1,
+    minWidth: 0,
   },
 
   flightOffsetText: {
-    fontSize: 13,
+    fontSize: 9,
     fontWeight: "700",
     color: "#EF4444",
   },
 
+  flightOffsetTextCompact: {
+    fontSize: 8,
+  },
+
   flightCodeText: {
-    marginTop: 4,
-    fontSize: 13,
+    marginTop: 1,
+    fontSize: 10,
     color: COLORS.subtext,
   },
 
-  flightRouteBlock: {
-    flex: 1,
-    alignItems: "center",
-    gap: 6,
-    minWidth: 88,
+  flightCodeTextCompact: {
+    fontSize: 9,
   },
 
-  flightRouteBlockCompact: {
-    flex: 1,
+  flightRouteCol: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: "23%",
     minWidth: 0,
     alignItems: "center",
-    gap: 6,
+    gap: 2,
+    paddingHorizontal: 2,
+  },
+
+  flightRouteColCompact: {
+    flexBasis: "22%",
+    gap: 1,
   },
 
   flightDurationText: {
-    fontSize: 13,
+    fontSize: 9,
     fontWeight: "700",
     color: COLORS.subtext,
   },
 
+  flightDurationTextCompact: {
+    fontSize: 8,
+  },
+
   routeTrackRow: {
     width: "100%",
-    maxWidth: 130,
+    maxWidth: 78,
     flexDirection: "row",
     alignItems: "center",
   },
@@ -2269,151 +2288,171 @@ const styles = StyleSheet.create({
   },
 
   routeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 5,
+    height: 5,
+    borderRadius: 3,
     borderWidth: 1.5,
     borderColor: "#93ADD3",
     backgroundColor: "#FFFFFF",
   },
 
   routeMidDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: "#93ADD3",
   },
 
   flightStopText: {
-    fontSize: 12,
+    fontSize: 9,
     fontWeight: "700",
   },
 
-  flightPriceBlock: {
-    width: 78,
-    alignItems: "flex-end",
+  flightStopTextCompact: {
+    fontSize: 8,
+  },
+
+  flightPriceCol: {
+    flexGrow: 0,
     flexShrink: 0,
-  },
-
-  flightPriceBlockCompact: {
-    width: 68,
-  },
-
-  flightTimeColumnArrival: {
+    flexBasis: "13%",
+    minWidth: 48,
+    maxWidth: 58,
     alignItems: "flex-end",
+  },
+
+  flightPriceColCompact: {
+    flexBasis: "12%",
+    minWidth: 44,
+    maxWidth: 52,
   },
 
   flightPriceText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "800",
     color: COLORS.blue,
   },
 
-  flightPriceMeta: {
-    marginTop: 2,
+  flightPriceTextCompact: {
     fontSize: 12,
+  },
+
+  flightPriceMeta: {
+    marginTop: 0,
+    fontSize: 8,
     color: COLORS.subtext,
   },
 
+  flightPriceMetaCompact: {
+    fontSize: 7,
+  },
+
+  flightHeartCol: {
+    width: 30,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   itineraryCard: {
-    padding: 14,
-    borderRadius: 22,
+    padding: 12,
+    borderRadius: 18,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: "#E3ECFA",
   },
 
   itineraryCardCompact: {
-    padding: 12,
-    paddingBottom: 14,
-    borderRadius: 18,
+    padding: 10,
+    paddingBottom: 12,
+    borderRadius: 16,
   },
 
   itineraryTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
 
   itineraryCompactTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
+    gap: 8,
   },
 
   itineraryMediaGroup: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flexShrink: 0,
-  },
-
-  itineraryMediaGroupCompact: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     flexShrink: 0,
   },
 
-  itineraryImage: {
-    width: 132,
-    height: 88,
-    borderRadius: 14,
+  itineraryMediaGroupCompact: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
   },
 
-  itineraryImageCompact: {
-    width: 88,
-    height: 72,
+  itineraryImage: {
+    width: 112,
+    height: 76,
     borderRadius: 12,
   },
 
+  itineraryImageCompact: {
+    width: 78,
+    height: 64,
+    borderRadius: 10,
+  },
+
   itineraryDateBlock: {
-    width: 64,
-    minHeight: 88,
+    width: 56,
+    minHeight: 76,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
     backgroundColor: "#F7FAFF",
   },
 
   itineraryDateBlockCompact: {
-    width: 54,
-    minHeight: 72,
-    borderRadius: 12,
-    paddingVertical: 8,
+    width: 48,
+    minHeight: 64,
+    borderRadius: 10,
+    paddingVertical: 6,
   },
 
   itineraryMonthText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     color: COLORS.blue,
   },
 
   itineraryMonthTextCompact: {
-    fontSize: 10,
+    fontSize: 9,
   },
 
   itineraryDayText: {
-    fontSize: 26,
-    lineHeight: 28,
+    fontSize: 22,
+    lineHeight: 24,
     fontWeight: "800",
     color: COLORS.text,
-    letterSpacing: -1,
+    letterSpacing: -0.8,
   },
 
   itineraryDayTextCompact: {
-    fontSize: 22,
-    lineHeight: 24,
+    fontSize: 18,
+    lineHeight: 20,
   },
 
   itineraryYearText: {
-    fontSize: 11,
+    fontSize: 10,
     color: COLORS.subtext,
   },
 
   itineraryYearTextCompact: {
-    fontSize: 10,
+    fontSize: 9,
   },
 
   itineraryBody: {
@@ -2429,7 +2468,7 @@ const styles = StyleSheet.create({
   itineraryTitleRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 6,
+    gap: 4,
     minWidth: 0,
   },
 
@@ -2437,28 +2476,28 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     flexShrink: 1,
-    fontSize: 17,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 20,
     fontWeight: "800",
     color: COLORS.text,
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
   },
 
   itineraryTitleCompact: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 18,
   },
 
   itineraryMeta: {
-    marginTop: 6,
-    fontSize: 14,
-    lineHeight: 20,
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 18,
     color: COLORS.subtext,
   },
 
   itineraryMetaCompact: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
   },
 
   itineraryMetaDivider: {
@@ -2466,132 +2505,124 @@ const styles = StyleSheet.create({
   },
 
   itineraryTagsRow: {
-    marginTop: 12,
+    marginTop: 10,
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 6,
   },
 
   itineraryTagsRowCompact: {
-    marginTop: 10,
-    gap: 6,
+    marginTop: 8,
+    gap: 5,
   },
 
   tagChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 10,
     backgroundColor: "#F1F6FF",
   },
 
   tagChipText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
     color: COLORS.text,
   },
 
   itineraryActions: {
-    width: 36,
+    width: 34,
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     flexShrink: 0,
   },
 
   savedPlacesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 14,
+    flexDirection: "column",
+    gap: 10,
   },
 
   savedPlacesGridPhone: {
-    gap: 12,
+    gap: 8,
   },
 
   savedPlaceCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
     padding: 10,
-    borderRadius: 20,
+    borderRadius: 16,
     backgroundColor: COLORS.card,
     borderWidth: 1,
     borderColor: "#E3ECFA",
-  },
-
-  savedPlaceCardWide: {
-    flexBasis: "48.5%",
-    flexGrow: 1,
-    minWidth: 0,
+    width: "100%",
   },
 
   savedPlaceCardCompact: {
-    width: "100%",
+    gap: 8,
+    padding: 8,
+    borderRadius: 14,
   },
 
   savedPlaceImageShell: {
-    position: "relative",
-    borderRadius: 14,
+    width: 72,
+    height: 56,
+    borderRadius: 10,
     overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
+    flexShrink: 0,
     backgroundColor: "#F4F7FD",
-    aspectRatio: 16 / 9,
-    width: "100%",
+    position: "relative",
   },
 
   savedPlaceImageShellCompact: {
-    borderRadius: 12,
-    aspectRatio: 16 / 10,
+    width: 64,
+    height: 52,
+    borderRadius: 8,
   },
 
   savedPlaceImage: {
+    ...StyleSheet.absoluteFillObject,
     width: "100%",
     height: "100%",
-    borderRadius: 14,
-  },
-
-  savedPlaceImageCompact: {
-    borderRadius: 12,
-  },
-
-  savedPlaceHeartWrap: {
-    position: "absolute",
-    top: 10,
-    right: 10,
   },
 
   savedPlaceCopy: {
-    paddingTop: 12,
-    paddingHorizontal: 4,
-    paddingBottom: 2,
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 4,
   },
 
-  savedPlaceCopyCompact: {
-    paddingTop: 10,
+  savedPlaceHeartCol: {
+    width: 32,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   savedPlaceTitle: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: "800",
     color: COLORS.text,
   },
 
   savedPlaceTitleCompact: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 17,
   },
 
   savedPlaceMeta: {
-    marginTop: 6,
-    fontSize: 13,
-    lineHeight: 18,
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 16,
     color: COLORS.subtext,
   },
 
   savedPlaceMetaCompact: {
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 11,
+    lineHeight: 15,
   },
 
   savedPlaceDivider: {
