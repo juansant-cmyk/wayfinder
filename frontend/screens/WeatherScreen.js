@@ -19,7 +19,6 @@ import { mapWeatherForScreen } from "../src/api/mappers";
 import { getToken } from "../src/auth/tokenStorage";
 import { reverseGeocodeLabel, suggestGeocodeQuery } from "../src/location/geo";
 import { useUserLocation } from "../src/location/UserLocationContext";
-import { WayfinderBrand } from "./AuthShared";
 import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
 
@@ -54,13 +53,13 @@ const EMPTY_WEATHER = {
 };
 
 const HERO_SKYLINE_BUILDINGS = [
-  { left: "34%", width: 32, height: 54 },
-  { left: "42%", width: 18, height: 102 },
-  { left: "50%", width: 36, height: 72 },
-  { left: "60%", width: 24, height: 92 },
-  { left: "69%", width: 50, height: 118 },
-  { left: "82%", width: 26, height: 66 },
-  { left: "89%", width: 18, height: 86 },
+  { left: "34%", width: 22, height: 38 },
+  { left: "42%", width: 14, height: 72 },
+  { left: "50%", width: 26, height: 50 },
+  { left: "60%", width: 18, height: 64 },
+  { left: "69%", width: 36, height: 82 },
+  { left: "82%", width: 18, height: 46 },
+  { left: "89%", width: 14, height: 60 },
 ];
 
 const surfaceShadowStyle = Platform.select({
@@ -120,10 +119,10 @@ function getConditionIcon(condition) {
   return { family: "ion", name: "partly-sunny", color: "#FDB515" };
 }
 
-function HeaderActionButton({ iconName, onPress, showDot = false }) {
+function HeaderActionButton({ iconName, onPress, showDot = false, iconSize = 22 }) {
   return (
     <DimPressable accessibilityRole="button" onPress={onPress} style={styles.headerActionButton}>
-      <Ionicons name={iconName} size={30} color="#111827" />
+      <Ionicons name={iconName} size={iconSize} color="#111827" />
       {showDot ? <View style={styles.notificationDot} /> : null}
     </DimPressable>
   );
@@ -156,7 +155,7 @@ function HeroSkylineBackdrop() {
 function WeatherMetric({ item, compact }) {
   return (
     <View style={[styles.metricItem, compact && styles.metricItemCompact]}>
-      <View style={styles.metricIconWrap}>{renderIcon(item.iconFamily, item.iconName, 19, "#EAF3FF")}</View>
+      <View style={styles.metricIconWrap}>{renderIcon(item.iconFamily, item.iconName, 15, "#EAF3FF")}</View>
       <View style={[styles.metricTextWrap, compact && styles.metricTextWrapCompact]}>
         <Text
           numberOfLines={1}
@@ -179,26 +178,30 @@ function WeatherMetric({ item, compact }) {
   );
 }
 
-function HourlyForecastItem({ item, active, onPress }) {
+function HourlyForecastItem({ item, active, onPress, itemWidth }) {
   const icon = getConditionIcon(item.condition);
 
   return (
     <DimPressable
       accessibilityRole="button"
       onPress={onPress}
-      style={[styles.hourlyItem, active && styles.hourlyItemActive]}
+      style={[
+        styles.hourlyItem,
+        itemWidth ? { width: itemWidth } : null,
+        active && styles.hourlyItemActive,
+      ]}
     >
       <Text style={[styles.hourlyLabel, active && styles.hourlyLabelActive]}>{item.label}</Text>
       <View style={styles.hourlyIconWrap}>
         {item.iconUrl ? (
-          <Image source={{ uri: item.iconUrl }} style={{ width: 34, height: 34 }} resizeMode="contain" />
+          <Image source={{ uri: item.iconUrl }} style={{ width: 26, height: 26 }} resizeMode="contain" />
         ) : (
-          renderIcon(icon.family, icon.name, 34, icon.color)
+          renderIcon(icon.family, icon.name, 26, icon.color)
         )}
       </View>
       <Text style={styles.hourlyTemperature}>{item.temperature}</Text>
       <View style={styles.hourlyWindRow}>
-        <MaterialCommunityIcons name="weather-windy" size={14} color="#7E8AA4" />
+        <MaterialCommunityIcons name="weather-windy" size={12} color="#7E8AA4" />
         <Text style={styles.hourlyWindText}>{item.wind}</Text>
       </View>
     </DimPressable>
@@ -207,36 +210,59 @@ function HourlyForecastItem({ item, active, onPress }) {
 
 function DailyForecastRow({ item, expanded, onPress, compact }) {
   const icon = getConditionIcon(item.condition);
+  const iconSize = compact ? 18 : 20;
 
   return (
-    <DimPressable accessibilityRole="button" onPress={onPress} style={styles.dailyRow}>
-      <View style={[styles.dailyRowMain, compact && styles.dailyRowMainCompact]}>
-        <Text style={[styles.dailyDayText, compact && styles.dailyDayTextCompact]}>{item.day}</Text>
+    <DimPressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={[styles.dailyRow, compact && styles.dailyRowCompact]}
+    >
+      <View style={styles.dailyRowMain}>
+        <Text
+          style={[styles.dailyDayText, compact && styles.dailyDayTextCompact]}
+          numberOfLines={1}
+        >
+          {item.day}
+        </Text>
 
         <View style={[styles.dailyConditionWrap, compact && styles.dailyConditionWrapCompact]}>
           {item.iconUrl ? (
-            <Image source={{ uri: item.iconUrl }} style={{ width: 26, height: 26 }} resizeMode="contain" />
+            <Image
+              source={{ uri: item.iconUrl }}
+              style={{ width: iconSize, height: iconSize }}
+              resizeMode="contain"
+            />
           ) : (
-            renderIcon(icon.family, icon.name, 26, icon.color)
+            renderIcon(icon.family, icon.name, iconSize, icon.color)
           )}
-          <Text style={styles.dailyConditionText}>{item.condition}</Text>
+          <Text
+            style={[styles.dailyConditionText, compact && styles.dailyConditionTextCompact]}
+            numberOfLines={1}
+          >
+            {item.condition}
+          </Text>
         </View>
 
-        <View style={styles.dailyMetaWrap}>
-          <Text style={styles.dailyTemperatureText}>
+        <View style={[styles.dailyMetaWrap, compact && styles.dailyMetaWrapCompact]}>
+          <Text style={[styles.dailyTemperatureText, compact && styles.dailyTemperatureTextCompact]}>
             <Text style={styles.dailyLowTemp}>{item.low}</Text>
             <Text style={styles.dailyTemperatureSlash}> / </Text>
             <Text style={styles.dailyHighTemp}>{item.high}</Text>
           </Text>
 
-          <View style={styles.dailyPrecipitationWrap}>
-            <Ionicons name="water-outline" size={15} color="#1F78FF" />
-            <Text style={styles.dailyPrecipitationText}>{item.precipitation}</Text>
+          <View style={[styles.dailyPrecipitationWrap, compact && styles.dailyPrecipitationWrapCompact]}>
+            <Ionicons name="water-outline" size={compact ? 12 : 13} color="#1F78FF" />
+            <Text
+              style={[styles.dailyPrecipitationText, compact && styles.dailyPrecipitationTextCompact]}
+            >
+              {item.precipitation}
+            </Text>
           </View>
 
           <Ionicons
             name={expanded ? "chevron-up" : "chevron-down"}
-            size={18}
+            size={compact ? 14 : 16}
             color="#5D6B86"
             style={styles.dailyChevron}
           />
@@ -258,7 +284,7 @@ function WeatherAlertCard({ item, expanded, onPress, compact }) {
     >
       <View style={[styles.alertCardMain, compact && styles.alertCardMainCompact]}>
         <View style={[styles.alertIconBubble, { backgroundColor: item.colors.iconBackground }]}>
-          {renderIcon(item.iconFamily, item.iconName, 28, item.colors.iconColor)}
+          {renderIcon(item.iconFamily, item.iconName, 22, item.colors.iconColor)}
         </View>
 
         <View style={styles.alertBody}>
@@ -273,7 +299,7 @@ function WeatherAlertCard({ item, expanded, onPress, compact }) {
             </View>
           </View>
 
-          <Text style={styles.alertDescription} numberOfLines={expanded ? 8 : 3}>
+          <Text style={styles.alertDescription} numberOfLines={expanded ? 8 : 2}>
             {item.description}
           </Text>
 
@@ -313,7 +339,7 @@ function WeatherSummaryItem({ item, compact, showDivider }) {
     >
       <View style={[styles.summaryContent, compact && styles.summaryContentCompact]}>
         <View style={[styles.summaryIconBubble, compact && styles.summaryIconBubbleCompact]}>
-          {renderIcon(item.iconFamily, item.iconName, compact ? 22 : 24, "#3E88FF")}
+          {renderIcon(item.iconFamily, item.iconName, compact ? 18 : 20, "#3E88FF")}
         </View>
         <View style={[styles.summaryTextWrap, compact && styles.summaryTextWrapCompact]}>
           <Text
@@ -359,18 +385,45 @@ export default function WeatherScreen({ onNavigate, onBack }) {
   const [error, setError] = useState("");
 
   const filterActive = searchText.trim().length > 0;
-  const isPhone = width < 430;
-  const isHeroStacked = width < 760;
-  const stackLocationControls = width < 700;
-  const stackCurrentWeather = width < 860;
-  const compactForecastRows = width < 650;
-  const compactAlerts = width < 760;
-  const compactSummary = width < 620;
+  const isPhone = width < 520;
+  const isCompactPhone = width < 400;
+  // Keep title + robot side-by-side to match the reference; only stack on very narrow screens.
+  const isHeroStacked = width < 340;
+  // Reference keeps destination + Current location on one row on phone-width layouts.
+  const stackLocationControls = width < 360;
+  const stackCurrentWeather = width < 780;
+  // Keep daily rows on one line with compact sizing on phone widths.
+  const compactForecastRows = width < 520;
+  const compactAlerts = width < 700;
+  const compactSummary = width < 560;
   const bottomPadding = getBottomNavContentPadding(insets);
-  const pageWidth = Math.min(Math.max(width - 36, 280), 1040);
+  const pageMaxWidth = width >= 1100 ? 780 : width >= 900 ? 740 : 700;
+  const pageWidth = Math.min(Math.max(width - (isCompactPhone ? 20 : isPhone ? 24 : 28), 280), pageMaxWidth);
+  const pagePaddingHorizontal = isCompactPhone ? 10 : isPhone ? 12 : 14;
   const showBackButton = width < 760 && typeof onBack === "function";
-  const heroArtworkWidth = isHeroStacked ? Math.min(pageWidth, 340) : Math.min(pageWidth * 0.49, 408);
-  const heroArtworkHeight = isHeroStacked ? 188 : 220;
+  // Hero art is 360×220 — size near natural resolution (avoid soft upscaling / cropping).
+  const heroAspectRatio = 360 / 220;
+  const heroArtworkWidth = isHeroStacked
+    ? Math.min(pageWidth * 0.78, 220)
+    : isCompactPhone
+      ? Math.min(pageWidth * 0.42, 150)
+      : isPhone
+        ? Math.min(pageWidth * 0.4, 168)
+        : width < 900
+          ? Math.min(pageWidth * 0.38, 240)
+          : Math.min(pageWidth * 0.36, 268);
+  const heroArtworkHeight = Math.round(heroArtworkWidth / heroAspectRatio);
+  const heroTitleSize = isCompactPhone ? 32 : isPhone ? 36 : width < 900 ? 42 : 46;
+  const heroSubtitleSize = isCompactPhone ? 12 : isPhone ? 13 : 14;
+  const headerIconSize = isPhone ? 20 : 22;
+  const profileIconSize = isPhone ? 26 : 28;
+  const weatherIconSize = isCompactPhone ? 64 : isPhone ? 72 : 80;
+  const temperatureSize = isCompactPhone ? 56 : isPhone ? 64 : 72;
+  const hourlyFitCount = Math.min(Math.max(weather.hourly.length, 1), 8);
+  const hourlyItemWidth = Math.max(
+    70,
+    Math.min(86, Math.floor((pageWidth - 32 - (hourlyFitCount - 1) * 6) / hourlyFitCount))
+  );
   const currentWeather = weather.current;
   const hourlyForecast = weather.hourly;
   const dailyForecast = weather.daily;
@@ -572,88 +625,95 @@ export default function WeatherScreen({ onNavigate, onBack }) {
       <View style={styles.screen}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding }]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingBottom: bottomPadding,
+              paddingHorizontal: pagePaddingHorizontal,
+              paddingTop: isPhone ? 8 : 10,
+            },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.pageGlowTop} />
           <View style={styles.pageGlowBottom} />
 
-          <View style={[styles.pageInner, { width: pageWidth }]}>
+          <View style={[styles.pageInner, { width: pageWidth, maxWidth: pageMaxWidth }]}>
             <View style={styles.headerRow}>
               {showBackButton ? (
-                <>
-                  <DimPressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Go back"
-                    onPress={onBack}
-                    style={styles.headerBackButton}
-                  >
-                    <Ionicons name="arrow-back" size={28} color="#14253E" />
-                  </DimPressable>
+                <DimPressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Go back"
+                  onPress={onBack}
+                  style={styles.headerBackButton}
+                >
+                  <Ionicons name="arrow-back" size={isPhone ? 18 : 20} color="#14253E" />
+                </DimPressable>
+              ) : null}
 
-                  <View style={styles.brandSlot}>
-                    <WayfinderBrand
-                      containerStyle={styles.headerBrandRow}
-                      textStyle={styles.headerBrandText}
-                    />
-                  </View>
-
-                  <View style={styles.headerActions}>
-                    <HeaderActionButton
-                      iconName="notifications-outline"
-                      onPress={() => onNavigate?.("notifications")}
-                      showDot
-                    />
-                    <HeaderActionButton
-                      iconName="person-circle-outline"
-                      onPress={() => onNavigate?.("profile")}
-                    />
-                  </View>
-                </>
-              ) : (
-                <>
-                  <WayfinderBrand
-                    containerStyle={styles.headerBrandRow}
-                    textStyle={styles.headerBrandText}
-                  />
-
-                  <View style={styles.headerActions}>
-                    <HeaderActionButton
-                      iconName="notifications-outline"
-                      onPress={() => onNavigate?.("notifications")}
-                      showDot
-                    />
-                    <HeaderActionButton
-                      iconName="person-circle-outline"
-                      onPress={() => onNavigate?.("profile")}
-                    />
-                  </View>
-                </>
-              )}
+              <View style={styles.headerActions}>
+                <HeaderActionButton
+                  iconName="notifications-outline"
+                  onPress={() => onNavigate?.("notifications")}
+                  showDot
+                  iconSize={headerIconSize}
+                />
+                <HeaderActionButton
+                  iconName="person-circle-outline"
+                  onPress={() => onNavigate?.("profile")}
+                  iconSize={profileIconSize}
+                />
+              </View>
             </View>
 
             <View
               style={[
                 styles.heroSection,
                 isHeroStacked && styles.heroSectionStacked,
-                !isHeroStacked && styles.heroSectionWide,
+                isPhone && styles.heroSectionPhone,
               ]}
             >
               <HeroSkylineBackdrop />
 
-              <View style={[styles.heroTextBlock, isHeroStacked && styles.heroTextBlockStacked]}>
+              <View
+                style={[
+                  styles.heroTextBlock,
+                  isHeroStacked && styles.heroTextBlockStacked,
+                  isPhone && styles.heroTextBlockPhone,
+                ]}
+              >
                 <View style={styles.heroTitleRow}>
-                  <Text style={[styles.heroTitle, isPhone && styles.heroTitlePhone]}>Weather</Text>
+                  <Text
+                    style={[
+                      styles.heroTitle,
+                      {
+                        fontSize: heroTitleSize,
+                        lineHeight: heroTitleSize + 4,
+                      },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    Weather
+                  </Text>
                   <Ionicons
                     name="partly-sunny"
-                    size={isPhone ? 46 : 56}
+                    size={isCompactPhone ? 26 : isPhone ? 30 : 34}
                     color="#2F86FF"
                     style={styles.heroTitleIcon}
                   />
                 </View>
 
-                <Text style={[styles.heroSubtitle, isPhone && styles.heroSubtitlePhone]}>
+                <Text
+                  style={[
+                    styles.heroSubtitle,
+                    {
+                      fontSize: heroSubtitleSize,
+                      lineHeight: heroSubtitleSize + 6,
+                      marginTop: isPhone ? 4 : 6,
+                    },
+                  ]}
+                >
                   Accurate forecasts to help you plan your perfect trip.
                 </Text>
               </View>
@@ -671,14 +731,14 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                 <Image
                   source={heroRobotImage}
                   style={styles.heroArtwork}
-                  resizeMode={isHeroStacked ? "contain" : "cover"}
+                  resizeMode="contain"
                 />
               </View>
             </View>
 
             <View style={[styles.controlsCard, surfaceShadowStyle]}>
               <View style={[styles.searchRow, filterActive && styles.searchRowActive]}>
-                <Ionicons name="search-outline" size={28} color="#7888A3" />
+                <Ionicons name="search-outline" size={22} color="#7888A3" />
                 <TextInput
                   value={searchText}
                   onChangeText={(value) => {
@@ -698,7 +758,7 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                   }}
                 />
                 {searchSuggestLoading ? (
-                  <ActivityIndicator color="#1F78FF" style={{ marginRight: 8 }} />
+                  <ActivityIndicator color="#1F78FF" style={{ marginRight: 4 }} />
                 ) : (
                   <DimPressable
                     accessibilityRole="button"
@@ -708,7 +768,7 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                   >
                     <Ionicons
                       name="arrow-forward-circle"
-                      size={24}
+                      size={22}
                       color={filterActive ? "#1F78FF" : "#7888A3"}
                     />
                   </DimPressable>
@@ -753,12 +813,14 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                   ]}
                 >
                   <View style={styles.locationSelectorContent}>
-                    <Ionicons name="location" size={22} color="#1F78FF" />
-                    <Text style={styles.locationSelectorText}>{selectedLocationLabel}</Text>
+                    <Ionicons name="location" size={18} color="#1F78FF" />
+                    <Text style={styles.locationSelectorText} numberOfLines={1}>
+                      {selectedLocationLabel}
+                    </Text>
                   </View>
                   <Ionicons
                     name={locationMenuOpen ? "chevron-up" : "chevron-down"}
-                    size={20}
+                    size={18}
                     color="#1F78FF"
                   />
                 </DimPressable>
@@ -775,9 +837,9 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                   {locating ? (
                     <ActivityIndicator size="small" color="#1F78FF" />
                   ) : (
-                    <Ionicons name="locate-outline" size={22} color="#1F78FF" />
+                    <Ionicons name="locate-outline" size={18} color="#1F78FF" />
                   )}
-                  <Text style={styles.currentLocationButtonText}>
+                  <Text style={styles.currentLocationButtonText} numberOfLines={1}>
                     {locating ? "Locating..." : "Current location"}
                   </Text>
                 </DimPressable>
@@ -878,7 +940,7 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                             {renderIcon(
                               conditionIcon.family,
                               conditionIcon.name,
-                              isPhone ? 96 : 118,
+                              weatherIconSize,
                               conditionIcon.color === "#8FA0BA" ? "#FFC83D" : conditionIcon.color
                             )}
                           </View>
@@ -888,12 +950,22 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                               <Text
                                 style={[
                                   styles.currentWeatherTemperature,
-                                  isPhone && styles.currentWeatherTemperaturePhone,
+                                  {
+                                    fontSize: temperatureSize,
+                                    lineHeight: temperatureSize + 4,
+                                  },
                                 ]}
                               >
                                 {currentWeather.temperature}
                               </Text>
-                              <Text style={styles.currentWeatherUnit}>{currentWeather.unit}</Text>
+                              <Text
+                                style={[
+                                  styles.currentWeatherUnit,
+                                  isPhone && styles.currentWeatherUnitPhone,
+                                ]}
+                              >
+                                {currentWeather.unit}
+                              </Text>
                             </View>
                             <Text style={styles.currentWeatherCondition}>
                               {currentWeather.condition}
@@ -935,7 +1007,7 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                   style={[styles.sectionLinkButton, hourlyFocusActive && styles.sectionLinkButtonActive]}
                 >
                   <Text style={styles.sectionLinkText}>View full day</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#1F78FF" />
+                  <Ionicons name="chevron-forward" size={16} color="#1F78FF" />
                 </DimPressable>
               </View>
 
@@ -951,6 +1023,7 @@ export default function WeatherScreen({ onNavigate, onBack }) {
                     <HourlyForecastItem
                       key={item.id}
                       item={item}
+                      itemWidth={hourlyItemWidth}
                       active={selectedHourlyId === item.id || (!hourlyFocusActive && index === 0)}
                       onPress={() => setSelectedHourlyId(item.id)}
                     />
@@ -959,18 +1032,20 @@ export default function WeatherScreen({ onNavigate, onBack }) {
               </ScrollView>
             </View>
 
-            <View style={[styles.sectionCard, surfaceShadowStyle]}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>
+            <View style={[styles.sectionCard, styles.dailySectionCard, surfaceShadowStyle]}>
+              <View style={[styles.sectionHeaderRow, styles.dailySectionHeader]}>
+                <Text style={[styles.sectionTitle, styles.dailySectionTitle]} numberOfLines={1}>
                   {dailyForecast.length ? `${dailyForecast.length}-Day Forecast` : "Forecast"}
                 </Text>
                 <DimPressable
                   accessibilityRole="button"
                   onPress={toggleAllDailyDetails}
-                  style={styles.sectionLinkButton}
+                  style={[styles.sectionLinkButton, styles.dailySectionLinkButton]}
                 >
-                  <Text style={styles.sectionLinkText}>View daily details</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#1F78FF" />
+                  <Text style={[styles.sectionLinkText, styles.dailySectionLinkText]} numberOfLines={1}>
+                    View daily details
+                  </Text>
+                  <Ionicons name="chevron-forward" size={15} color="#1F78FF" />
                 </DimPressable>
               </View>
 
@@ -1031,7 +1106,7 @@ export default function WeatherScreen({ onNavigate, onBack }) {
           </View>
         </ScrollView>
 
-        <BottomNav activeLabel={null} onNavigate={onNavigate} />
+        <BottomNav activeLabel="Weather" onNavigate={onNavigate} />
       </View>
     </SafeAreaView>
   );
@@ -1055,80 +1130,67 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     flexGrow: 1,
-    paddingTop: 18,
-    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingHorizontal: 14,
     alignItems: "center",
   },
 
   pageGlowTop: {
     position: "absolute",
-    top: 60,
+    top: 40,
     left: -48,
-    width: 196,
-    height: 196,
-    borderRadius: 98,
-    backgroundColor: "rgba(255, 235, 187, 0.26)",
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: "rgba(255, 235, 187, 0.22)",
   },
 
   pageGlowBottom: {
     position: "absolute",
-    right: -56,
-    bottom: 120,
-    width: 224,
-    height: 224,
-    borderRadius: 112,
-    backgroundColor: "rgba(182, 215, 255, 0.22)",
+    right: -48,
+    bottom: 100,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: "rgba(182, 215, 255, 0.18)",
   },
 
   pageInner: {
-    maxWidth: 1040,
+    width: "100%",
+    maxWidth: 780,
   },
 
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
+    minHeight: 34,
   },
 
   headerBackButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
+    marginRight: "auto",
     shadowColor: "#9DB2CF",
     shadowOpacity: 0.16,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
     elevation: 4,
-  },
-
-  headerBrandRow: {
-    alignSelf: "auto",
-    marginRight: 0,
-  },
-
-  headerBrandText: {
-    fontSize: 26,
-    color: "#16294A",
   },
 
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-  },
-
-  brandSlot: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
+    flexShrink: 0,
   },
 
   headerActionButton: {
-    width: 52,
-    height: 52,
+    width: 34,
+    height: 34,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
@@ -1136,24 +1198,29 @@ const styles = StyleSheet.create({
 
   notificationDot: {
     position: "absolute",
-    top: 11,
-    right: 9,
-    width: 11,
-    height: 11,
-    borderRadius: 5.5,
+    top: 5,
+    right: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: "#FF8C3A",
   },
 
   heroSection: {
-    marginTop: 26,
+    marginTop: 2,
     flexDirection: "row",
-    alignItems: "flex-end",
+    flexWrap: "nowrap",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     position: "relative",
+    gap: 6,
+    overflow: "visible",
   },
 
-  heroSectionWide: {
-    minHeight: 220,
+  heroSectionPhone: {
+    marginTop: 0,
+    gap: 2,
+    alignItems: "flex-start",
   },
 
   heroSectionStacked: {
@@ -1167,58 +1234,67 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    top: 18,
+    top: 4,
   },
 
   heroCloud: {
     position: "absolute",
-    borderRadius: 30,
-    backgroundColor: "rgba(255, 255, 255, 0.74)",
+    borderRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
   },
 
   heroCloudSmall: {
-    top: 26,
+    top: 18,
     right: "41%",
-    width: 64,
-    height: 24,
+    width: 48,
+    height: 18,
   },
 
   heroCloudLarge: {
-    top: 10,
+    top: 6,
     right: "15%",
-    width: 84,
-    height: 30,
+    width: 64,
+    height: 22,
   },
 
   heroSkylineRow: {
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 8,
-    height: 124,
+    bottom: 4,
+    height: 88,
   },
 
   heroBuilding: {
     position: "absolute",
     bottom: 0,
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
-    backgroundColor: "rgba(141, 181, 232, 0.18)",
+    borderTopLeftRadius: 5,
+    borderTopRightRadius: 5,
+    backgroundColor: "rgba(141, 181, 232, 0.16)",
   },
 
   heroTextBlock: {
     flex: 1,
-    maxWidth: 430,
-    paddingTop: 20,
-    paddingBottom: 24,
-    paddingRight: 18,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: 360,
+    paddingTop: 8,
+    paddingBottom: 0,
+    paddingRight: 8,
     zIndex: 2,
   },
 
   heroTextBlockStacked: {
     width: "100%",
     maxWidth: "100%",
-    paddingBottom: 12,
+    paddingBottom: 4,
+  },
+
+  heroTextBlockPhone: {
+    maxWidth: "56%",
+    paddingRight: 2,
+    paddingBottom: 0,
   },
 
   heroTitleRow: {
@@ -1227,48 +1303,41 @@ const styles = StyleSheet.create({
   },
 
   heroTitle: {
-    fontSize: 72,
-    lineHeight: 76,
+    fontSize: 48,
+    lineHeight: 52,
     fontWeight: "800",
     color: "#173366",
-    letterSpacing: -1.7,
-  },
-
-  heroTitlePhone: {
-    fontSize: 58,
-    lineHeight: 60,
+    letterSpacing: -1.4,
   },
 
   heroTitleIcon: {
-    marginLeft: 10,
-    marginTop: 8,
+    marginLeft: 8,
+    marginTop: 2,
   },
 
   heroSubtitle: {
-    marginTop: 14,
-    maxWidth: 360,
-    fontSize: 19,
-    lineHeight: 34,
+    marginTop: 6,
+    maxWidth: 320,
+    fontSize: 15,
+    lineHeight: 21,
     fontWeight: "500",
     color: "#27467A",
   },
 
-  heroSubtitlePhone: {
-    fontSize: 17,
-    lineHeight: 30,
-  },
-
   heroArtworkWrap: {
-    alignSelf: "flex-end",
-    borderRadius: 34,
-    overflow: "hidden",
-    backgroundColor: "rgba(255, 255, 255, 0.34)",
+    flexShrink: 0,
+    alignSelf: "flex-start",
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    marginTop: -4,
+    overflow: "visible",
+    backgroundColor: "transparent",
     zIndex: 1,
   },
 
   heroArtworkWrapStacked: {
-    maxWidth: 360,
-    marginTop: 4,
+    maxWidth: 280,
+    marginTop: 2,
     alignSelf: "center",
   },
 
@@ -1278,21 +1347,21 @@ const styles = StyleSheet.create({
   },
 
   controlsCard: {
-    marginTop: 16,
-    borderRadius: 28,
+    marginTop: 10,
+    borderRadius: 22,
     backgroundColor: "#FFFFFF",
-    padding: 14,
+    padding: 12,
   },
 
   searchRow: {
-    minHeight: 60,
+    minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 21,
+    borderRadius: 16,
     borderWidth: 1.5,
     borderColor: "#D7E4F7",
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 18,
+    paddingHorizontal: 14,
   },
 
   searchRowActive: {
@@ -1302,18 +1371,20 @@ const styles = StyleSheet.create({
 
   searchInput: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
+    minWidth: 0,
+    marginLeft: 10,
+    fontSize: 15,
     color: "#223D69",
-    paddingVertical: 14,
+    paddingVertical: 10,
   },
 
   filterButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
 
   filterButtonActive: {
@@ -1354,7 +1425,7 @@ const styles = StyleSheet.create({
   },
 
   locationControlsRow: {
-    marginTop: 12,
+    marginTop: 10,
     flexDirection: "row",
     alignItems: "center",
   },
@@ -1366,12 +1437,13 @@ const styles = StyleSheet.create({
 
   locationSelector: {
     flex: 1,
-    minHeight: 50,
-    borderRadius: 18,
+    minWidth: 0,
+    minHeight: 44,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: "#2E7FFF",
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 18,
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1389,25 +1461,29 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    marginRight: 10,
+    minWidth: 0,
+    marginRight: 8,
   },
 
   locationSelectorText: {
-    marginLeft: 10,
-    fontSize: 17,
+    flex: 1,
+    minWidth: 0,
+    marginLeft: 8,
+    fontSize: 15,
     fontWeight: "700",
     color: "#1F78FF",
   },
 
   currentLocationButton: {
-    marginLeft: 14,
-    minHeight: 50,
-    minWidth: 210,
-    borderRadius: 18,
+    marginLeft: 10,
+    minHeight: 44,
+    minWidth: 0,
+    flexShrink: 0,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: "#D5E4F8",
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 18,
+    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -1416,8 +1492,9 @@ const styles = StyleSheet.create({
   currentLocationButtonStacked: {
     width: "100%",
     minWidth: 0,
+    maxWidth: "100%",
     marginLeft: 0,
-    marginTop: 12,
+    marginTop: 10,
   },
 
   currentLocationButtonLoading: {
@@ -1425,15 +1502,16 @@ const styles = StyleSheet.create({
   },
 
   currentLocationButtonText: {
-    marginLeft: 10,
-    fontSize: 16,
+    marginLeft: 8,
+    fontSize: 14,
     fontWeight: "700",
     color: "#1F78FF",
+    flexShrink: 1,
   },
 
   locationMenu: {
-    marginTop: 12,
-    borderRadius: 20,
+    marginTop: 10,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: "#DDE8F7",
     backgroundColor: "#FFFFFF",
@@ -1441,8 +1519,8 @@ const styles = StyleSheet.create({
   },
 
   locationMenuItem: {
-    minHeight: 54,
-    paddingHorizontal: 18,
+    minHeight: 46,
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1465,12 +1543,12 @@ const styles = StyleSheet.create({
   },
 
   currentWeatherCardShell: {
-    marginTop: 16,
-    borderRadius: 28,
+    marginTop: 12,
+    borderRadius: 22,
   },
 
   currentWeatherCard: {
-    borderRadius: 28,
+    borderRadius: 22,
     overflow: "hidden",
     backgroundColor: "#3B8BFF",
     position: "relative",
@@ -1478,21 +1556,21 @@ const styles = StyleSheet.create({
 
   currentWeatherGlowLeft: {
     position: "absolute",
-    left: -58,
-    bottom: -74,
-    width: 266,
-    height: 266,
-    borderRadius: 133,
+    left: -48,
+    bottom: -60,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
     backgroundColor: "rgba(177, 213, 255, 0.2)",
   },
 
   currentWeatherGlowRight: {
     position: "absolute",
-    right: -56,
-    top: -82,
-    width: 236,
-    height: 236,
-    borderRadius: 118,
+    right: -44,
+    top: -64,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
     backgroundColor: "rgba(158, 203, 255, 0.18)",
   },
 
@@ -1504,42 +1582,43 @@ const styles = StyleSheet.create({
 
   currentWeatherScene: {
     width: "100%",
-    height: 240,
+    height: "100%",
     marginLeft: 0,
-    opacity: 0.35,
+    opacity: 0.32,
   },
 
   currentWeatherSceneMobile: {
-    opacity: 0.28,
+    opacity: 0.26,
   },
 
   currentWeatherSceneCompact: {
     width: "100%",
-    height: 180,
+    height: "100%",
     marginLeft: 0,
     marginRight: 0,
     alignSelf: "stretch",
   },
 
   currentWeatherContent: {
-    paddingHorizontal: 26,
-    paddingVertical: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "stretch",
-    minHeight: 220,
+    minHeight: 176,
     zIndex: 1,
   },
 
   currentWeatherContentStacked: {
     flexDirection: "column",
+    minHeight: 0,
   },
 
   currentWeatherPrimary: {
     flex: 1,
     minWidth: 0,
     justifyContent: "space-between",
-    paddingRight: 24,
+    paddingRight: 16,
   },
 
   currentWeatherPrimaryStacked: {
@@ -1556,27 +1635,27 @@ const styles = StyleSheet.create({
   },
 
   currentWeatherSunWrap: {
-    marginRight: 18,
+    marginRight: 12,
     alignItems: "center",
     justifyContent: "center",
   },
 
   currentWeatherIcon: {
-    width: 104,
-    height: 104,
+    width: 72,
+    height: 72,
   },
 
   weatherLoadingBlock: {
-    minHeight: 180,
+    minHeight: 140,
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
-    paddingVertical: 24,
+    gap: 10,
+    paddingVertical: 18,
   },
 
   weatherLoadingText: {
     color: "#FFFFFF",
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
   },
 
@@ -1634,75 +1713,77 @@ const styles = StyleSheet.create({
   },
 
   currentWeatherTemperature: {
-    fontSize: 92,
-    lineHeight: 96,
+    fontSize: 72,
+    lineHeight: 76,
     fontWeight: "800",
     color: "#FFFFFF",
-    letterSpacing: -2.2,
-  },
-
-  currentWeatherTemperaturePhone: {
-    fontSize: 76,
-    lineHeight: 80,
+    letterSpacing: -1.8,
   },
 
   currentWeatherUnit: {
-    marginTop: 10,
-    marginLeft: 6,
-    fontSize: 34,
-    lineHeight: 36,
+    marginTop: 6,
+    marginLeft: 4,
+    fontSize: 26,
+    lineHeight: 28,
     fontWeight: "700",
     color: "#FFFFFF",
   },
 
-  currentWeatherCondition: {
+  currentWeatherUnitPhone: {
+    fontSize: 22,
+    lineHeight: 24,
     marginTop: 4,
-    fontSize: 24,
+  },
+
+  currentWeatherCondition: {
+    marginTop: 2,
+    fontSize: 18,
     fontWeight: "700",
     color: "#FFFFFF",
   },
 
   currentWeatherFeelsLike: {
-    marginTop: 8,
-    fontSize: 17,
+    marginTop: 4,
+    fontSize: 14,
     fontWeight: "500",
     color: "#EAF3FF",
   },
 
   currentWeatherTimestamp: {
-    marginTop: 20,
-    fontSize: 16,
+    marginTop: 12,
+    fontSize: 13,
     fontWeight: "500",
     color: "#F3F8FF",
   },
 
   metricsGrid: {
-    width: 190,
-    maxWidth: "42%",
-    paddingTop: 4,
+    width: 168,
+    maxWidth: "40%",
+    paddingTop: 2,
     flexShrink: 0,
+    justifyContent: "center",
   },
 
   metricsGridStacked: {
     width: "100%",
     maxWidth: "100%",
-    marginTop: 20,
+    marginTop: 14,
     flexDirection: "column",
   },
 
   metricItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 18,
+    marginBottom: 10,
   },
 
   metricItemCompact: {
     width: "100%",
-    marginBottom: 14,
+    marginBottom: 8,
   },
 
   metricIconWrap: {
-    width: 26,
+    width: 22,
     alignItems: "center",
   },
 
@@ -1711,47 +1792,49 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginLeft: 10,
+    marginLeft: 8,
+    minWidth: 0,
   },
 
   metricTextWrapCompact: {
-    marginLeft: 8,
+    marginLeft: 6,
   },
 
   metricLabel: {
     flex: 1,
-    paddingRight: 10,
-    fontSize: 16,
+    paddingRight: 8,
+    fontSize: 13,
     fontWeight: "500",
     color: "#F2F7FF",
   },
 
   metricLabelCompact: {
     flex: 0,
-    width: 86,
-    paddingRight: 8,
-    fontSize: 14,
+    width: 78,
+    paddingRight: 6,
+    fontSize: 12,
   },
 
   metricValue: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "600",
     color: "#FFFFFF",
     textAlign: "right",
+    flexShrink: 0,
   },
 
   metricValueCompact: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 12,
     textAlign: "right",
   },
 
   sectionCard: {
-    marginTop: 16,
-    borderRadius: 26,
+    marginTop: 12,
+    borderRadius: 20,
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
 
   sectionHeaderRow: {
@@ -1759,10 +1842,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     flexWrap: "wrap",
+    gap: 4,
   },
 
   sectionTitle: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "800",
     color: "#182E55",
   },
@@ -1770,35 +1854,37 @@ const styles = StyleSheet.create({
   sectionLinkButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
 
   sectionLinkButtonActive: {
     backgroundColor: "#F4F9FF",
     borderRadius: 999,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
   },
 
   sectionLinkText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "700",
     color: "#1F78FF",
   },
 
   hourlyScrollContent: {
-    paddingTop: 14,
-    paddingBottom: 4,
+    paddingTop: 10,
+    paddingBottom: 2,
+    flexGrow: 1,
+    justifyContent: "space-between",
   },
 
   hourlyItem: {
-    width: 98,
-    minHeight: 142,
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 12,
+    width: 84,
+    minHeight: 118,
+    borderRadius: 16,
+    paddingHorizontal: 6,
+    paddingVertical: 8,
     alignItems: "center",
     justifyContent: "space-between",
-    marginRight: 12,
+    marginRight: 6,
     backgroundColor: "#FFFFFF",
   },
 
@@ -1807,7 +1893,7 @@ const styles = StyleSheet.create({
   },
 
   hourlyLabel: {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "600",
     color: "#203B67",
   },
@@ -1817,96 +1903,154 @@ const styles = StyleSheet.create({
   },
 
   hourlyIconWrap: {
-    marginTop: 6,
+    marginTop: 4,
     marginBottom: 2,
   },
 
   hourlyTemperature: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: "700",
     color: "#162B4F",
   },
 
   hourlyWindRow: {
-    marginTop: 4,
+    marginTop: 2,
     flexDirection: "row",
     alignItems: "center",
   },
 
   hourlyWindText: {
-    marginLeft: 4,
-    fontSize: 13,
+    marginLeft: 3,
+    fontSize: 11,
     fontWeight: "500",
     color: "#71809C",
   },
 
+  dailySectionCard: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+
+  dailySectionHeader: {
+    flexWrap: "nowrap",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 2,
+  },
+
+  dailySectionTitle: {
+    flexShrink: 1,
+    minWidth: 0,
+    fontSize: 15,
+  },
+
+  dailySectionLinkButton: {
+    flexShrink: 0,
+    paddingVertical: 0,
+  },
+
+  dailySectionLinkText: {
+    fontSize: 13,
+  },
+
   dailyList: {
-    marginTop: 10,
+    marginTop: 2,
   },
 
   dailyRowWrap: {
-    paddingVertical: 2,
+    paddingVertical: 0,
   },
 
   dailyRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#EDF3FA",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E5EDF8",
   },
 
   dailyRow: {
-    paddingVertical: 11,
+    paddingVertical: 6,
+    minHeight: 34,
+    justifyContent: "center",
+  },
+
+  dailyRowCompact: {
+    paddingVertical: 5,
+    minHeight: 30,
   },
 
   dailyRowMain: {
     flexDirection: "row",
     alignItems: "center",
-  },
-
-  dailyRowMainCompact: {
-    flexWrap: "wrap",
-    alignItems: "flex-start",
+    flexWrap: "nowrap",
+    minWidth: 0,
   },
 
   dailyDayText: {
-    width: 158,
-    fontSize: 15,
+    width: 104,
+    maxWidth: "34%",
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: "700",
     color: "#1D335A",
+    flexShrink: 0,
   },
 
   dailyDayTextCompact: {
-    width: "100%",
-    marginBottom: 10,
+    width: 86,
+    maxWidth: "32%",
+    fontSize: 11,
+    lineHeight: 14,
   },
 
   dailyConditionWrap: {
     flex: 1,
-    minWidth: 160,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
+    marginLeft: 10,
+    marginRight: 8,
   },
 
   dailyConditionWrapCompact: {
-    minWidth: 0,
-    marginBottom: 8,
+    marginLeft: 8,
+    marginRight: 6,
   },
 
   dailyConditionText: {
-    marginLeft: 12,
-    fontSize: 15,
+    flexShrink: 1,
+    minWidth: 0,
+    marginLeft: 6,
+    fontSize: 12,
+    lineHeight: 16,
     fontWeight: "500",
     color: "#3A5077",
+  },
+
+  dailyConditionTextCompact: {
+    fontSize: 11,
+    lineHeight: 14,
+    marginLeft: 5,
   },
 
   dailyMetaWrap: {
     flexDirection: "row",
     alignItems: "center",
-    marginLeft: 12,
+    flexShrink: 0,
+    marginLeft: 4,
+  },
+
+  dailyMetaWrapCompact: {
+    marginLeft: 2,
   },
 
   dailyTemperatureText: {
-    fontSize: 17,
+    fontSize: 13,
+    lineHeight: 16,
     fontWeight: "700",
+  },
+
+  dailyTemperatureTextCompact: {
+    fontSize: 12,
+    lineHeight: 14,
   },
 
   dailyLowTemp: {
@@ -1924,45 +2068,54 @@ const styles = StyleSheet.create({
   dailyPrecipitationWrap: {
     flexDirection: "row",
     alignItems: "center",
-    marginLeft: 20,
+    marginLeft: 10,
+  },
+
+  dailyPrecipitationWrapCompact: {
+    marginLeft: 8,
   },
 
   dailyPrecipitationText: {
-    marginLeft: 4,
-    fontSize: 15,
+    marginLeft: 3,
+    fontSize: 12,
+    lineHeight: 14,
     fontWeight: "500",
     color: "#345279",
   },
 
+  dailyPrecipitationTextCompact: {
+    fontSize: 11,
+  },
+
   dailyChevron: {
-    marginLeft: 18,
+    marginLeft: 8,
   },
 
   dailyDetailText: {
-    marginTop: 10,
-    marginLeft: 38,
-    fontSize: 14,
-    lineHeight: 22,
+    marginTop: 4,
+    marginLeft: 2,
+    fontSize: 12,
+    lineHeight: 16,
     color: "#5E6D89",
   },
 
   alertsList: {
-    marginTop: 14,
-    gap: 12,
+    marginTop: 10,
+    gap: 8,
   },
 
   alertCard: {
     borderWidth: 1.5,
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     overflow: "hidden",
   },
 
   alertCardMain: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 12,
+    gap: 10,
   },
 
   alertCardMainCompact: {
@@ -1971,9 +2124,9 @@ const styles = StyleSheet.create({
   },
 
   alertIconBubble: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -1988,81 +2141,83 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 6,
+    gap: 6,
+    marginBottom: 4,
   },
 
   alertTitle: {
     flexShrink: 1,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "800",
     color: "#183158",
   },
 
   alertBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 999,
     flexShrink: 0,
   },
 
   alertBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
   },
 
   alertDescription: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 17,
     color: "#35507B",
   },
 
   alertDetailText: {
-    marginTop: 8,
-    fontSize: 13,
-    lineHeight: 19,
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 17,
     color: "#5B6C89",
   },
 
   alertFooterRow: {
-    marginTop: 12,
+    marginTop: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 8,
   },
 
   alertTimestamp: {
     flex: 1,
     minWidth: 0,
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "500",
     color: "#53627F",
   },
 
   alertButton: {
     flexShrink: 0,
-    minHeight: 36,
-    borderRadius: 14,
+    minHeight: 30,
+    borderRadius: 12,
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
 
   alertButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
   },
 
   summaryCard: {
-    marginTop: 16,
-    borderRadius: 22,
+    marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 18,
     backgroundColor: "#FFFFFF",
-    paddingVertical: 14,
-    paddingHorizontal: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
     flexDirection: "row",
+    alignItems: "stretch",
   },
 
   summaryItem: {
@@ -2070,8 +2225,8 @@ const styles = StyleSheet.create({
     minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 6,
-    paddingVertical: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
   },
 
   summaryItemWithDivider: {
@@ -2091,23 +2246,24 @@ const styles = StyleSheet.create({
   },
 
   summaryIconBubble: {
-    width: 34,
-    height: 34,
+    width: 28,
+    height: 28,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 8,
+    marginRight: 6,
   },
 
   summaryIconBubbleCompact: {
-    width: 30,
-    height: 30,
+    width: 24,
+    height: 24,
     marginRight: 0,
-    marginBottom: 3,
+    marginBottom: 2,
   },
 
   summaryTextWrap: {
     minWidth: 0,
     alignItems: "flex-start",
+    flexShrink: 1,
   },
 
   summaryTextWrapCompact: {
@@ -2116,26 +2272,26 @@ const styles = StyleSheet.create({
   },
 
   summaryLabel: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "500",
     color: "#667592",
   },
 
   summaryLabelCompact: {
     width: "100%",
-    fontSize: 10.5,
+    fontSize: 10,
     textAlign: "center",
   },
 
   summaryValue: {
-    marginTop: 2,
-    fontSize: 18,
+    marginTop: 1,
+    fontSize: 14,
     fontWeight: "700",
     color: "#163056",
   },
 
   summaryValueCompact: {
     textAlign: "center",
-    fontSize: 14,
+    fontSize: 12,
   },
 });
