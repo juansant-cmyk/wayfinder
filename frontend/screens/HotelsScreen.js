@@ -12,7 +12,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import * as dashboardApi from "../src/api/dashboard";
 import {
@@ -26,9 +26,24 @@ import { geocodeQuery, reverseGeocodeLabel } from "../src/location/geo";
 import { useUserLocation } from "../src/location/UserLocationContext";
 import BottomNav, { getBottomNavContentPadding } from "./shared/BottomNav";
 import DimPressable from "./shared/DimPressable";
-import { WayfinderBrand } from "./AuthShared";
 
 const hotelHeroImage = require("../assets/images/hotels/hotel-hero-complete.png");
+const tipBotImage = require("../assets/images/itinerary-tip-bot-reference.png");
+
+const HOTEL_CARD_BADGES = [
+  {
+    label: "Best Match",
+    background: "#FFD86B",
+    color: "#14253E",
+    icon: "star",
+  },
+  {
+    label: "Best Budget",
+    background: "#DDF8E4",
+    color: "#12804C",
+    icon: "checkmark-circle",
+  },
+];
 
 const sortOptions = [
   { key: "bestMatch", label: "Best Match", icon: "star-outline", library: "ionicons" },
@@ -87,14 +102,19 @@ function renderAmenityIcon(amenity, iconSize = 20) {
   return <Ionicons name="checkmark-circle-outline" size={iconSize} color="#14253E" />;
 }
 
-function SortPill({ option, isSelected, onPress, compact = false }) {
+function SortPill({ option, isSelected, onPress, compact = false, scrollable = false }) {
   const Button = isSelected ? Pressable : DimPressable;
 
   return (
     <Button
       accessibilityRole="button"
       onPress={onPress}
-      style={[styles.sortPill, compact && styles.sortPillCompact, isSelected && styles.sortPillSelected]}
+      style={[
+        styles.sortPill,
+        compact && styles.sortPillCompact,
+        scrollable && styles.sortPillScrollable,
+        isSelected && styles.sortPillSelected,
+      ]}
     >
       {renderSortIcon(option, isSelected, compact)}
       <Text
@@ -113,11 +133,33 @@ function SortPill({ option, isSelected, onPress, compact = false }) {
   );
 }
 
-export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, params = {} }) {
+export default function HotelsScreen({
+  onGoBack,
+  onNavigateHome,
+  onNavigate,
+  params = {},
+  previewMode = false,
+}) {
   const insets = useSafeAreaInsets();
   const bottomNavPadding = getBottomNavContentPadding(insets);
   const { width: windowWidth } = useWindowDimensions();
   const compact = windowWidth < 700;
+  const isPhone = windowWidth < 520;
+  const narrowPhone = windowWidth < 360;
+  const stackCardActions = windowWidth < 380;
+  const pagePad = narrowPhone ? 12 : isPhone ? 16 : 18;
+  const heroArtworkWidth = isPhone
+    ? Math.min(Math.round(windowWidth * 0.42), 168)
+    : compact
+      ? Math.min(Math.round(windowWidth * 0.34), 200)
+      : Math.min(Math.round(windowWidth * 0.26), 248);
+  // Model: image ~1/3 card width; height stretches to match content (no dead space)
+  const hotelImageWidth = isPhone
+    ? Math.min(Math.max(Math.round(windowWidth * 0.24), 90), 104)
+    : compact
+      ? 118
+      : 128;
+  const scrollBottomPadding = bottomNavPadding + (isPhone ? 10 : 8);
   const { location, status, isUsingDeviceLocation, refreshLocation } = useUserLocation();
   const seededDestination = params.destination?.trim() || "";
   const [destination, setDestination] = useState(seededDestination);
@@ -128,10 +170,8 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
   const [savedHotels, setSavedHotels] = useState([]);
   const [pendingFavoriteKeys, setPendingFavoriteKeys] = useState([]);
   const [expandedHotelId, setExpandedHotelId] = useState(null);
-  const [hotels, setHotels] = useState(() =>
-    previewMode ? buildPreviewHotels(params.destination || dashboardApi.DEFAULT_DESTINATION) : []
-  );
-  const [loading, setLoading] = useState(previewMode);
+  const [hotels, setHotels] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [invalidLocationQuery, setInvalidLocationQuery] = useState(null);
   const pendingFavoriteKeysRef = useRef(new Set());
@@ -420,155 +460,142 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
   };
 
   return (
-    <View style={styles.screen}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+      <View style={styles.screen}>
+        <StatusBar style="dark" />
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          compact && styles.scrollContentCompact,
-          { paddingBottom: bottomNavPadding },
-        ]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.contentInner}>
-          <View style={[styles.headerRow, compact && styles.headerRowCompact]}>
-              <DimPressable
-                accessibilityRole="button"
-                accessibilityLabel="Go back"
-                onPress={onGoBack || onNavigateHome}
-                style={[styles.roundHeaderButton, compact && styles.roundHeaderButtonCompact]}
-              >
-                <Ionicons name="arrow-back" size={compact ? 22 : 28} color="#14253E" />
-              </DimPressable>
-
-              <View style={styles.brandSlot}>
-                <WayfinderBrand
-                  containerStyle={styles.headerBrandRow}
-                  textStyle={[styles.headerBrandText, compact && styles.headerBrandTextCompact]}
-                />
-              </View>
-
-              <View style={styles.headerActions}>
-                <Pressable
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            isPhone && styles.scrollContentPhone,
+            { paddingBottom: scrollBottomPadding, paddingHorizontal: pagePad },
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.contentInner}>
+            <View style={[styles.headerRow, isPhone && styles.headerRowPhone]}>
+                <DimPressable
                   accessibilityRole="button"
-                  accessibilityLabel="Notifications"
-                  onPress={() => onNavigate?.("notifications")}
-                  style={[styles.headerActionButton, compact && styles.headerActionButtonCompact]}
+                  accessibilityLabel="Go back"
+                  onPress={onGoBack || onNavigateHome}
+                  style={[styles.roundHeaderButton, isPhone && styles.roundHeaderButtonPhone]}
                 >
-                  <Ionicons name="notifications-outline" size={compact ? 22 : 28} color="#111827" />
-                  <View style={[styles.notificationDot, compact && styles.notificationDotCompact]} />
-                </Pressable>
+                  <Ionicons name="arrow-back" size={isPhone ? 18 : 24} color="#14253E" />
+                </DimPressable>
 
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Profile"
-                  onPress={() => onNavigate?.("profile")}
-                  style={[styles.headerActionButton, compact && styles.headerActionButtonCompact]}
-                >
-                  <Ionicons name="person-circle-outline" size={compact ? 26 : 33} color="#111827" />
-                </Pressable>
-              </View>
-            </View>
+                <View style={styles.headerSpacer} />
 
-            <View style={[styles.heroSection, compact && styles.heroSectionCompact]}>
-              <View style={[styles.heroTextColumn, compact && styles.heroTextColumnCompact]}>
-                <Text style={[styles.heading, compact && styles.headingCompact]}>Hotels</Text>
-                <Text
-                  style={[styles.subtitle, compact && styles.subtitleCompact]}
-                  numberOfLines={compact ? 2 : undefined}
-                >
-                  {compact ? (
-                    <>
-                      Wayfinder finds great places so you can{"\n"}
-                      focus on <Text style={styles.subtitleAccent}>your trip.</Text>
-                    </>
-                  ) : (
-                    <>
-                      Wayfinder finds great places{"\n"}
-                      so you can focus on <Text style={styles.subtitleAccent}>your trip.</Text>
-                    </>
-                  )}
-                </Text>
+                <View style={styles.headerActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Notifications"
+                    onPress={() => onNavigate?.("notifications")}
+                    style={[styles.headerActionButton, isPhone && styles.headerActionButtonPhone]}
+                  >
+                    <Ionicons name="notifications-outline" size={isPhone ? 20 : 24} color="#111827" />
+                    <View style={[styles.notificationDot, isPhone && styles.notificationDotPhone]} />
+                  </Pressable>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Profile"
+                    onPress={() => onNavigate?.("profile")}
+                    style={[styles.headerActionButton, isPhone && styles.headerActionButtonPhone]}
+                  >
+                    <Ionicons name="person-circle-outline" size={isPhone ? 24 : 28} color="#111827" />
+                  </Pressable>
+                </View>
               </View>
 
-              <View style={[styles.heroArtworkWrap, compact && styles.heroArtworkWrapCompact]}>
-                <Image
-                  source={hotelHeroImage}
-                  style={styles.heroArtworkImage}
-                  resizeMode="contain"
-                />
-              </View>
-            </View>
+              <View style={[styles.heroSection, isPhone && styles.heroSectionPhone]}>
+                <View style={[styles.heroTextColumn, isPhone && styles.heroTextColumnPhone]}>
+                  <Text style={[styles.heading, isPhone && styles.headingPhone]}>Hotels</Text>
+                  <Text style={[styles.subtitle, isPhone && styles.subtitlePhone]}>
+                    Wayfinder finds great places so you can focus on{" "}
+                    <Text style={styles.subtitleAccent}>your trip.</Text>
+                  </Text>
+                </View>
 
-            <View style={[styles.searchCard, compact && styles.searchCardCompact]}>
+                <View
+                  style={[
+                    styles.heroArtworkWrap,
+                    isPhone && styles.heroArtworkWrapPhone,
+                    { width: heroArtworkWidth },
+                  ]}
+                >
+                  <Image
+                    source={hotelHeroImage}
+                    style={styles.heroArtworkImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              </View>
+
+            <View style={[styles.searchCard, isPhone && styles.searchCardPhone]}>
               <View style={styles.searchDecorCircle} />
               <View style={styles.searchDecorRoute} />
               <MaterialCommunityIcons
                 name="office-building"
-                size={compact ? 42 : 54}
-                color="rgba(255, 255, 255, 0.2)"
+                size={isPhone ? 34 : 48}
+                color="rgba(255, 255, 255, 0.18)"
                 style={styles.searchDecorBuilding}
               />
               <MaterialCommunityIcons
                 name="city-variant"
-                size={compact ? 34 : 44}
-                color="rgba(255, 255, 255, 0.14)"
+                size={isPhone ? 28 : 40}
+                color="rgba(255, 255, 255, 0.12)"
                 style={styles.searchDecorCity}
               />
               <MaterialCommunityIcons
                 name="palm-tree"
-                size={compact ? 38 : 48}
-                color="rgba(255, 255, 255, 0.24)"
+                size={isPhone ? 30 : 42}
+                color="rgba(255, 255, 255, 0.2)"
                 style={styles.searchDecorPalm}
               />
               <Ionicons
                 name="location"
-                size={compact ? 26 : 34}
+                size={isPhone ? 20 : 28}
                 color="rgba(255, 255, 255, 0.9)"
                 style={styles.searchDecorLocation}
               />
 
               <View style={styles.searchHeaderRow}>
-                <View style={[styles.searchIconBadge, compact && styles.searchIconBadgeCompact]}>
-                  <MaterialCommunityIcons name="bed" size={compact ? 20 : 28} color="#1F5EE9" />
+                <View style={[styles.searchIconBadge, isPhone && styles.searchIconBadgePhone]}>
+                  <MaterialCommunityIcons name="bed" size={isPhone ? 18 : 24} color="#1F5EE9" />
                 </View>
 
-                <View style={[styles.searchCopy, compact && styles.searchCopyCompact]}>
+                <View style={[styles.searchCopy, isPhone && styles.searchCopyPhone]}>
                   <View style={styles.searchTitleRow}>
-                    <Text style={[styles.searchTitle, compact && styles.searchTitleCompact]}>
+                    <Text style={[styles.searchTitle, isPhone && styles.searchTitlePhone]}>
                       Find your stay
                     </Text>
                     <Ionicons
                       name="sparkles"
-                      size={compact ? 16 : 22}
+                      size={isPhone ? 14 : 18}
                       color="#FFD54A"
                       style={styles.searchSparkles}
                     />
                   </View>
-                  {compact ? (
-                    <Text style={[styles.searchSubtitle, styles.searchSubtitleCompact]} numberOfLines={1}>
-                      Search hotels by destination and compare options.
-                    </Text>
-                  ) : (
-                    <Text style={styles.searchSubtitle}>
-                      Search hotels by destination and compare options.
-                    </Text>
-                  )}
+                  <Text
+                    style={[styles.searchSubtitle, isPhone && styles.searchSubtitlePhone]}
+                    numberOfLines={2}
+                  >
+                    Search hotels by destination and compare options.
+                  </Text>
                 </View>
               </View>
 
-              <View style={[styles.destinationInputWrap, compact && styles.destinationInputWrapCompact]}>
-                <Ionicons name="search-outline" size={compact ? 24 : 30} color="#7D8AA5" />
+              <View style={[styles.destinationInputWrap, isPhone && styles.destinationInputWrapPhone]}>
+                <Ionicons name="search-outline" size={isPhone ? 18 : 26} color="#7D8AA5" />
                 <TextInput
                   value={destination}
                   onChangeText={setDestination}
                   placeholder="Where are you going?"
                   placeholderTextColor="#8F9AAF"
                   selectionColor="#1F78FF"
-                  style={[styles.destinationInput, compact && styles.destinationInputCompact]}
+                  style={[styles.destinationInput, isPhone && styles.destinationInputPhone]}
                   returnKeyType="search"
                   onSubmitEditing={handleFindHotels}
                 />
@@ -577,66 +604,88 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
               <Pressable
                 accessibilityRole="button"
                 onPress={handleFindHotels}
-                style={[styles.findHotelsButton, compact && styles.findHotelsButtonCompact]}
+                style={[styles.findHotelsButton, isPhone && styles.findHotelsButtonPhone]}
               >
-                <Text style={[styles.findHotelsButtonText, compact && styles.findHotelsButtonTextCompact]}>
+                <Text style={[styles.findHotelsButtonText, isPhone && styles.findHotelsButtonTextPhone]}>
                   Find Hotels
                 </Text>
                 <Ionicons
                   name="sparkles"
-                  size={compact ? 16 : 20}
+                  size={isPhone ? 14 : 18}
                   color="#FFFFFF"
                   style={styles.findHotelsButtonSparkles}
                 />
               </Pressable>
             </View>
 
-            <Text style={[styles.sortHeading, compact && styles.sortHeadingCompact]}>Sort by</Text>
-            <View style={[styles.locationStatusRow, compact && styles.locationStatusRowCompact]}>
+            <Text style={[styles.sortHeading, isPhone && styles.sortHeadingPhone]}>Sort by</Text>
+            <View style={[styles.locationStatusRow, isPhone && styles.locationStatusRowPhone]}>
               <Ionicons
                 name={searchOrigin?.source === "search" ? "search" : isUsingDeviceLocation ? "navigate" : "location-outline"}
-                size={compact ? 14 : 16}
+                size={isPhone ? 13 : 16}
                 color="#1F78FF"
               />
-              <Text style={[styles.locationStatusText, compact && styles.locationStatusTextCompact]}>
+              <Text style={[styles.locationStatusText, isPhone && styles.locationStatusTextPhone]}>
                 {locationLabel}
               </Text>
               {status !== "loading" ? (
                 <Pressable onPress={handleUseMyLocation} hitSlop={8}>
-                  <Text style={[styles.locationRefreshText, compact && styles.locationRefreshTextCompact]}>
+                  <Text style={[styles.locationRefreshText, isPhone && styles.locationRefreshTextPhone]}>
                     Use my location
                   </Text>
                 </Pressable>
               ) : null}
             </View>
 
-            <View style={[styles.sortRow, compact && styles.sortRowCompact]}>
-              {sortOptions.map((option) => (
-                <SortPill
-                  key={option.key}
-                  option={option}
-                  isSelected={selectedSort === option.key}
-                  onPress={() => setSelectedSort(option.key)}
-                  compact={compact}
-                />
-              ))}
-            </View>
+            {narrowPhone ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={[styles.sortRow, styles.sortRowPhone, styles.sortRowScroll]}
+              >
+                {sortOptions.map((option) => (
+                  <SortPill
+                    key={option.key}
+                    option={option}
+                    isSelected={selectedSort === option.key}
+                    onPress={() => setSelectedSort(option.key)}
+                    compact={isPhone}
+                    scrollable
+                  />
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={[styles.sortRow, isPhone && styles.sortRowPhone]}>
+                {sortOptions.map((option) => (
+                  <SortPill
+                    key={option.key}
+                    option={option}
+                    isSelected={selectedSort === option.key}
+                    onPress={() => setSelectedSort(option.key)}
+                    compact={isPhone}
+                  />
+                ))}
+              </View>
+            )}
 
-            <View style={[styles.picksSectionHeader, compact && styles.picksSectionHeaderCompact]}>
-              <View style={styles.picksTitleWrap}>
-                <View style={[styles.picksIconBadge, compact && styles.picksIconBadgeCompact]}>
-                  <Ionicons name="checkmark" size={compact ? 14 : 22} color="#FFFFFF" />
+            <View style={[styles.picksSectionHeader, isPhone && styles.picksSectionHeaderPhone]}>
+              <View style={[styles.picksTitleWrap, isPhone && styles.picksTitleWrapPhone]}>
+                <View style={[styles.picksIconBadge, isPhone && styles.picksIconBadgePhone]}>
+                  <Ionicons name="checkmark" size={isPhone ? 12 : 18} color="#FFFFFF" />
                 </View>
 
                 <View style={styles.picksCopy}>
-                  <Text style={[styles.picksTitle, compact && styles.picksTitleCompact]}>Wayfinder Picks</Text>
-                  <Text style={[styles.picksSubtitle, compact && styles.picksSubtitleCompact]}>
+                  <Text style={[styles.picksTitle, isPhone && styles.picksTitlePhone]}>Wayfinder Picks</Text>
+                  <Text
+                    style={[styles.picksSubtitle, isPhone && styles.picksSubtitlePhone]}
+                    numberOfLines={2}
+                  >
                     Handpicked recommendations just for you.
                   </Text>
                 </View>
               </View>
 
-              <Text style={[styles.resultsCount, compact && styles.resultsCountCompact]}>{resultsLabel}</Text>
+              <Text style={[styles.resultsCount, isPhone && styles.resultsCountPhone]}>{resultsLabel}</Text>
             </View>
 
             {usingMockData ? (
@@ -691,184 +740,236 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
             ) : null}
 
             {!error && !loading && visibleHotels.length > 0 ? (
-              visibleHotels.map((hotel) => {
+              visibleHotels.map((hotel, hotelIndex) => {
                 const favoriteKey = hotelFavoriteKey(hotel.provider, hotel.providerHotelId);
                 const isSaved = savedHotels.includes(favoriteKey);
                 const isFavoritePending = pendingFavoriteKeys.includes(favoriteKey);
                 const isExpanded = expandedHotelId === hotel.id;
-                const visibleAmenities = compact
-                  ? (hotel.amenities || []).slice(0, 4)
-                  : hotel.amenities || [];
-                const amenityIconSize = compact ? 15 : 20;
+                const visibleAmenities = hotel.amenities || [];
+                const amenityIconSize = isPhone ? 12 : 16;
+                // Prefer short place label like the model ("Los Angeles, CA")
+                const placeLabel = hotel.neighborhood || hotel.location || "";
+                const badge = HOTEL_CARD_BADGES[hotelIndex % HOTEL_CARD_BADGES.length];
+                const distanceLabel =
+                  hotel.distanceMiles != null
+                    ? `${hotel.distanceMiles.toFixed(1)} mi${
+                        searchOrigin?.source === "search" ? " from search" : " from you"
+                      }`
+                    : null;
 
                 return (
-                  <View key={hotel.id} style={[styles.hotelCard, compact && styles.hotelCardCompact]}>
-                    <DimPressable
-                      accessibilityRole="button"
-                      accessibilityLabel={isSaved ? "Remove hotel from saved" : "Save hotel"}
-                      accessibilityState={{ disabled: isFavoritePending }}
-                      disabled={isFavoritePending}
-                      onPress={() => handleToggleSaved(hotel)}
-                      style={[styles.favoriteButton, compact && styles.favoriteButtonCompact]}
-                    >
-                      <Ionicons
-                        name={isSaved ? "heart" : "heart-outline"}
-                        size={compact ? 22 : 28}
-                        color={isSaved ? "#FF5A4E" : "#14253E"}
-                      />
-                    </DimPressable>
-
-                    <View style={[styles.hotelCardRow, compact && styles.hotelCardRowCompact]}>
-                      <Image
-                        source={hotel.image}
-                        style={[styles.hotelImage, compact && styles.hotelImageCompact]}
-                        resizeMode="cover"
-                      />
-
-                      <View style={[styles.hotelContent, compact && styles.hotelContentCompact]}>
-                        <View style={[styles.hotelHeadingRow, compact && styles.hotelHeadingRowCompact]}>
-                          <View style={[styles.hotelHeadingCopy, compact && styles.hotelHeadingCopyCompact]}>
-                            <Text
-                              style={[styles.hotelName, compact && styles.hotelNameCompact]}
-                              numberOfLines={compact ? 2 : undefined}
-                            >
-                              {hotel.name}
-                            </Text>
-
-                            <View style={[styles.locationRow, compact && styles.locationRowCompact]}>
-                              <Ionicons name="location" size={compact ? 13 : 16} color="#1F78FF" />
-                              <Text
-                                style={[styles.locationText, compact && styles.locationTextCompact]}
-                                numberOfLines={compact ? 1 : undefined}
-                              >
-                                {hotel.neighborhood || hotel.location}
-                              </Text>
-                              {hotel.distanceMiles != null ? (
-                                <>
-                                  <Text style={[styles.inlineSeparator, compact && styles.inlineSeparatorCompact]}>
-                                    |
-                                  </Text>
-                                  <Text style={[styles.locationText, compact && styles.locationTextCompact]}>
-                                    {hotel.distanceMiles.toFixed(1)} mi
-                                    {searchOrigin?.source === "search" ? " from search" : " from you"}
-                                  </Text>
-                                </>
-                              ) : null}
-                            </View>
-                          </View>
-
-                          <View style={[styles.priceBlock, compact && styles.priceBlockCompact]}>
-                            <Text style={[styles.priceValue, compact && styles.priceValueCompact]}>
-                              ${hotel.price}
-                            </Text>
-                            <Text style={[styles.priceUnit, compact && styles.priceUnitCompact]}>/ night</Text>
-                          </View>
-                        </View>
-
-                        <View style={[styles.ratingRow, compact && styles.ratingRowCompact]}>
-                          <View style={[styles.ratingBadge, compact && styles.ratingBadgeCompact]}>
-                            <Ionicons name="star" size={compact ? 13 : 16} color="#F5B402" />
-                            <Text style={[styles.ratingValue, compact && styles.ratingValueCompact]}>
-                              {Number(hotel.rating).toFixed(1)}
-                            </Text>
-                          </View>
-
-                          {hotel.reviewCount > 0 ? (
-                            <>
-                              <Text style={[styles.inlineSeparator, compact && styles.inlineSeparatorCompact]}>
-                                |
-                              </Text>
-                              <Text style={[styles.reviewText, compact && styles.reviewTextCompact]}>
-                                ({hotel.reviewCount} reviews)
-                              </Text>
-                            </>
-                          ) : null}
-                        </View>
-
-                        <View style={[styles.amenitiesRow, compact && styles.amenitiesRowCompact]}>
-                          {visibleAmenities.map((amenity) => (
-                            <View
-                              key={amenity}
-                              style={[styles.amenityItem, compact && styles.amenityItemCompact]}
-                            >
-                              {renderAmenityIcon(amenity, amenityIconSize)}
-                              <Text style={[styles.amenityText, compact && styles.amenityTextCompact]}>
-                                {amenity}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-
-                        <View style={[styles.noteRow, compact && styles.noteRowCompact]}>
-                          <View
+                  <View key={hotel.id} style={[styles.hotelCard, isPhone && styles.hotelCardPhone]}>
+                    <View style={[styles.hotelCardTop, isPhone && styles.hotelCardTopPhone]}>
+                      <View
+                        style={[
+                          styles.hotelImageShell,
+                          isPhone && styles.hotelImageShellPhone,
+                          { width: hotelImageWidth, height: hotelImageWidth },
+                        ]}
+                      >
+                        <Image
+                          source={hotel.image}
+                          style={styles.hotelImageFill}
+                          resizeMode="cover"
+                        />
+                        <View
+                          style={[
+                            styles.hotelBadge,
+                            isPhone && styles.hotelBadgePhone,
+                            { backgroundColor: badge.background },
+                          ]}
+                        >
+                          <Ionicons
+                            name={badge.icon}
+                            size={isPhone ? 10 : 12}
+                            color={badge.color}
+                          />
+                          <Text
                             style={[
-                              styles.noteCard,
-                              compact && styles.noteCardCompact,
-                              { backgroundColor: hotel.noteBackground },
+                              styles.hotelBadgeText,
+                              isPhone && styles.hotelBadgeTextPhone,
+                              { color: badge.color },
                             ]}
                           >
-                            <View style={[styles.noteIconShell, compact && styles.noteIconShellCompact]}>
-                              <MaterialCommunityIcons
-                                name="robot-happy-outline"
-                                size={compact ? 18 : 24}
-                                color={hotel.noteIconColor}
-                              />
-                            </View>
+                            {badge.label}
+                          </Text>
+                        </View>
+                      </View>
 
+                      <View style={[styles.hotelContent, isPhone && styles.hotelContentPhone]}>
+                        <View style={[styles.hotelInfoCol, isPhone && styles.hotelInfoColPhone]}>
+                          <Text
+                            style={[styles.hotelName, isPhone && styles.hotelNamePhone]}
+                            numberOfLines={2}
+                          >
+                            {hotel.name}
+                          </Text>
+
+                          <View style={[styles.locationRow, isPhone && styles.locationRowPhone]}>
+                            <Ionicons
+                              name="location"
+                              size={isPhone ? 11 : 14}
+                              color="#1F78FF"
+                              style={styles.locationPin}
+                            />
                             <Text
-                              style={[styles.noteText, compact && styles.noteTextCompact]}
-                              numberOfLines={compact ? 2 : undefined}
+                              style={[styles.locationText, isPhone && styles.locationTextPhone]}
+                              numberOfLines={2}
                             >
-                              <Text style={styles.noteTextStrong}>Wayfinder note: </Text>
-                              {hotel.recommendation}
+                              {placeLabel}
+                              {distanceLabel ? ` • ${distanceLabel}` : ""}
                             </Text>
                           </View>
 
-                          <DimPressable
-                            accessibilityRole="button"
-                            onPress={() =>
-                              setExpandedHotelId((currentHotelId) =>
-                                currentHotelId === hotel.id ? null : hotel.id
-                              )
-                            }
-                            style={[styles.detailsButton, compact && styles.detailsButtonCompact]}
-                          >
-                            <Text style={[styles.detailsButtonText, compact && styles.detailsButtonTextCompact]}>
-                              {isExpanded ? "Hide Details" : "View Details"}
+                          <View style={[styles.ratingRow, isPhone && styles.ratingRowPhone]}>
+                            <Ionicons name="star" size={isPhone ? 11 : 14} color="#F5B402" />
+                            <Text style={[styles.ratingValue, isPhone && styles.ratingValuePhone]}>
+                              {Number(hotel.rating).toFixed(1)}
                             </Text>
-                            <Ionicons
-                              name={isExpanded ? "chevron-up" : "chevron-forward"}
-                              size={compact ? 16 : 18}
-                              color="#1F5EE9"
-                              style={styles.detailsButtonIcon}
-                            />
-                          </DimPressable>
-                        </View>
+                            {hotel.reviewCount > 0 ? (
+                              <Text style={[styles.reviewText, isPhone && styles.reviewTextPhone]}>
+                                {" "}
+                                | ({hotel.reviewCount} reviews)
+                              </Text>
+                            ) : null}
+                          </View>
 
-                        {isExpanded ? (
-                          <View style={[styles.expandedDetailsCard, compact && styles.expandedDetailsCardCompact]}>
-                            <Text style={[styles.expandedTitle, compact && styles.expandedTitleCompact]}>
-                              Why it stands out
-                            </Text>
-                            <Text style={[styles.expandedCopy, compact && styles.expandedCopyCompact]}>
-                              {hotel.details}
-                            </Text>
-
-                            <View style={styles.expandedChipRow}>
-                              {hotel.detailChips.map((chip) => (
-                                <View key={chip} style={[styles.expandedChip, compact && styles.expandedChipCompact]}>
+                          {visibleAmenities.length > 0 ? (
+                            <View style={[styles.amenitiesRow, isPhone && styles.amenitiesRowPhone]}>
+                              {visibleAmenities.map((amenity) => (
+                                <View
+                                  key={amenity}
+                                  style={[styles.amenityItem, isPhone && styles.amenityItemPhone]}
+                                >
+                                  {renderAmenityIcon(amenity, amenityIconSize)}
                                   <Text
-                                    style={[styles.expandedChipText, compact && styles.expandedChipTextCompact]}
+                                    style={[styles.amenityText, isPhone && styles.amenityTextPhone]}
+                                    numberOfLines={1}
                                   >
-                                    {chip}
+                                    {amenity}
                                   </Text>
                                 </View>
                               ))}
                             </View>
-                          </View>
-                        ) : null}
+                          ) : null}
+                        </View>
+
+                        <View style={[styles.priceBlock, isPhone && styles.priceBlockPhone]}>
+                          <DimPressable
+                            accessibilityRole="button"
+                            accessibilityLabel={isSaved ? "Remove hotel from saved" : "Save hotel"}
+                            accessibilityState={{ disabled: isFavoritePending }}
+                            disabled={isFavoritePending}
+                            onPress={() => handleToggleSaved(hotel)}
+                            style={[
+                              styles.favoriteButtonInline,
+                              isPhone && styles.favoriteButtonInlinePhone,
+                            ]}
+                            hitSlop={8}
+                          >
+                            <Ionicons
+                              name={isSaved ? "heart" : "heart-outline"}
+                              size={isPhone ? 17 : 20}
+                              color={isSaved ? "#FF5A4E" : "#14253E"}
+                            />
+                          </DimPressable>
+                          <Text style={[styles.priceValue, isPhone && styles.priceValuePhone]}>
+                            ${hotel.price}
+                          </Text>
+                          <Text style={[styles.priceUnit, isPhone && styles.priceUnitPhone]}>
+                            / night
+                          </Text>
+                        </View>
                       </View>
                     </View>
+
+                    <View
+                      style={[
+                        styles.noteRow,
+                        isPhone && styles.noteRowPhone,
+                        stackCardActions && styles.noteRowStacked,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.noteCard,
+                          isPhone && styles.noteCardPhone,
+                          stackCardActions && styles.noteCardStacked,
+                          { backgroundColor: hotel.noteBackground },
+                        ]}
+                      >
+                        <Image
+                          source={tipBotImage}
+                          resizeMode="contain"
+                          style={[styles.noteRobotImage, isPhone && styles.noteRobotImagePhone]}
+                        />
+                        <Text style={[styles.noteText, isPhone && styles.noteTextPhone]}>
+                          <Text style={styles.noteTextStrong}>Wayfinder note: </Text>
+                          {hotel.recommendation}
+                        </Text>
+                      </View>
+
+                      <DimPressable
+                        accessibilityRole="button"
+                        onPress={() =>
+                          setExpandedHotelId((currentHotelId) =>
+                            currentHotelId === hotel.id ? null : hotel.id
+                          )
+                        }
+                        style={[
+                          styles.detailsButton,
+                          isPhone && styles.detailsButtonPhone,
+                          stackCardActions && styles.detailsButtonStacked,
+                        ]}
+                      >
+                        <Text
+                          style={[styles.detailsButtonText, isPhone && styles.detailsButtonTextPhone]}
+                        >
+                          {isExpanded ? "Hide Details" : "View Details"}
+                        </Text>
+                        <Ionicons
+                          name={isExpanded ? "chevron-up" : "chevron-forward"}
+                          size={isPhone ? 13 : 15}
+                          color="#1F5EE9"
+                          style={styles.detailsButtonIcon}
+                        />
+                      </DimPressable>
+                    </View>
+
+                    {isExpanded ? (
+                      <View
+                        style={[
+                          styles.expandedDetailsCard,
+                          isPhone && styles.expandedDetailsCardPhone,
+                        ]}
+                      >
+                        <Text
+                          style={[styles.expandedTitle, isPhone && styles.expandedTitlePhone]}
+                        >
+                          Why it stands out
+                        </Text>
+                        <Text style={[styles.expandedCopy, isPhone && styles.expandedCopyPhone]}>
+                          {hotel.details}
+                        </Text>
+                        <View style={styles.expandedChipRow}>
+                          {hotel.detailChips.map((chip) => (
+                            <View
+                              key={chip}
+                              style={[styles.expandedChip, isPhone && styles.expandedChipPhone]}
+                            >
+                              <Text
+                                style={[
+                                  styles.expandedChipText,
+                                  isPhone && styles.expandedChipTextPhone,
+                                ]}
+                              >
+                                {chip}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    ) : null}
                   </View>
                 );
               })
@@ -899,449 +1000,509 @@ export default function HotelsScreen({ onGoBack, onNavigateHome, onNavigate, par
         </ScrollView>
 
         <BottomNav activeLabel={null} onNavigate={onNavigate} />
-    </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#EAF2FC",
+  },
   screen: {
     flex: 1,
     backgroundColor: "#EAF2FC",
   },
-
   scrollView: {
     flex: 1,
     backgroundColor: "#EAF2FC",
   },
-
   scrollContent: {
-    paddingTop: 62,
+    paddingTop: 8,
     paddingHorizontal: 18,
     alignItems: "center",
     overflow: "visible",
   },
-
+  scrollContentPhone: {
+    paddingTop: 4,
+  },
   contentInner: {
     width: "100%",
     maxWidth: 1040,
     overflow: "visible",
   },
-
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 2,
   },
-
+  headerRowPhone: {
+    marginBottom: 0,
+  },
   roundHeaderButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
     shadowColor: "#9DB2CF",
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 7,
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 5,
   },
-
-  brandSlot: {
+  roundHeaderButtonPhone: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+  },
+  headerSpacer: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
   },
-
-  headerBrandRow: {
-    alignSelf: "auto",
-    marginRight: 0,
-  },
-
-  headerBrandText: {
-    fontSize: 26,
-  },
-
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
   },
-
   headerActionButton: {
-    width: 50,
-    height: 50,
-    marginLeft: 8,
+    width: 42,
+    height: 42,
+    marginLeft: 2,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
   },
-
+  headerActionButtonPhone: {
+    width: 36,
+    height: 36,
+    marginLeft: 0,
+  },
   notificationDot: {
     position: "absolute",
-    top: 8,
-    right: 8,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    top: 7,
+    right: 7,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: "#FF7A32",
   },
-
+  notificationDotPhone: {
+    top: 5,
+    right: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
   heroSection: {
-    marginTop: 0,
-    marginBottom: 0,
+    marginTop: 4,
+    marginBottom: 2,
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "space-between",
     zIndex: 1,
   },
-
+  heroSectionPhone: {
+    marginTop: 2,
+    marginBottom: 0,
+    alignItems: "flex-end",
+  },
   heroTextColumn: {
     flex: 1,
     minWidth: 0,
-    paddingTop: 2,
-    paddingRight: 4,
-    paddingBottom: 10,
+    paddingRight: 8,
+    paddingBottom: 6,
     zIndex: 2,
   },
-
+  heroTextColumnPhone: {
+    maxWidth: "55%",
+    paddingRight: 4,
+    paddingBottom: 4,
+  },
   heading: {
-    fontSize: 48,
-    lineHeight: 52,
+    fontSize: 40,
+    lineHeight: 44,
     fontWeight: "800",
-    letterSpacing: -1.8,
+    letterSpacing: -1.4,
     color: "#10213B",
   },
-
+  headingPhone: {
+    fontSize: 30,
+    lineHeight: 34,
+    letterSpacing: -1,
+  },
   subtitle: {
-    marginTop: 10,
-    fontSize: 17,
-    lineHeight: 26,
+    marginTop: 6,
+    fontSize: 15,
+    lineHeight: 22,
     color: "#51607D",
   },
-
+  subtitlePhone: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 17,
+  },
   subtitleAccent: {
     color: "#1F78FF",
     fontWeight: "700",
   },
-
   heroArtworkWrap: {
-    width: 268,
+    width: 248,
     aspectRatio: 1536 / 896,
-    marginTop: -4,
-    marginLeft: -12,
-    marginRight: -14,
-    // ~10% of banner height
-    marginBottom: -16,
+    marginLeft: -8,
+    marginRight: -8,
+    marginBottom: -10,
     overflow: "visible",
-    position: "relative",
     zIndex: 1,
-    backgroundColor: "#EAF2FC",
   },
-
+  heroArtworkWrapPhone: {
+    marginLeft: -10,
+    marginRight: -6,
+    marginBottom: -8,
+    flexShrink: 0,
+  },
   heroArtworkImage: {
     width: "100%",
     height: "100%",
   },
-
   searchCard: {
-    marginTop: 0,
-    paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 20,
-    borderRadius: 32,
+    marginTop: 4,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    borderRadius: 24,
     backgroundColor: "#156EF6",
     overflow: "hidden",
     zIndex: 3,
     shadowColor: "#2563EB",
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 9,
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 7,
   },
-
+  searchCardPhone: {
+    marginTop: 2,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 10,
+    borderRadius: 18,
+  },
   searchDecorCircle: {
     position: "absolute",
     top: -38,
     right: -42,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
   },
-
   searchDecorRoute: {
     position: "absolute",
-    top: 28,
-    right: 66,
-    width: 116,
-    height: 116,
-    borderRadius: 58,
+    top: 22,
+    right: 56,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     borderWidth: 2,
-    borderColor: "rgba(255, 255, 255, 0.24)",
+    borderColor: "rgba(255, 255, 255, 0.2)",
     borderStyle: "dashed",
   },
-
   searchDecorLocation: {
     position: "absolute",
-    top: 22,
-    right: 22,
+    top: 18,
+    right: 18,
     zIndex: 2,
   },
-
   searchDecorBuilding: {
     position: "absolute",
-    right: 78,
-    bottom: 22,
+    right: 70,
+    bottom: 18,
   },
-
   searchDecorCity: {
     position: "absolute",
-    right: 118,
-    bottom: 28,
+    right: 108,
+    bottom: 24,
   },
-
   searchDecorPalm: {
     position: "absolute",
-    right: 48,
-    bottom: 14,
+    right: 42,
+    bottom: 12,
   },
-
   searchHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
   },
-
   searchIconBadge: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
-    shadowColor: "#0C56D7",
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 4,
   },
-
+  searchIconBadgePhone: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
   searchCopy: {
     flex: 1,
-    marginLeft: 16,
-    paddingRight: 88,
+    marginLeft: 12,
+    paddingRight: 72,
   },
-
+  searchCopyPhone: {
+    marginLeft: 8,
+    paddingRight: 52,
+  },
   searchTitleRow: {
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
   },
-
   searchTitle: {
-    fontSize: 25,
+    fontSize: 20,
     fontWeight: "800",
     color: "#FFFFFF",
-    letterSpacing: -0.8,
+    letterSpacing: -0.4,
   },
-
+  searchTitlePhone: {
+    fontSize: 15,
+  },
   searchSparkles: {
-    marginLeft: 6,
+    marginLeft: 4,
   },
-
   searchSubtitle: {
-    marginTop: 6,
-    fontSize: 16,
-    lineHeight: 23,
+    marginTop: 3,
+    fontSize: 13,
+    lineHeight: 18,
     color: "rgba(244, 248, 255, 0.95)",
   },
-
+  searchSubtitlePhone: {
+    marginTop: 1,
+    fontSize: 11,
+    lineHeight: 14,
+  },
   destinationInputWrap: {
-    marginTop: 20,
-    minHeight: 78,
-    paddingHorizontal: 20,
-    borderRadius: 24,
+    marginTop: 12,
+    minHeight: 48,
+    paddingHorizontal: 14,
+    borderRadius: 14,
     backgroundColor: "#FFFFFF",
     flexDirection: "row",
     alignItems: "center",
   },
-
+  destinationInputWrapPhone: {
+    marginTop: 8,
+    minHeight: 42,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
   destinationInput: {
     flex: 1,
-    marginLeft: 14,
-    fontSize: 18,
+    marginLeft: 10,
+    fontSize: 16,
     color: "#14253E",
   },
-
+  destinationInputPhone: {
+    marginLeft: 8,
+    fontSize: 14,
+  },
   findHotelsButton: {
-    marginTop: 14,
-    minHeight: 68,
-    paddingHorizontal: 26,
-    borderRadius: 22,
+    marginTop: 10,
+    minHeight: 48,
+    paddingHorizontal: 18,
+    borderRadius: 14,
     backgroundColor: "#FF6E2E",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
   },
-
+  findHotelsButtonPhone: {
+    marginTop: 8,
+    minHeight: 42,
+    borderRadius: 12,
+  },
   findHotelsButtonText: {
-    fontSize: 22,
+    fontSize: 17,
     fontWeight: "800",
     color: "#FFFFFF",
-    letterSpacing: -0.5,
   },
-
+  findHotelsButtonTextPhone: {
+    fontSize: 14,
+  },
   findHotelsButtonSparkles: {
-    marginLeft: 8,
+    marginLeft: 6,
   },
-
   sortHeading: {
-    marginTop: 20,
-    fontSize: 20,
+    marginTop: 16,
+    fontSize: 17,
     fontWeight: "800",
     color: "#14253E",
   },
-
+  sortHeadingPhone: {
+    marginTop: 12,
+    fontSize: 14,
+  },
   locationStatusRow: {
-    marginTop: 8,
+    marginTop: 6,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
-
+  locationStatusRowPhone: {
+    marginTop: 4,
+  },
   locationStatusText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
     color: "#475569",
   },
-
+  locationStatusTextPhone: {
+    fontSize: 11,
+  },
   locationRefreshText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
     color: "#1F78FF",
   },
-
+  locationRefreshTextPhone: {
+    fontSize: 11,
+  },
   sortRow: {
-    marginTop: 12,
+    marginTop: 10,
     flexDirection: "row",
     flexWrap: "wrap",
-    marginHorizontal: -6,
+    marginHorizontal: -4,
   },
-
+  sortRowPhone: {
+    marginTop: 8,
+    flexWrap: "nowrap",
+    marginHorizontal: -3,
+  },
+  sortRowScroll: {
+    paddingRight: 8,
+    flexGrow: 1,
+  },
   sortPill: {
-    minHeight: 56,
-    minWidth: 152,
-    marginHorizontal: 6,
-    marginBottom: 12,
-    paddingHorizontal: 18,
-    borderRadius: 19,
+    minHeight: 42,
+    minWidth: 120,
+    marginHorizontal: 4,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    borderRadius: 14,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E6EDF8",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#A6B7CC",
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
   },
-
+  sortPillCompact: {
+    flex: 1,
+    minHeight: 34,
+    minWidth: 0,
+    marginHorizontal: 3,
+    marginBottom: 0,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: 11,
+  },
+  sortPillScrollable: {
+    flex: 0,
+    minWidth: 104,
+    paddingHorizontal: 10,
+  },
   sortPillSelected: {
     backgroundColor: "#1F78FF",
     borderColor: "#1F78FF",
   },
-
   sortPillLabel: {
-    marginLeft: 10,
-    fontSize: 15,
+    marginLeft: 6,
+    fontSize: 13,
     fontWeight: "700",
     color: "#16253C",
-    textAlign: "center",
   },
-
+  sortPillLabelCompact: {
+    marginLeft: 3,
+    fontSize: 10,
+    letterSpacing: -0.15,
+  },
   sortPillLabelSelected: {
     color: "#FFFFFF",
   },
-
   picksSectionHeader: {
-    marginTop: 8,
-    paddingTop: 18,
+    marginTop: 10,
+    paddingTop: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(131, 148, 171, 0.45)",
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
-    flexWrap: "wrap",
   },
-
+  picksSectionHeaderPhone: {
+    marginTop: 8,
+    paddingTop: 10,
+  },
   picksTitleWrap: {
     flexDirection: "row",
     alignItems: "center",
-    flexGrow: 1,
-    flexShrink: 1,
-    minWidth: 240,
-    paddingRight: 12,
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 10,
   },
-
+  picksTitleWrapPhone: {
+    paddingRight: 8,
+  },
   picksIconBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 15,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: "#1F5EE9",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: 10,
   },
-
+  picksIconBadgePhone: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 8,
+  },
   picksCopy: {
     flex: 1,
+    minWidth: 0,
   },
-
   picksTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "800",
     color: "#1F5EE9",
   },
-
+  picksTitlePhone: {
+    fontSize: 14,
+  },
   picksSubtitle: {
-    marginTop: 2,
-    fontSize: 15,
-    lineHeight: 22,
+    marginTop: 1,
+    fontSize: 13,
+    lineHeight: 18,
     color: "#4D5D7A",
   },
-
+  picksSubtitlePhone: {
+    fontSize: 11,
+    lineHeight: 14,
+  },
   resultsCount: {
-    marginTop: 8,
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1F78FF",
-  },
-
-  activeSearchPill: {
-    alignSelf: "flex-start",
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#DCE7F8",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  activeSearchText: {
-    marginLeft: 8,
     fontSize: 14,
     fontWeight: "700",
-    color: "#1F5EE9",
+    color: "#1F78FF",
+    flexShrink: 0,
   },
-
+  resultsCountPhone: {
+    fontSize: 11,
+  },
   mockBanner: {
-    marginTop: 12,
+    marginTop: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
@@ -1352,7 +1513,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 8,
   },
-
   mockBannerText: {
     flex: 1,
     fontSize: 13,
@@ -1360,692 +1520,418 @@ const styles = StyleSheet.create({
     color: "#9A3412",
     fontWeight: "600",
   },
+  previewMessageCard: {
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  previewMessageText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#1E3A8A",
+    fontWeight: "600",
+  },
 
+  // Hotel cards — compact top-aligned content (no title/price row gap)
   hotelCard: {
-    position: "relative",
-    marginTop: 16,
-    padding: 18,
-    borderRadius: 28,
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 16,
     backgroundColor: "#FFFFFF",
     shadowColor: "#9AAECC",
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 7,
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
   },
-
-  favoriteButton: {
-    position: "absolute",
-    top: 18,
-    right: 18,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.94)",
-    zIndex: 2,
+  hotelCardPhone: {
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 14,
   },
-
-  hotelCardRow: {
+  hotelCardTop: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "flex-start",
   },
-
-  hotelImage: {
-    width: 148,
-    height: 148,
-    borderRadius: 24,
+  hotelCardTopPhone: {
+    flexDirection: "row",
+    alignItems: "flex-start",
   },
-
+  hotelImageShell: {
+    width: 128,
+    height: 128,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "#D9E6F7",
+    flexShrink: 0,
+    position: "relative",
+  },
+  hotelImageShellPhone: {
+    borderRadius: 12,
+  },
+  hotelImageFill: {
+    width: "100%",
+    height: "100%",
+  },
+  hotelBadge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999,
+    gap: 3,
+  },
+  hotelBadgePhone: {
+    top: 5,
+    left: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    gap: 2,
+  },
+  hotelBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  hotelBadgeTextPhone: {
+    fontSize: 9,
+  },
   hotelContent: {
     flex: 1,
-    minWidth: 220,
-    marginLeft: 18,
-    paddingRight: 46,
-  },
-
-  hotelHeadingRow: {
+    minWidth: 0,
+    marginLeft: 10,
     flexDirection: "row",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
+    alignItems: "flex-start",
   },
-
-  hotelHeadingCopy: {
+  hotelContentPhone: {
+    marginLeft: 8,
+  },
+  hotelInfoCol: {
     flex: 1,
-    minWidth: 180,
-    paddingRight: 12,
+    minWidth: 0,
+    paddingRight: 6,
   },
-
+  hotelInfoColPhone: {
+    paddingRight: 4,
+  },
   hotelName: {
-    fontSize: 22,
+    fontSize: 15,
     fontWeight: "800",
     color: "#10213B",
-    letterSpacing: -0.8,
+    letterSpacing: -0.2,
+    lineHeight: 18,
   },
-
-  locationRow: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
+  hotelNamePhone: {
+    fontSize: 13,
+    lineHeight: 16,
   },
-
-  locationText: {
-    marginLeft: 6,
-    fontSize: 15,
-    color: "#4A5874",
-  },
-
-  inlineSeparator: {
-    marginHorizontal: 10,
-    fontSize: 15,
-    color: "#9AA7BD",
-  },
-
   priceBlock: {
     alignItems: "flex-end",
-    justifyContent: "flex-start",
-    marginTop: 4,
+    flexShrink: 0,
+    width: 52,
   },
-
+  priceBlockPhone: {
+    width: 48,
+  },
+  favoriteButtonInline: {
+    width: 26,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 1,
+  },
+  favoriteButtonInlinePhone: {
+    width: 22,
+    height: 18,
+    marginBottom: 0,
+  },
   priceValue: {
-    fontSize: 30,
+    fontSize: 17,
     fontWeight: "800",
     color: "#1F78FF",
-    letterSpacing: -1.1,
+    letterSpacing: -0.3,
   },
-
+  priceValuePhone: {
+    fontSize: 14,
+  },
   priceUnit: {
-    marginTop: 2,
-    fontSize: 15,
-    color: "#34435D",
+    marginTop: -1,
+    fontSize: 9,
+    color: "#64748B",
   },
-
+  priceUnitPhone: {
+    fontSize: 8,
+  },
+  locationRow: {
+    marginTop: 2,
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  locationRowPhone: {
+    marginTop: 2,
+  },
+  locationPin: {
+    marginTop: 1,
+    marginRight: 3,
+  },
+  locationText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 11,
+    lineHeight: 14,
+    color: "#4A5874",
+  },
+  locationTextPhone: {
+    fontSize: 10,
+    lineHeight: 13,
+  },
   ratingRow: {
-    marginTop: 16,
+    marginTop: 2,
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
   },
-
-  ratingBadge: {
-    height: 34,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: "#FFF5D6",
-    flexDirection: "row",
-    alignItems: "center",
+  ratingRowPhone: {
+    marginTop: 2,
   },
-
   ratingValue: {
-    marginLeft: 6,
-    fontSize: 18,
+    marginLeft: 3,
+    fontSize: 12,
     fontWeight: "800",
     color: "#1F5EE9",
   },
-
+  ratingValuePhone: {
+    fontSize: 11,
+  },
   reviewText: {
-    fontSize: 16,
-    color: "#45536E",
+    fontSize: 11,
+    color: "#64748B",
   },
-
+  reviewTextPhone: {
+    fontSize: 10,
+  },
   amenitiesRow: {
-    marginTop: 16,
+    marginTop: 3,
     flexDirection: "row",
     flexWrap: "wrap",
+    columnGap: 6,
+    rowGap: 2,
   },
-
+  amenitiesRowPhone: {
+    marginTop: 2,
+    columnGap: 5,
+    rowGap: 2,
+  },
   amenityItem: {
-    marginRight: 18,
-    marginBottom: 8,
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 0,
   },
-
+  amenityItemPhone: {},
   amenityText: {
-    marginLeft: 8,
-    fontSize: 16,
-    color: "#16253C",
+    marginLeft: 3,
+    fontSize: 10,
+    color: "#334155",
   },
-
+  amenityTextPhone: {
+    fontSize: 9,
+  },
   noteRow: {
-    marginTop: 10,
+    marginTop: 6,
     flexDirection: "row",
-    flexWrap: "wrap",
     alignItems: "center",
+    gap: 6,
   },
-
+  noteRowPhone: {
+    marginTop: 5,
+    gap: 5,
+  },
+  noteRowStacked: {
+    flexDirection: "column",
+    alignItems: "stretch",
+  },
   noteCard: {
     flex: 1,
-    minWidth: 220,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 20,
+    minWidth: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 10,
     flexDirection: "row",
     alignItems: "center",
   },
-
-  noteIconShell: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.88)",
-    marginRight: 10,
+  noteCardPhone: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 9,
   },
-
+  noteCardStacked: {
+    width: "100%",
+  },
+  noteRobotImage: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    flexShrink: 0,
+    marginRight: 5,
+  },
+  noteRobotImagePhone: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginRight: 4,
+  },
   noteText: {
     flex: 1,
-    fontSize: 15,
-    lineHeight: 21,
+    minWidth: 0,
+    fontSize: 11,
+    lineHeight: 14,
     color: "#16253C",
   },
-
+  noteTextPhone: {
+    fontSize: 10,
+    lineHeight: 13,
+  },
   noteTextStrong: {
     fontWeight: "800",
   },
-
   detailsButton: {
-    minWidth: 170,
-    minHeight: 54,
-    marginTop: 12,
-    marginLeft: 12,
-    paddingHorizontal: 18,
-    borderRadius: 20,
+    minWidth: 100,
+    minHeight: 32,
+    paddingHorizontal: 8,
+    borderRadius: 9,
     borderWidth: 1.5,
     borderColor: "#C9DBFF",
     backgroundColor: "#FFFFFF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
-
+  detailsButtonPhone: {
+    minWidth: 94,
+    minHeight: 30,
+    paddingHorizontal: 7,
+    borderRadius: 8,
+  },
+  detailsButtonStacked: {
+    alignSelf: "flex-end",
+    minWidth: 104,
+  },
   detailsButtonText: {
-    fontSize: 16,
+    fontSize: 11,
     fontWeight: "700",
     color: "#1F5EE9",
   },
-
-  detailsButtonIcon: {
-    marginLeft: 8,
+  detailsButtonTextPhone: {
+    fontSize: 10,
   },
-
+  detailsButtonIcon: {
+    marginLeft: 3,
+  },
   expandedDetailsCard: {
-    marginTop: 14,
-    padding: 16,
-    borderRadius: 20,
+    marginTop: 6,
+    padding: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "#DFE9F7",
     backgroundColor: "#F8FBFF",
   },
-
+  expandedDetailsCardPhone: {
+    marginTop: 5,
+    padding: 7,
+    borderRadius: 9,
+  },
   expandedTitle: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: "800",
     color: "#14253E",
   },
-
+  expandedTitlePhone: {
+    fontSize: 11,
+  },
   expandedCopy: {
-    marginTop: 8,
-    fontSize: 15,
-    lineHeight: 22,
+    marginTop: 3,
+    fontSize: 11,
+    lineHeight: 15,
     color: "#4A5874",
   },
-
+  expandedCopyPhone: {
+    fontSize: 10,
+    lineHeight: 14,
+  },
   expandedChipRow: {
-    marginTop: 14,
+    marginTop: 6,
     flexDirection: "row",
     flexWrap: "wrap",
   },
-
   expandedChip: {
-    marginRight: 10,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    marginRight: 5,
+    marginBottom: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 999,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E0E9F7",
   },
-
+  expandedChipPhone: {
+    marginRight: 4,
+    marginBottom: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
   expandedChipText: {
-    fontSize: 13,
+    fontSize: 10,
     fontWeight: "700",
     color: "#334155",
   },
-
+  expandedChipTextPhone: {
+    fontSize: 9,
+  },
   emptyStateCard: {
-    marginTop: 18,
-    paddingHorizontal: 20,
-    paddingVertical: 28,
-    borderRadius: 26,
+    marginTop: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 24,
+    borderRadius: 20,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
-    shadowColor: "#A3B4CA",
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 5,
   },
-
   emptyStateTitle: {
-    marginTop: 14,
-    fontSize: 20,
+    marginTop: 12,
+    fontSize: 18,
     fontWeight: "800",
     color: "#14253E",
     textAlign: "center",
   },
-
   emptyStateCopy: {
-    marginTop: 8,
-    fontSize: 15,
-    lineHeight: 22,
+    marginTop: 6,
+    fontSize: 14,
+    lineHeight: 20,
     color: "#51607D",
     textAlign: "center",
   },
-
   clearSearchButton: {
-    marginTop: 18,
-    minHeight: 48,
-    paddingHorizontal: 18,
-    borderRadius: 16,
+    marginTop: 14,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    borderRadius: 14,
     backgroundColor: "#1F78FF",
     alignItems: "center",
     justifyContent: "center",
   },
-
   clearSearchButtonText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
     color: "#FFFFFF",
-  },
-
-  // Narrow / phone — keep page design; shrink sort pills into one row.
-  scrollContentCompact: {
-    paddingTop: 52,
-    paddingHorizontal: 14,
-  },
-
-  headerRowCompact: {
-    marginBottom: 0,
-  },
-
-  roundHeaderButtonCompact: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-  },
-
-  headerBrandTextCompact: {
-    fontSize: 22,
-  },
-
-  headerActionButtonCompact: {
-    width: 44,
-    height: 44,
-    marginLeft: 4,
-  },
-
-  notificationDotCompact: {
-    top: 7,
-    right: 7,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-
-  heroSectionCompact: {
-    marginTop: 0,
-    alignItems: "flex-end",
-  },
-
-  heroTextColumnCompact: {
-    flex: 1,
-    minWidth: 0,
-    maxWidth: "54%",
-    paddingTop: 0,
-    paddingRight: 2,
-    paddingBottom: 8,
-  },
-
-  headingCompact: {
-    fontSize: 34,
-    lineHeight: 36,
-    letterSpacing: -1.2,
-  },
-
-  subtitleCompact: {
-    marginTop: 4,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  heroArtworkWrapCompact: {
-    width: 204,
-    aspectRatio: 1536 / 896,
-    height: undefined,
-    marginTop: -6,
-    marginLeft: -16,
-    marginRight: -14,
-    // ~10% of banner height
-    marginBottom: -12,
-    flexShrink: 0,
-    backgroundColor: "#EAF2FC",
-  },
-
-  searchCardCompact: {
-    marginTop: 0,
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 12,
-    borderRadius: 18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-  },
-
-  searchIconBadgeCompact: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-  },
-
-  searchCopyCompact: {
-    marginLeft: 10,
-    paddingRight: 72,
-  },
-
-  searchTitleCompact: {
-    fontSize: 17,
-    letterSpacing: -0.3,
-  },
-
-  searchSubtitleCompact: {
-    marginTop: 2,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  destinationInputWrapCompact: {
-    marginTop: 10,
-    minHeight: 44,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-
-  destinationInputCompact: {
-    marginLeft: 8,
-    fontSize: 15,
-  },
-
-  findHotelsButtonCompact: {
-    marginTop: 8,
-    minHeight: 42,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-  },
-
-  findHotelsButtonTextCompact: {
-    fontSize: 14,
-  },
-
-  sortHeadingCompact: {
-    marginTop: 14,
-    fontSize: 15,
-  },
-
-  locationStatusRowCompact: {
-    marginTop: 4,
-  },
-
-  locationStatusTextCompact: {
-    fontSize: 12,
-  },
-
-  locationRefreshTextCompact: {
-    fontSize: 12,
-  },
-
-  sortRowCompact: {
-    marginTop: 8,
-    flexWrap: 'nowrap',
-    marginHorizontal: -3,
-  },
-
-  sortPillCompact: {
-    flex: 1,
-    minHeight: 36,
-    minWidth: 0,
-    marginHorizontal: 3,
-    marginBottom: 0,
-    paddingVertical: 6,
-    paddingHorizontal: 3,
-    borderRadius: 12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  sortPillLabelCompact: {
-    marginLeft: 2,
-    fontSize: 9,
-    lineHeight: 11,
-    letterSpacing: -0.35,
-    textAlign: "center",
-    flexShrink: 1,
-  },
-
-  picksSectionHeaderCompact: {
-    marginTop: 8,
-    marginBottom: 2,
-  },
-
-  picksIconBadgeCompact: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-  },
-
-  picksTitleCompact: {
-    fontSize: 15,
-  },
-
-  picksSubtitleCompact: {
-    marginTop: 1,
-    fontSize: 11,
-    lineHeight: 14,
-  },
-
-  resultsCountCompact: {
-    marginTop: 0,
-    fontSize: 12,
-  },
-
-  hotelCardCompact: {
-    marginTop: 10,
-    padding: 10,
-    borderRadius: 16,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 4,
-    minHeight: 118,
-  },
-
-  favoriteButtonCompact: {
-    top: 10,
-    right: 10,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-  },
-
-  hotelCardRowCompact: {
-    flexWrap: 'nowrap',
-    alignItems: 'stretch',
-    minHeight: 100,
-  },
-
-  hotelImageCompact: {
-    width: 132,
-    height: 100,
-    borderRadius: 12,
-  },
-
-  hotelContentCompact: {
-    minWidth: 0,
-    flex: 1,
-    marginLeft: 12,
-    paddingRight: 32,
-    justifyContent: 'space-between',
-  },
-
-  hotelHeadingRowCompact: {
-    flexWrap: 'nowrap',
-    alignItems: 'flex-start',
-  },
-
-  hotelHeadingCopyCompact: {
-    minWidth: 0,
-    flex: 1,
-    paddingRight: 8,
-  },
-
-  hotelNameCompact: {
-    fontSize: 15,
-    letterSpacing: -0.2,
-    lineHeight: 19,
-  },
-
-  locationRowCompact: {
-    marginTop: 3,
-  },
-
-  locationTextCompact: {
-    marginLeft: 3,
-    fontSize: 11,
-    flexShrink: 1,
-  },
-
-  inlineSeparatorCompact: {
-    marginHorizontal: 5,
-    fontSize: 11,
-  },
-
-  priceBlockCompact: {
-    marginTop: 0,
-  },
-
-  priceValueCompact: {
-    fontSize: 18,
-    letterSpacing: -0.4,
-  },
-
-  priceUnitCompact: {
-    fontSize: 10,
-  },
-
-  ratingRowCompact: {
-    marginTop: 6,
-  },
-
-  ratingBadgeCompact: {
-    height: 24,
-    paddingHorizontal: 7,
-    borderRadius: 8,
-  },
-
-  ratingValueCompact: {
-    marginLeft: 3,
-    fontSize: 12,
-  },
-
-  reviewTextCompact: {
-    fontSize: 11,
-  },
-
-  amenitiesRowCompact: {
-    marginTop: 6,
-  },
-
-  amenityItemCompact: {
-    marginRight: 8,
-    marginBottom: 2,
-  },
-
-  amenityTextCompact: {
-    marginLeft: 3,
-    fontSize: 11,
-  },
-
-  noteRowCompact: {
-    marginTop: 6,
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
-    alignItems: 'center',
-  },
-
-  noteCardCompact: {
-    minWidth: 0,
-    flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 10,
-  },
-
-  noteIconShellCompact: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 6,
-  },
-
-  noteTextCompact: {
-    fontSize: 11,
-    lineHeight: 14,
-  },
-
-  detailsButtonCompact: {
-    minWidth: 0,
-    minHeight: 34,
-    marginTop: 0,
-    marginLeft: 6,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-  },
-
-  detailsButtonTextCompact: {
-    fontSize: 11,
-  },
-
-  expandedDetailsCardCompact: {
-    marginTop: 8,
-    padding: 10,
-    borderRadius: 12,
-  },
-
-  expandedTitleCompact: {
-    fontSize: 13,
-  },
-
-  expandedCopyCompact: {
-    marginTop: 4,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  expandedChipCompact: {
-    marginRight: 6,
-    marginBottom: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-
-  expandedChipTextCompact: {
-    fontSize: 10,
   },
 });
