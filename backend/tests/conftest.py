@@ -1,5 +1,6 @@
 # Shared test fixtures — isolated async DB sessions and ASGI client for auth tests.
 import os
+from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -11,12 +12,25 @@ from app.core.config import Settings
 from app.db.session import get_db
 from app.main import app
 from app.models import Base
+from app.services import geocode as geocode_service
 
 # Dedicated test DB so pytest TRUNCATE never wipes the local Expo login user.
 # App .env typically uses `wayfinder` on the same host/port.
 DEFAULT_TEST_DATABASE_URL = (
     "postgresql+asyncpg://wayfinder:wayfinder@localhost:55432/wayfinder_test"
 )
+
+MOCK_GEO: dict[str, Any] = {
+    "label": "Bali, Indonesia",
+    "city": "Bali",
+    "region": None,
+    "country": "Indonesia",
+    "country_code": "ID",
+    "country_iso": "IDN",
+    "lat": -8.34,
+    "lng": 115.09,
+    "provider": "mock",
+}
 
 test_settings = Settings(
     _env_file=None,
@@ -90,3 +104,37 @@ async def clean_tables(create_schema):
         )
         await session.commit()
     yield
+
+
+@pytest.fixture
+def stub_geocode(monkeypatch: pytest.MonkeyPatch):
+    """Offline geocode for tests that hit /geo or location-aware routes."""
+
+    async def reverse_geocode(lat: float, lng: float) -> dict[str, Any]:
+        return {**MOCK_GEO, "lat": lat, "lng": lng}
+
+    async def search_geocode(query: str) -> dict[str, Any]:
+        return {**MOCK_GEO, "label": query}
+
+    async def suggest_geocode(query: str, *, limit: int = 5) -> list[dict[str, Any]]:
+        return [{**MOCK_GEO, "label": query}]
+
+    monkeypatch.setattr(geocode_service, "reverse_geocode", reverse_geocode)
+    monkeypatch.setattr(geocode_service, "search_geocode", search_geocode)
+    monkeypatch.setattr(geocode_service, "suggest_geocode", suggest_geocode)
+
+
+@pytest.fixture
+async def auth_headers(client: AsyncClient) -> dict[str, str]:
+    response = await client.post(
+        "/auth/register",
+        json={
+            "email": "integration@example.com",
+            "password": "password123",
+            "full_name": "Integration User",
+            "username": "integrationuser",
+        },
+    )
+    assert response.status_code == 201, response.text
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
