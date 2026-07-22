@@ -15,6 +15,7 @@ import {
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -307,13 +308,26 @@ const WELCOME_MESSAGE_ID = "assistant-welcome";
 const WELCOME_TEXT =
   "Tap a card or popular question and I'll answer using your active trip, weather, and favorites.";
 
-function MessageList({ messages, compact, style }) {
+/** Compact on-page transcript height; expand overlay uses ~85% of the viewport. */
+const COMPACT_CHAT_MAX_HEIGHT = 220;
+const EXPANDED_VIEWPORT_RATIO = 0.85;
+
+function MessageList({ messages, compact, listRef, style }) {
   return (
-    <View style={[styles.messageListContent, style]}>
+    <ScrollView
+      ref={listRef}
+      style={style}
+      contentContainerStyle={styles.messageListContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator
+      onContentSizeChange={() => {
+        listRef?.current?.scrollToEnd?.({ animated: true });
+      }}
+    >
       {messages.map((item) => (
         <MessageBubble key={item.id} message={item} compact={compact} />
       ))}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -330,8 +344,11 @@ export default function AIChatScreen({ onNavigate, onBack }) {
   const insets = useSafeAreaInsets();
   const inputRef = useRef(null);
   const pageScrollRef = useRef(null);
+  const compactListRef = useRef(null);
+  const expandedListRef = useRef(null);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [expandedOpen, setExpandedOpen] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [messages, setMessages] = useState([
     {
@@ -351,14 +368,6 @@ export default function AIChatScreen({ onNavigate, onBack }) {
       hideSub.remove();
     };
   }, []);
-
-  useEffect(() => {
-    if (messages.some((item) => item.role === "user")) {
-      requestAnimationFrame(() => {
-        pageScrollRef.current?.scrollToEnd?.({ animated: true });
-      });
-    }
-  }, [messages]);
 
   const isPhone = width < 430;
   const isCompactPhone = width < 400;
@@ -416,19 +425,44 @@ export default function AIChatScreen({ onNavigate, onBack }) {
   const questionChipWidth = (pageWidth - (questionColumns - 1) * questionGap) / questionColumns;
   const topBlockSource = useMobileTopBlock ? mobileTopBlockImage : approvedTopBlockImage;
   const topBlockAspectRatio = useMobileTopBlock ? 853 / 510 : 1308 / 820;
+  // Same aspect ratio as the device, scaled to ~85% of the viewport.
+  const expandedWidth = Math.round(width * EXPANDED_VIEWPORT_RATIO);
+  const expandedHeight = Math.round(height * EXPANDED_VIEWPORT_RATIO);
   const userTurnCount = messages.filter((item) => item.role === "user").length;
   // Landing mockup has no transcript; show the card once the user starts chatting.
   const showConversationCard = userTurnCount >= 1;
   const helpCardCompactStyle = isShortPhone
     ? { height: 78, minHeight: 78, paddingVertical: 4 }
     : null;
-  const composerBottomPad = keyboardVisible
-    ? 8
-    : Math.max(pageBottomPadding - 8, isPhone ? 12 : 16);
 
-  function scrollToLatestMessages() {
+  function scrollToComposerRegion() {
     requestAnimationFrame(() => {
       pageScrollRef.current?.scrollToEnd?.({ animated: true });
+      compactListRef.current?.scrollToEnd?.({ animated: true });
+      expandedListRef.current?.scrollToEnd?.({ animated: true });
+    });
+  }
+
+  function openExpanded() {
+    setExpandedOpen(true);
+  }
+
+  function closeExpanded() {
+    setExpandedOpen(false);
+    setKeyboardVisible(false);
+  }
+
+  /** Expand overlay when the user taps the composer so typing stays visible. */
+  function openExpandedOnComposerFocus() {
+    if (expandedOpen) {
+      return;
+    }
+    openExpanded();
+    // Compact composer unmounts when the overlay opens; restore focus on the expanded input.
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        inputRef.current?.focus?.();
+      }, 0);
     });
   }
 
@@ -458,8 +492,12 @@ export default function AIChatScreen({ onNavigate, onBack }) {
         },
       ];
     });
+    // Landing hides the transcript until the first turn; surface it in the overlay.
+    if (userTurnCount === 0) {
+      setExpandedOpen(true);
+    }
 
-    scrollToLatestMessages();
+    scrollToComposerRegion();
 
     try {
       const token = await getToken();
@@ -504,7 +542,7 @@ export default function AIChatScreen({ onNavigate, onBack }) {
       );
     } finally {
       setSending(false);
-      scrollToLatestMessages();
+      scrollToComposerRegion();
     }
   }
 
@@ -514,6 +552,10 @@ export default function AIChatScreen({ onNavigate, onBack }) {
       return;
     }
 
+    // Preset taps should show the transcript, not just queue text in the composer.
+    if (!expandedOpen) {
+      openExpanded();
+    }
     void handleSend(text);
   }
 
@@ -546,7 +588,7 @@ export default function AIChatScreen({ onNavigate, onBack }) {
           style={[styles.composerInput, isPhone && styles.composerInputCompact]}
           returnKeyType="send"
           editable={!sending}
-          blurOnSubmit={false}
+          onFocus={openExpandedOnComposerFocus}
           onSubmitEditing={handleSend}
         />
 
@@ -576,11 +618,7 @@ export default function AIChatScreen({ onNavigate, onBack }) {
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
       <StatusBar style="dark" />
 
-      <KeyboardAvoidingView
-        style={styles.screen}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={0}
-      >
+      <View style={styles.screen}>
         <ScrollView
           ref={pageScrollRef}
           style={styles.scrollView}
@@ -589,11 +627,10 @@ export default function AIChatScreen({ onNavigate, onBack }) {
             {
               paddingTop: isPhone ? 6 : 18,
               paddingHorizontal: pageHorizontalPadding,
-              paddingBottom: 12,
+              paddingBottom: pageBottomPadding,
             },
           ]}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.page}>
@@ -866,33 +903,106 @@ export default function AIChatScreen({ onNavigate, onBack }) {
               >
                 <View style={styles.chatCardHeader}>
                   <Text style={styles.chatCardTitle}>Conversation</Text>
-                  {userTurnCount >= 1 ? (
-                    <Text style={styles.chatCardHint}>Scroll for history</Text>
-                  ) : null}
+                  <View style={styles.chatCardHeaderActions}>
+                    {userTurnCount >= 1 ? (
+                      <Text style={styles.chatCardHint}>Scroll for history</Text>
+                    ) : null}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Expand conversation"
+                      onPress={openExpanded}
+                      hitSlop={10}
+                      style={styles.expandIconButton}
+                    >
+                      <Ionicons name="expand-outline" size={20} color="#3D4F73" />
+                    </Pressable>
+                  </View>
                 </View>
                 <MessageList
                   messages={messages}
                   compact={isPhone}
+                  listRef={compactListRef}
+                  style={styles.compactMessageList}
                 />
               </View>
             ) : null}
+
+            {!expandedOpen ? renderComposer() : null}
           </View>
         </ScrollView>
 
-        <View
-          style={[
-            styles.composerDock,
-            {
-              paddingHorizontal: pageHorizontalPadding,
-              paddingBottom: composerBottomPad,
-            },
-          ]}
+        <Modal
+          visible={expandedOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={closeExpanded}
         >
-          {renderComposer(styles.composerDockShell)}
-        </View>
+          <KeyboardAvoidingView
+            style={[
+              styles.expandRoot,
+              // Sit the panel on the keyboard top instead of centering above a gap.
+              keyboardVisible && styles.expandRootKeyboardOpen,
+            ]}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            // Full-screen Modal — a top inset offset leaves a visible gap above the keyboard.
+            keyboardVerticalOffset={0}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss expanded chat"
+              style={styles.expandBackdrop}
+              onPress={closeExpanded}
+            />
+            <View
+              style={[
+                styles.expandPanel,
+                cardShadowStyle,
+                {
+                  width: expandedWidth,
+                  height: expandedHeight,
+                  // Shrink with the avoiding view so the composer stays above the keyboard.
+                  maxHeight: "100%",
+                  flexShrink: 1,
+                  // Keep panel padding; the visible keyboard gap is the sibling spacer below.
+                  paddingBottom: 12,
+                },
+              ]}
+            >
+              <View style={styles.expandHeader}>
+                <Text style={styles.expandTitle}>Wayfinder</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Close expanded chat"
+                  onPress={closeExpanded}
+                  hitSlop={12}
+                >
+                  <Ionicons name="contract-outline" size={22} color="#243459" />
+                </Pressable>
+              </View>
+              <MessageList
+                messages={messages}
+                compact={isPhone}
+                listRef={expandedListRef}
+                style={styles.expandMessageList}
+              />
+              <View
+                style={{
+                  // Safe-area only when keyboard is closed; keyboard gap is the spacer below.
+                  paddingBottom: keyboardVisible ? 0 : insets.bottom,
+                }}
+              >
+                {renderComposer(styles.expandComposer)}
+              </View>
+            </View>
+            {/* Sibling under the panel (inside KAV): real air above the keyboard with flex-end. */}
+            {keyboardVisible ? (
+              <View style={styles.expandKeyboardGap} />
+            ) : null}
+          </KeyboardAvoidingView>
+        </Modal>
 
-        {!keyboardVisible ? <BottomNav activeLabel={null} onNavigate={onNavigate} /> : null}
-      </KeyboardAvoidingView>
+        <BottomNav activeLabel={null} onNavigate={onNavigate} />
+      </View>
     </SafeAreaView>
   );
 }
@@ -1419,6 +1529,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
 
+  chatCardHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
   chatCardTitle: {
     fontSize: 15,
     fontFamily: FONT.bold,
@@ -1431,9 +1547,79 @@ const styles = StyleSheet.create({
     color: "#7B8AA8",
   },
 
+  expandIconButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EEF2FB",
+  },
+
+  compactMessageList: {
+    maxHeight: COMPACT_CHAT_MAX_HEIGHT,
+  },
+
   messageListContent: {
     gap: 10,
     paddingBottom: 8,
+  },
+
+  expandRoot: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  expandRootKeyboardOpen: {
+    justifyContent: "flex-end",
+  },
+
+  // Sits between expand panel bottom and keyboard (sibling of panel inside KAV).
+  expandKeyboardGap: {
+    height: 14,
+    width: "100%",
+  },
+
+  expandBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(15, 23, 42, 0.35)",
+  },
+
+  expandPanel: {
+    zIndex: 2,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: SOFT_OUTLINE,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 12,
+    overflow: "hidden",
+  },
+
+  expandHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+
+  expandTitle: {
+    fontSize: 17,
+    fontFamily: FONT.bold,
+    color: "#14253E",
+  },
+
+  expandMessageList: {
+    flex: 1,
+    minHeight: 120,
+  },
+
+  expandComposer: {
+    marginTop: 10,
+    marginBottom: 0,
   },
 
   messageBubble: {
@@ -1495,17 +1681,6 @@ const styles = StyleSheet.create({
 
   assistantMessageText: {
     color: "#22324E",
-  },
-
-  composerDock: {
-    backgroundColor: "#F9FBFE",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(0, 0, 0, 0.06)",
-  },
-
-  composerDockShell: {
-    marginTop: 10,
-    marginBottom: 4,
   },
 
   composerShell: {
