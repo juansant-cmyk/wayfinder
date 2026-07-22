@@ -380,7 +380,7 @@ function SearchField({
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.fieldValueRow}>
         <View style={styles.fieldIconWrap}>
-          {renderIcon(iconFamily, iconName, COLORS.blue, isPhone ? 17 : 19)}
+          {renderIcon(iconFamily, iconName, COLORS.blue, isPhone ? 14 : 15)}
         </View>
         <View style={styles.fieldTextWrap}>
           <Text style={[styles.fieldPrimaryText, isPhone && styles.fieldPrimaryTextPhone]}>
@@ -409,7 +409,7 @@ function AirportInputField({
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.fieldValueRow}>
         <View style={styles.fieldIconWrap}>
-          {renderIcon(iconFamily, iconName, COLORS.blue, isPhone ? 16 : 18)}
+          {renderIcon(iconFamily, iconName, COLORS.blue, isPhone ? 14 : 15)}
         </View>
         <View style={styles.fieldTextWrap}>
           <TextInput
@@ -454,15 +454,19 @@ function BenefitCard({ item, isPhone, showFourAcross }) {
           item.iconFamily,
           item.icon,
           item.iconColor,
-          showFourAcross ? 18 : isPhone ? 18 : 20
+          showFourAcross ? 14 : isPhone ? 15 : 16
         )}
       </View>
       <View style={styles.benefitCopy}>
-        <Text style={[styles.benefitTitle, showFourAcross && styles.benefitTitleCompact]}>
+        <Text
+          style={[styles.benefitTitle, showFourAcross && styles.benefitTitleCompact]}
+          numberOfLines={1}
+        >
           {item.title}
         </Text>
         <Text
           style={[styles.benefitDescription, showFourAcross && styles.benefitDescriptionCompact]}
+          numberOfLines={2}
         >
           {item.description}
         </Text>
@@ -569,7 +573,7 @@ function FlightCard({ flight, isPhone, onToggleSaved, isSaved, onViewDetails }) 
         >
           <Ionicons
             name={isSaved ? "heart" : "heart-outline"}
-            size={isPhone ? 20 : 22}
+            size={isPhone ? 18 : 19}
             color={isSaved ? "#FF5A4E" : COLORS.text}
           />
         </DimPressable>
@@ -643,24 +647,24 @@ export default function FlightsScreen({
   const isCompactPhone = width < 400;
   const isNarrow = width < 760;
   const showFourBenefits = width >= 700;
-  const pageMaxWidth = width >= 1100 ? 1040 : 980;
-  const pagePaddingHorizontal = isCompactPhone ? 14 : isPhone ? 16 : 18;
+  const pageMaxWidth = width >= 1100 ? 860 : width >= 900 ? 780 : 720;
+  const pagePaddingHorizontal = isCompactPhone ? 12 : isPhone ? 14 : 16;
 
   // Flights hero art is 444×172 — size near natural resolution (avoid soft upscaling).
   const heroAspectRatio = 444 / 172;
   const heroArtworkWidth = isCompactPhone
-    ? Math.min(Math.round(width * 0.46), 168)
+    ? Math.min(Math.round(width * 0.44), 152)
     : isPhone
-      ? Math.min(Math.round(width * 0.44), 196)
+      ? Math.min(Math.round(width * 0.42), 176)
       : width < 900
-        ? Math.min(Math.round(width * 0.36), 280)
-        : Math.min(Math.round(width * 0.3), 340);
-  const heroTitleSize = isCompactPhone ? 30 : isPhone ? 34 : width < 900 ? 40 : 44;
-  const heroSubtitleSize = isCompactPhone ? 13 : isPhone ? 14 : 16;
-  const backButtonSize = isCompactPhone ? 40 : isPhone ? 44 : 48;
-  const headerIconSize = isPhone ? 24 : 26;
-  const profileIconSize = isPhone ? 30 : 32;
-  const trackerBotSize = isPhone ? 42 : 48;
+        ? Math.min(Math.round(width * 0.32), 240)
+        : Math.min(Math.round(width * 0.28), 280);
+  const heroTitleSize = isCompactPhone ? 28 : isPhone ? 32 : width < 900 ? 36 : 40;
+  const heroSubtitleSize = isCompactPhone ? 12 : isPhone ? 13 : 14;
+  const backButtonSize = isCompactPhone ? 38 : isPhone ? 42 : 44;
+  const headerIconSize = isPhone ? 22 : 24;
+  const profileIconSize = isPhone ? 28 : 30;
+  const trackerBotSize = isPhone ? 36 : 40;
   const defaultDestinationPreset = getDefaultDestinationPreset(params.destination);
 
   const [fromQuery, setFromQuery] = useState(DEFAULT_ORIGIN.code);
@@ -753,7 +757,7 @@ export default function FlightsScreen({
             {
               paddingBottom: bottomNavPadding,
               paddingHorizontal: pagePaddingHorizontal,
-              paddingTop: isPhone ? 12 : 16,
+              paddingTop: isPhone ? 10 : 12,
             },
           ]}
           showsVerticalScrollIndicator={false}
@@ -821,7 +825,7 @@ export default function FlightsScreen({
                     {
                       fontSize: heroSubtitleSize,
                       lineHeight: heroSubtitleSize + 8,
-                      marginTop: isPhone ? 6 : 10,
+                      marginTop: isPhone ? 4 : 6,
                     },
                   ]}
                 >
@@ -844,7 +848,7 @@ export default function FlightsScreen({
                 <View style={[styles.searchIconBadge, isPhone && styles.searchIconBadgePhone]}>
                   <MaterialCommunityIcons
                     name="airplane"
-                    size={isPhone ? 20 : 24}
+                    size={isPhone ? 16 : 18}
                     color={COLORS.blueDeep}
                   />
                 </View>
@@ -856,7 +860,7 @@ export default function FlightsScreen({
                     </Text>
                     <Ionicons
                       name="sparkles"
-                      size={isPhone ? 15 : 16}
+                      size={isPhone ? 12 : 13}
                       color="#FFD86B"
                       style={styles.searchSparkles}
                     />
@@ -888,7 +892,7 @@ export default function FlightsScreen({
                     isNarrow ? styles.swapButtonStacked : styles.swapButtonInline,
                   ]}
                 >
-                  <Ionicons name="swap-horizontal" size={isPhone ? 20 : 22} color={COLORS.blue} />
+                  <Ionicons name="swap-horizontal" size={isPhone ? 16 : 18} color={COLORS.blue} />
                 </DimPressable>
 
                 <AirportInputField
@@ -946,7 +950,7 @@ export default function FlightsScreen({
                 </Text>
                 <Ionicons
                   name="sparkles"
-                  size={isPhone ? 15 : 16}
+                  size={isPhone ? 12 : 13}
                   color="#FFFFFF"
                   style={styles.searchButtonSparkles}
                 />
@@ -954,7 +958,7 @@ export default function FlightsScreen({
             </View>
 
             <View style={[styles.feedbackCard, cardShadowStyle]}>
-              <Ionicons name="information-circle-outline" size={18} color={COLORS.blue} />
+              <Ionicons name="information-circle-outline" size={16} color={COLORS.blue} />
               <Text style={styles.feedbackText}>{searchMessage}</Text>
             </View>
 
@@ -982,11 +986,11 @@ export default function FlightsScreen({
                   onPress={() => setIsSortMenuOpen((currentValue) => !currentValue)}
                   style={[styles.sortButton, isPhone && styles.sortButtonPhone]}
                 >
-                  <Ionicons name="funnel-outline" size={17} color={COLORS.blue} />
+                  <Ionicons name="funnel-outline" size={14} color={COLORS.blue} />
                   <Text style={styles.sortButtonText}>Sort by: {selectedSortOption.label}</Text>
                   <Ionicons
                     name={isSortMenuOpen ? "chevron-up" : "chevron-down"}
-                    size={16}
+                    size={14}
                     color={COLORS.blue}
                   />
                 </DimPressable>
@@ -1241,14 +1245,14 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    paddingTop: 16,
-    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingHorizontal: 16,
     alignItems: "center",
   },
 
   page: {
     width: "100%",
-    maxWidth: 1040,
+    maxWidth: 860,
   },
 
   headerRow: {
@@ -1268,51 +1272,51 @@ const styles = StyleSheet.create({
   },
 
   headerActionButton: {
-    width: 44,
-    height: 44,
-    marginLeft: 4,
+    width: 40,
+    height: 40,
+    marginLeft: 2,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
   },
 
   headerActionButtonPhone: {
-    width: 40,
-    height: 40,
-    marginLeft: 2,
+    width: 36,
+    height: 36,
+    marginLeft: 0,
   },
 
   notificationDot: {
     position: "absolute",
-    top: 8,
-    right: 8,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    top: 7,
+    right: 7,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
     backgroundColor: COLORS.orange,
   },
 
   notificationDotPhone: {
-    top: 6,
-    right: 6,
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
+    top: 5,
+    right: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 
   heroSection: {
-    marginTop: 10,
+    marginTop: 8,
     flexDirection: "row",
     flexWrap: "nowrap",
     alignItems: "flex-end",
     justifyContent: "space-between",
-    gap: 8,
+    gap: 6,
     overflow: "visible",
   },
 
   heroSectionPhone: {
-    marginTop: 8,
-    gap: 6,
+    marginTop: 6,
+    gap: 4,
     alignItems: "flex-end",
   },
 
@@ -1321,10 +1325,10 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexShrink: 1,
     minWidth: 0,
-    maxWidth: 410,
-    paddingTop: 4,
-    paddingRight: 8,
-    paddingBottom: 2,
+    maxWidth: 380,
+    paddingTop: 2,
+    paddingRight: 6,
+    paddingBottom: 0,
     zIndex: 2,
   },
 
@@ -1332,35 +1336,35 @@ const styles = StyleSheet.create({
     maxWidth: "56%",
     paddingTop: 0,
     paddingRight: 4,
-    paddingBottom: 2,
+    paddingBottom: 0,
   },
 
   backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.card,
     shadowColor: "#9DB2CF",
-    shadowOpacity: 0.2,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 5,
   },
 
   heading: {
-    fontSize: 44,
-    lineHeight: 48,
+    fontSize: 40,
+    lineHeight: 44,
     fontWeight: "800",
-    letterSpacing: -1.8,
+    letterSpacing: -1.6,
     color: COLORS.text,
   },
 
   subtitle: {
-    marginTop: 10,
-    fontSize: 16,
-    lineHeight: 24,
+    marginTop: 6,
+    fontSize: 14,
+    lineHeight: 20,
     color: COLORS.subtext,
   },
 
@@ -1436,11 +1440,11 @@ const styles = StyleSheet.create({
   },
 
   searchCard: {
-    marginTop: 12,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 14,
-    borderRadius: 26,
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 10,
+    borderRadius: 22,
     backgroundColor: COLORS.blue,
     overflow: "hidden",
   },
@@ -1449,12 +1453,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     right: 0,
-    width: 240,
+    width: 200,
     aspectRatio: SEARCH_DECOR_ART_ASPECT_RATIO,
   },
 
   searchDecorArtworkPhone: {
-    width: 180,
+    width: 150,
   },
 
   searchDecorLarge: {
@@ -1488,29 +1492,29 @@ const styles = StyleSheet.create({
   },
 
   searchIconBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.card,
   },
 
   searchIconBadgePhone: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
   },
 
   searchHeaderCopy: {
     flex: 1,
-    marginLeft: 10,
-    paddingRight: 14,
+    marginLeft: 8,
+    paddingRight: 10,
     minWidth: 0,
   },
 
   searchHeaderCopyPhone: {
-    paddingRight: 6,
+    paddingRight: 4,
   },
 
   searchTitleRow: {
@@ -1520,34 +1524,34 @@ const styles = StyleSheet.create({
   },
 
   searchTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "800",
     color: "#FFFFFF",
-    letterSpacing: -0.6,
+    letterSpacing: -0.4,
   },
 
   searchTitlePhone: {
-    fontSize: 18,
+    fontSize: 15,
   },
 
   searchSparkles: {
-    marginLeft: 5,
+    marginLeft: 4,
   },
 
   searchSubtitle: {
-    marginTop: 3,
-    fontSize: 13,
-    lineHeight: 18,
+    marginTop: 1,
+    fontSize: 11,
+    lineHeight: 15,
     color: "rgba(255, 255, 255, 0.92)",
   },
 
   searchSubtitlePhone: {
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 10,
+    lineHeight: 14,
   },
 
   airportRow: {
-    marginTop: 12,
+    marginTop: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1565,20 +1569,20 @@ const styles = StyleSheet.create({
   },
 
   swapButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: COLORS.card,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: "#D9E8FF",
     zIndex: 2,
     flexShrink: 0,
   },
 
   swapButtonInline: {
-    marginHorizontal: 8,
+    marginHorizontal: 6,
   },
 
   swapButtonStacked: {
@@ -1587,7 +1591,7 @@ const styles = StyleSheet.create({
   },
 
   metaFieldGrid: {
-    marginTop: 10,
+    marginTop: 6,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
@@ -1595,7 +1599,7 @@ const styles = StyleSheet.create({
   },
 
   metaFieldGridPhone: {
-    marginTop: 10,
+    marginTop: 6,
   },
 
   metaField: {
@@ -1605,7 +1609,7 @@ const styles = StyleSheet.create({
 
   metaFieldHalf: {
     width: "48.3%",
-    marginBottom: 10,
+    marginBottom: 6,
     minWidth: 0,
   },
 
@@ -1615,80 +1619,82 @@ const styles = StyleSheet.create({
   },
 
   fieldCard: {
-    minHeight: 68,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 16,
+    minHeight: 52,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
     backgroundColor: COLORS.card,
     justifyContent: "center",
   },
 
   fieldCardPhone: {
-    minHeight: 64,
+    minHeight: 50,
   },
 
   airportInputCard: {
-    minHeight: 72,
+    minHeight: 54,
   },
 
   fieldLabel: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: "600",
     color: COLORS.muted,
   },
 
   fieldValueRow: {
-    marginTop: 4,
+    marginTop: 2,
     flexDirection: "row",
     alignItems: "center",
   },
 
   fieldIconWrap: {
-    width: 20,
+    width: 16,
     alignItems: "center",
     justifyContent: "center",
   },
 
   fieldTextWrap: {
     flex: 1,
-    marginLeft: 6,
+    marginLeft: 5,
     minWidth: 0,
   },
 
   fieldPrimaryText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "700",
     color: COLORS.text,
-    lineHeight: 19,
+    lineHeight: 16,
   },
 
   fieldPrimaryTextPhone: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 11,
+    lineHeight: 15,
   },
 
   airportInput: {
     paddingVertical: 0,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "700",
     color: COLORS.text,
+    lineHeight: 16,
   },
 
   airportInputPhone: {
-    fontSize: 13,
+    fontSize: 11,
   },
 
   fieldSecondaryText: {
-    marginTop: 1,
-    fontSize: 12,
-    lineHeight: 16,
+    marginTop: 0,
+    fontSize: 10,
+    lineHeight: 13,
     color: COLORS.subtext,
   },
 
   searchButton: {
-    marginTop: 12,
-    minHeight: 46,
-    borderRadius: 14,
+    marginTop: 8,
+    minHeight: 36,
+    paddingVertical: 8,
+    borderRadius: 12,
     backgroundColor: COLORS.orange,
     alignItems: "center",
     justifyContent: "center",
@@ -1696,28 +1702,29 @@ const styles = StyleSheet.create({
   },
 
   searchButtonPhone: {
-    minHeight: 44,
+    minHeight: 34,
+    paddingVertical: 7,
   },
 
   searchButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "800",
     color: "#FFFFFF",
   },
 
   searchButtonTextPhone: {
-    fontSize: 15,
+    fontSize: 13,
   },
 
   searchButtonSparkles: {
-    marginLeft: 6,
+    marginLeft: 5,
   },
 
   feedbackCard: {
-    marginTop: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
     backgroundColor: COLORS.card,
     flexDirection: "row",
     alignItems: "center",
@@ -1725,14 +1732,14 @@ const styles = StyleSheet.create({
 
   feedbackText: {
     flex: 1,
-    marginLeft: 8,
-    fontSize: 12,
-    lineHeight: 17,
+    marginLeft: 7,
+    fontSize: 11,
+    lineHeight: 15,
     color: COLORS.subtext,
   },
 
   benefitsGrid: {
-    marginTop: 14,
+    marginTop: 10,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
@@ -1744,11 +1751,11 @@ const styles = StyleSheet.create({
 
   benefitCard: {
     width: "48.7%",
-    minHeight: 78,
-    marginBottom: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    borderRadius: 18,
+    minHeight: 64,
+    marginBottom: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 14,
     backgroundColor: COLORS.card,
     flexDirection: "row",
     alignItems: "flex-start",
@@ -1756,7 +1763,7 @@ const styles = StyleSheet.create({
 
   benefitCardPhone: {
     width: "48.4%",
-    minHeight: 84,
+    minHeight: 68,
   },
 
   benefitCardFourAcross: {
@@ -1764,10 +1771,10 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 1,
     minWidth: 0,
-    minHeight: 72,
+    minHeight: 58,
     marginBottom: 0,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 8,
   },
 
   benefitCardContentCentered: {
@@ -1775,51 +1782,51 @@ const styles = StyleSheet.create({
   },
 
   benefitIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   },
 
   benefitIconWrapCompact: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
   },
 
   benefitCopy: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 6,
     minWidth: 0,
   },
 
   benefitTitle: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "800",
     color: COLORS.text,
   },
 
   benefitTitleCompact: {
-    fontSize: 12,
+    fontSize: 10,
   },
 
   benefitDescription: {
-    marginTop: 3,
-    fontSize: 11,
-    lineHeight: 15,
+    marginTop: 2,
+    fontSize: 9,
+    lineHeight: 12,
     color: COLORS.subtext,
   },
 
   benefitDescriptionCompact: {
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 9,
+    lineHeight: 12,
   },
 
   resultsHeader: {
-    marginTop: 16,
-    marginBottom: 4,
+    marginTop: 12,
+    marginBottom: 2,
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
@@ -1832,20 +1839,20 @@ const styles = StyleSheet.create({
   },
 
   resultsTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "800",
     color: COLORS.text,
-    letterSpacing: -0.6,
+    letterSpacing: -0.5,
   },
 
   resultsSubtitle: {
-    marginTop: 2,
-    fontSize: 13,
+    marginTop: 1,
+    fontSize: 12,
     color: COLORS.subtext,
   },
 
   sortDropdownWrap: {
-    minWidth: 190,
+    minWidth: 170,
     alignItems: "flex-end",
     position: "relative",
     zIndex: 8,
@@ -1854,15 +1861,15 @@ const styles = StyleSheet.create({
   sortDropdownWrapPhone: {
     width: "100%",
     minWidth: 0,
-    marginTop: 8,
+    marginTop: 6,
     alignItems: "stretch",
   },
 
   sortButton: {
-    minHeight: 38,
-    marginLeft: 12,
-    paddingHorizontal: 10,
-    borderRadius: 18,
+    minHeight: 32,
+    marginLeft: 10,
+    paddingHorizontal: 8,
+    borderRadius: 14,
     backgroundColor: COLORS.card,
     flexDirection: "row",
     alignItems: "center",
@@ -1874,19 +1881,19 @@ const styles = StyleSheet.create({
   },
 
   sortButtonText: {
-    marginHorizontal: 6,
-    fontSize: 13,
+    marginHorizontal: 5,
+    fontSize: 12,
     fontWeight: "700",
     color: COLORS.blue,
   },
 
   sortMenu: {
     position: "absolute",
-    top: 44,
+    top: 38,
     right: 0,
-    width: 200,
-    paddingVertical: 6,
-    borderRadius: 16,
+    width: 180,
+    paddingVertical: 4,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: "#FFFFFF",
@@ -1894,15 +1901,15 @@ const styles = StyleSheet.create({
   },
 
   sortMenuPhone: {
-    top: 44,
+    top: 38,
     left: 0,
     right: 0,
     width: "100%",
   },
 
   sortMenuItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1918,7 +1925,7 @@ const styles = StyleSheet.create({
   },
 
   sortMenuItemText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
     color: COLORS.text,
   },
@@ -1928,11 +1935,11 @@ const styles = StyleSheet.create({
   },
 
   flightCard: {
-    marginTop: 10,
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 12,
-    borderRadius: 20,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 10,
+    borderRadius: 16,
     backgroundColor: COLORS.card,
   },
 
@@ -1943,27 +1950,27 @@ const styles = StyleSheet.create({
   },
 
   flightBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
 
   flightBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "800",
   },
 
   favoriteButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FFFFFF",
   },
 
   flightCardMainRow: {
-    marginTop: 8,
+    marginTop: 6,
     flexDirection: "row",
     alignItems: "stretch",
     justifyContent: "space-between",
@@ -1976,7 +1983,7 @@ const styles = StyleSheet.create({
   flightInfoColumn: {
     flex: 1,
     minWidth: 0,
-    paddingRight: 10,
+    paddingRight: 8,
   },
 
   flightInfoColumnPhone: {
@@ -1984,7 +1991,7 @@ const styles = StyleSheet.create({
   },
 
   airlineWrap: {
-    marginBottom: 8,
+    marginBottom: 6,
   },
 
   anaLogoRow: {
@@ -1993,21 +2000,21 @@ const styles = StyleSheet.create({
   },
 
   anaLogoText: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "800",
     color: "#1756D9",
-    letterSpacing: -1,
+    letterSpacing: -0.8,
     fontStyle: "italic",
   },
 
   anaLogoTextPhone: {
-    fontSize: 20,
+    fontSize: 16,
   },
 
   anaLogoWing: {
-    width: 20,
-    height: 8,
-    marginLeft: 5,
+    width: 16,
+    height: 6,
+    marginLeft: 4,
     backgroundColor: "#1756D9",
     transform: [{ skewX: "-28deg" }],
   },
@@ -2018,26 +2025,26 @@ const styles = StyleSheet.create({
   },
 
   airlineWordmark: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "800",
     color: COLORS.text,
   },
 
   airlineWordmarkPhone: {
-    fontSize: 14,
+    fontSize: 12,
   },
 
   airlineSubtitle: {
-    marginTop: 3,
-    fontSize: 12,
+    marginTop: 2,
+    fontSize: 10,
     color: COLORS.subtext,
   },
 
   koreanBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    marginRight: 8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    marginRight: 6,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -2054,17 +2061,17 @@ const styles = StyleSheet.create({
   },
 
   jalBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    marginRight: 6,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#E33935",
   },
 
   jalBadgeText: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: "800",
     color: "#FFFFFF",
   },
@@ -2080,7 +2087,7 @@ const styles = StyleSheet.create({
   },
 
   routeEndpoint: {
-    minWidth: 58,
+    minWidth: 52,
     flexShrink: 0,
   },
 
@@ -2091,49 +2098,49 @@ const styles = StyleSheet.create({
   routeMiddle: {
     flex: 1,
     minWidth: 0,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     alignItems: "center",
   },
 
   routeMiddlePhone: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 4,
   },
 
   routeTimeText: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "800",
-    letterSpacing: -0.8,
+    letterSpacing: -0.6,
     color: "#0A0F16",
   },
 
   routeTimeTextPhone: {
-    fontSize: 16,
+    fontSize: 14,
   },
 
   routeCodeText: {
-    marginTop: 2,
-    fontSize: 13,
+    marginTop: 1,
+    fontSize: 11,
     color: "#314360",
   },
 
   routeDurationText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     color: "#314360",
   },
 
   routeLineRow: {
     width: "100%",
-    marginTop: 5,
-    marginBottom: 4,
+    marginTop: 3,
+    marginBottom: 2,
     flexDirection: "row",
     alignItems: "center",
   },
 
   routeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
     borderWidth: 1.5,
     borderColor: "#7E90B0",
     backgroundColor: "#FFFFFF",
@@ -2141,22 +2148,22 @@ const styles = StyleSheet.create({
 
   routeLine: {
     flex: 1,
-    height: 2,
+    height: 1.5,
     backgroundColor: "#AFC1DD",
   },
 
   routeStopText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: "700",
   },
 
   routeOffsetText: {
     color: "#FF3434",
-    fontSize: 14,
+    fontSize: 12,
   },
 
   flightPriceColumn: {
-    width: 118,
+    width: 102,
     flexShrink: 0,
     alignItems: "flex-end",
     justifyContent: "space-between",
@@ -2164,8 +2171,8 @@ const styles = StyleSheet.create({
 
   flightPriceColumnPhone: {
     width: "100%",
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: 8,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: "#E6EEF9",
     flexDirection: "row",
@@ -2174,29 +2181,29 @@ const styles = StyleSheet.create({
   },
 
   flightPriceValue: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "800",
-    letterSpacing: -0.8,
+    letterSpacing: -0.6,
     color: COLORS.blue,
   },
 
   flightPriceValuePhone: {
-    fontSize: 22,
+    fontSize: 18,
   },
 
   flightPriceCaption: {
-    marginTop: 1,
-    fontSize: 12,
+    marginTop: 0,
+    fontSize: 10,
     color: COLORS.subtext,
   },
 
   detailsButton: {
-    minWidth: 108,
-    marginTop: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14,
-    borderWidth: 2,
+    minWidth: 96,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1.5,
     borderColor: "#C7DBFF",
     alignItems: "center",
     justifyContent: "center",
@@ -2205,20 +2212,20 @@ const styles = StyleSheet.create({
 
   detailsButtonPhone: {
     marginTop: 0,
-    minWidth: 108,
+    minWidth: 96,
   },
 
   detailsButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
     color: COLORS.blue,
   },
 
   trackerBanner: {
-    marginTop: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 18,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
     backgroundColor: "#E9F2FF",
     borderWidth: 1,
     borderColor: "#C8DBFF",
@@ -2228,7 +2235,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 10,
   },
 
   trackerBannerActive: {
@@ -2245,49 +2252,49 @@ const styles = StyleSheet.create({
 
   trackerCopyRowWide: {
     flex: 1,
-    marginRight: 8,
+    marginRight: 6,
   },
 
   trackerBotImage: {
-    width: 48,
-    height: 48,
+    width: 40,
+    height: 40,
     flexShrink: 0,
   },
 
   trackerCopy: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 8,
     minWidth: 0,
   },
 
   trackerTitle: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "800",
     color: COLORS.text,
   },
 
   trackerTitlePhone: {
-    fontSize: 14,
+    fontSize: 12,
   },
 
   trackerDescription: {
-    marginTop: 3,
-    fontSize: 13,
-    lineHeight: 18,
+    marginTop: 2,
+    fontSize: 11,
+    lineHeight: 15,
     color: COLORS.subtext,
   },
 
   trackerDescriptionPhone: {
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 10,
+    lineHeight: 14,
   },
 
   trackButton: {
-    minHeight: 42,
-    marginTop: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    borderWidth: 2,
+    minHeight: 36,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
     borderColor: "#BFD4FF",
     backgroundColor: "#FFFFFF",
     flexDirection: "row",
@@ -2298,12 +2305,12 @@ const styles = StyleSheet.create({
 
   trackButtonWide: {
     marginTop: 0,
-    minWidth: 168,
-    paddingHorizontal: 14,
+    minWidth: 148,
+    paddingHorizontal: 12,
   },
 
   trackButtonPhone: {
-    minHeight: 40,
+    minHeight: 34,
   },
 
   trackButtonActive: {
@@ -2312,8 +2319,8 @@ const styles = StyleSheet.create({
   },
 
   trackButtonText: {
-    marginLeft: 6,
-    fontSize: 13,
+    marginLeft: 5,
+    fontSize: 12,
     fontWeight: "700",
     color: COLORS.blue,
   },
