@@ -1,6 +1,8 @@
 import pytest
 from httpx import AsyncClient
 
+from app.providers.travelrisk import TravelRiskCountryNotFound
+
 pytestmark = pytest.mark.integration
 
 
@@ -40,6 +42,43 @@ async def test_safety_feed_can_dismiss_alerts(client: AsyncClient):
     )
     assert after.status_code == 200
     assert len(after.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_safety_report_survives_missing_travelrisk_country(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+):
+    """When TravelRisk lacks a country, the API still returns a complete report.
+
+    Asserts response shape and risk bounds only — not is_stale, labels, or mock
+    payload details, so minor fallback tweaks do not break this test.
+    """
+    headers = await auth_headers(client, "safetyfallback")
+
+    class MissingCountryProvider:
+        async def country_report(self, country_iso: str):
+            raise TravelRiskCountryNotFound("country not in TravelRisk")
+
+    monkeypatch.setattr(
+        "app.providers.registry.get_travel_risk_provider",
+        lambda: MissingCountryProvider(),
+    )
+
+    response = await client.get(
+        "/safety/report?destination=United%20States",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["coverage"]["country_iso"]
+    assert payload["coverage"]["country_name"]
+    assert payload["location"]["label"]
+    assert 0 <= payload["risk"]["score"] <= 5
+    assert payload["risk"]["level"] in {"low", "moderate", "high", "extreme"}
+    assert isinstance(payload["is_stale"], bool)
+    assert payload["sources"]
+    assert payload["fetched_at"]
 
 
 @pytest.mark.asyncio

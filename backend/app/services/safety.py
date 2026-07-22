@@ -451,8 +451,18 @@ async def safety_report(
             fetched_at = now
             await _sync_travelrisk_alerts(db, provider_report)
             await _save_snapshot(db, provider_report, fetched_at)
-        except TravelRiskCountryNotFound as exc:
-            raise HTTPException(status_code=404, detail="Travel risk country not found") from exc
+        except TravelRiskCountryNotFound:
+            if snapshot is not None:
+                provider_report = _snapshot_report(snapshot)
+                fetched_at = snapshot.fetched_at
+                is_stale = True
+            else:
+                # TravelRiskAPI coverage is incomplete (e.g. USA/KOR missing today).
+                provider_report = await MockTravelRiskProvider().country_report(iso)
+                fetched_at = now
+                is_stale = True
+                await _sync_travelrisk_alerts(db, provider_report)
+                await _save_snapshot(db, provider_report, fetched_at)
         except TravelRiskMissingKey as exc:
             if snapshot is not None:
                 provider_report = _snapshot_report(snapshot)

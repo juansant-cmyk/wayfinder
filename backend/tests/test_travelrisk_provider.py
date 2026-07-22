@@ -103,6 +103,27 @@ async def test_travelrisk_provider_sends_key_and_paginates_alerts():
 
 
 @pytest.mark.asyncio
+async def test_travelrisk_provider_accepts_alpha2_country_code():
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path == "/api/v1/countries/USA":
+            return httpx.Response(200, json=country_payload() | {"iso_code": "USA", "name": "United States"})
+        if request.url.path == "/api/v1/risk-score/USA":
+            return httpx.Response(200, json=score_payload() | {"iso_code": "USA", "name": "United States"})
+        if request.url.path == "/api/v1/alerts":
+            return httpx.Response(200, json={"total": 0, "data": []})
+        return httpx.Response(404)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    provider = TravelRiskApiProvider(api_key="dummy", client=client)
+
+    await provider.country_report("US")
+    await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_travelrisk_missing_key_fails_before_request():
     with pytest.raises(TravelRiskMissingKey):
         await TravelRiskApiProvider(api_key="").country_report("JPN")

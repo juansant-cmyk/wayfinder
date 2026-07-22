@@ -71,6 +71,15 @@ cd backend
 pytest -m integration
 ```
 
+**Smoke** (page-level API checks — subset of integration, one test per screen):
+
+```bash
+cd backend
+pytest -m smoke -v
+```
+
+Login/auth edge cases live in `tests/test_auth.py`. Page smoke tests live in `tests/test_smoke.py`.
+
 Integration tests connect to local Docker Postgres on port **55432** by default (`wayfinder` / `wayfinder`). They ignore `DATABASE_URL` from `.env`. Override with `TEST_DATABASE_URL` if needed (CI uses port 5432).
 
 If you see `InvalidPasswordError: password authentication failed for user "wayfinder"`:

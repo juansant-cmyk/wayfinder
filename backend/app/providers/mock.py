@@ -1,5 +1,7 @@
 from dataclasses import replace
 
+import pycountry
+
 from app.providers.base import (
     ChatCompletion,
     ChatMessage,
@@ -270,16 +272,19 @@ class MockNarratorProvider:
         return user.strip() or "No narration."
 
 
+def _mock_country_name(iso: str) -> str:
+    if len(iso) != 3:
+        return iso
+    country = pycountry.countries.get(alpha_3=iso)
+    if country is None:
+        return iso
+    return getattr(country, "common_name", None) or country.name
+
+
 class MockTravelRiskProvider:
     async def country_report(self, country_iso: str) -> ProviderTravelRiskReport:
         iso = (country_iso or "IDN").upper()
-        country_names = {
-            "IDN": "Indonesia",
-            "JPN": "Japan",
-            "KOR": "South Korea",
-            "PRT": "Portugal",
-        }
-        country_name = country_names.get(iso, iso)
+        country_name = _mock_country_name(iso)
         alert = ProviderSafetyAlert(
             source="travelrisk",
             destination=country_name,

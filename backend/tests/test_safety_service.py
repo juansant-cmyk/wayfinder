@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -30,9 +30,9 @@ def test_safety_severity_uses_app_levels():
 
 
 def test_alert_dedupe_key_uses_requested_destination_and_times():
-    first = alert(starts_at=datetime(2026, 7, 18, tzinfo=timezone.utc))
-    repeated = alert(starts_at=datetime(2026, 7, 18, tzinfo=timezone.utc))
-    later = alert(starts_at=datetime(2026, 7, 19, tzinfo=timezone.utc))
+    first = alert(starts_at=datetime(2026, 7, 18, tzinfo=UTC))
+    repeated = alert(starts_at=datetime(2026, 7, 18, tzinfo=UTC))
+    later = alert(starts_at=datetime(2026, 7, 19, tzinfo=UTC))
 
     assert alert_dedupe_key(first, "Tokyo, Japan") == alert_dedupe_key(
         repeated, "Tokyo, Japan"
@@ -46,7 +46,7 @@ def test_alert_dedupe_key_uses_requested_destination_and_times():
 
 
 def test_provider_alert_id_is_stable_across_city_labels():
-    item = alert(starts_at=datetime(2026, 7, 18, tzinfo=timezone.utc))
+    item = alert(starts_at=datetime(2026, 7, 18, tzinfo=UTC))
     object.__setattr__(item, "provider_alert_id", "gdacs-42")
 
     assert alert_dedupe_key(item, "Tokyo, Japan") == alert_dedupe_key(

@@ -7,6 +7,7 @@ import httpx
 
 from app.core.config import settings
 from app.providers.base import ProviderSafetyAlert, ProviderTravelRiskReport
+from app.services.geocode import normalize_country_codes
 
 TRAVEL_RISK_BASE_URL = "https://travelriskapi.com/api/v1"
 
@@ -182,6 +183,9 @@ class TravelRiskApiProvider:
         if not self.api_key:
             raise TravelRiskMissingKey("TRAVEL_RISK_API_KEY is required")
         iso = str(country_iso or "").strip().upper()
+        _, alpha3 = normalize_country_codes(iso)
+        if alpha3 is not None:
+            iso = alpha3
         if len(iso) != 3:
             raise TravelRiskCountryNotFound("A valid ISO alpha-3 country code is required")
 
